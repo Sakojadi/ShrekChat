@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Вход - ShrekChat</title>
+    <title>Регистрация - ShrekChat</title>
     <link rel="stylesheet" href="styles.css">
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -16,27 +16,33 @@
             </div>
             <div class="welcome-text">
                 <h1>Добро Пожаловать в Shrek Chat!</h1>
-                <p>Войдите, чтобы начать общение в болоте</p>
+                <p>Зарегистрируйтесь, чтобы присоединиться к нашему болоту</p>
             </div>
         </div>
         <div class="right-panel">
             <div class="form-container">
-                <h2>ВХОД</h2>
-                <form id="loginForm">
+                <h2>РЕГИСТРАЦИЯ</h2>
+                <form id="registrationForm">
                     <div class="input-group">
                         <i class="fas fa-user"></i>
-                        <input type="text" id="username" placeholder="ИМЯ ПОЛЬЗОВАТЕЛЯ / E-MAIL" required>
+                        <input type="text" id="username" placeholder="ИМЯ ПОЛЬЗОВАТЕЛЯ" required>
+                    </div>
+                    <div class="input-group">
+                        <i class="fas fa-envelope"></i>
+                        <input type="email" id="email" placeholder="E-MAIL" required>
                     </div>
                     <div class="input-group">
                         <i class="fas fa-lock"></i>
-                        <input type="password" id="password" placeholder="ПАРОЛЬ" required>
+                        <input type="password" id="password" placeholder="СОЗДАЙТЕ ПАРОЛЬ" required>
                     </div>
-                    <div class="forgot-password">
-                        <a href="#">Забыли пароль?</a>
+                    <div class="input-group">
+                        <i class="fas fa-lock"></i>
+                        <input type="password" id="confirmPassword" placeholder="ПОДТВЕРДИТЕ ПАРОЛЬ" required>
                     </div>
-                    <button type="submit" class="btn-submit">Войти</button>
-                    <div class="register-link">
-                        <p>Нет аккаунта? <a href="registration.html">Зарегистрироваться</a></p>
+                    <div class="error-message" id="errorMessage"></div>
+                    <button type="submit" class="btn-submit">Регистрация</button>
+                    <div class="login-link">
+                        <p>Уже есть аккаунт? <a href="login.html">Войти</a></p>
                     </div>
                 </form>
             </div>
@@ -45,5 +51,3 @@
     <script src="validation.js"></script>
 </body>
 </html>
-
-
