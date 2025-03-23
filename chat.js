@@ -199,4 +199,107 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     });
+    
+    // Popup functionality
+    const popups = {
+        editProfile: document.getElementById('editProfilePopup'),
+        addFriends: document.getElementById('addFriendsPopup'),
+        createGroupMembers: document.getElementById('createGroupMembersPopup'),
+        createGroupDetails: document.getElementById('createGroupDetailsPopup'),
+        groupMembers: document.getElementById('groupMembersPopup'),
+        viewProfile: document.getElementById('viewProfilePopup')
+    };
+    
+    // Close buttons for all popups
+    const closeButtons = document.querySelectorAll('.close-popup');
+    closeButtons.forEach(button => {
+        button.addEventListener('click', closeAllPopups);
+    });
+    
+    // Close all popups function
+    function closeAllPopups() {
+        for (const popup in popups) {
+            popups[popup].classList.remove('open');
+        }
+        overlay.classList.remove('active');
+        document.body.style.overflow = '';
+    }
+    
+    // Open popup function
+    function openPopup(popupId) {
+        closeAllPopups();
+        popups[popupId].classList.add('open');
+        overlay.classList.add('active');
+        document.body.style.overflow = 'hidden';
+    }
+    
+    // Close popups when clicking on overlay
+    overlay.addEventListener('click', closeAllPopups);
+    
+    // Menu item click events to open the corresponding popups
+    menuItems.forEach(item => {
+        item.addEventListener('click', function() {
+            const menuText = this.querySelector('span').textContent;
+            
+            switch(menuText) {
+                case 'Мой профиль':
+                    openPopup('editProfile');
+                    break;
+                case 'Добавить друга':
+                    openPopup('addFriends');
+                    break;
+                case 'Новая группа':
+                    openPopup('createGroupMembers');
+                    break;
+                case 'Выйти':
+                    window.location.href = 'login.html';
+                    break;
+            }
+        });
+    });
+    
+    // Navigation between create group popups
+    const goToGroupDetailsBtn = document.getElementById('goToGroupDetails');
+    const backToGroupMembersBtn = document.getElementById('backToGroupMembers');
+    
+    goToGroupDetailsBtn.addEventListener('click', function() {
+        popups.createGroupMembers.classList.remove('open');
+        popups.createGroupDetails.classList.add('open');
+    });
+    
+    backToGroupMembersBtn.addEventListener('click', function() {
+        popups.createGroupDetails.classList.remove('open');
+        popups.createGroupMembers.classList.add('open');
+    });
+    
+    // Handle "Close" buttons in popups
+    const closeActionButtons = document.querySelectorAll('.popup-actions .btn-outline');
+    closeActionButtons.forEach(button => {
+        button.addEventListener('click', closeAllPopups);
+    });
+    
+    // Handle contact click to view profile
+    contacts.forEach(contact => {
+        contact.addEventListener('contextmenu', function(e) {
+            e.preventDefault();
+            
+            // Update the view profile popup with contact info
+            const contactName = this.querySelector('.contact-name').textContent;
+            const contactImg = this.querySelector('.contact-avatar img').src;
+            
+            document.querySelector('#viewProfilePopup .profile-view-avatar img').src = contactImg;
+            document.querySelector('#viewProfilePopup h3').textContent = contactName;
+            
+            // Open the view profile popup
+            openPopup('viewProfile');
+        });
+    });
+    
+    // Handle group member management
+    const groupIcons = document.querySelectorAll('.fa-users');
+    groupIcons.forEach(icon => {
+        icon.addEventListener('click', function() {
+            openPopup('groupMembers');
+        });
+    });
 });

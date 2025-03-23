@@ -249,7 +249,7 @@ body {
     background-color: #f5f5f5;
 }
 
-.search-container input:focus {
+search-container input:focus {
     outline: none;
     border-color: #4CAF50;
 }
@@ -866,4 +866,471 @@ body.dark-theme .menu-item.logout {
         width: 100%;
         left: -100%;
     }
+}
+
+/* Popup Styling */
+.popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    z-index: 1001;
+    width: 90%;
+    max-width: 500px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+    overflow: hidden;
+}
+
+.popup.open {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+    visibility: visible;
+}
+
+.popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.popup-header h2 {
+    font-size: 18px;
+    font-weight: 500;
+    color: #333;
+    margin: 0;
+}
+
+.close-popup {
+    font-size: 18px;
+    color: #777;
+    cursor: pointer;
+}
+
+.popup-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* User Profile Edit Popup */
+.profile-edit-avatar {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 0 auto 20px;
+}
+
+.profile-edit-avatar img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #4CAF50;
+}
+
+.edit-avatar-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+    cursor: pointer;
+}
+
+.edit-avatar-overlay:hover {
+    opacity: 1;
+}
+
+.edit-avatar-overlay i {
+    color: white;
+    font-size: 24px;
+}
+
+.popup-form {
+    margin-top: 20px;
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    color: #555;
+    font-size: 14px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.form-group textarea {
+    min-height: 80px;
+    resize: vertical;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    border-color: #4CAF50;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+/* Add Friends Popup */
+#addFriendsPopup .popup-form {
+    margin-top: 0;
+}
+
+/* Create Group Popups */
+.members-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 15px 0;
+}
+
+.member-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.member-checkbox {
+    margin-right: 15px;
+}
+
+.member-checkbox input[type="checkbox"] {
+    display: none;
+}
+
+.member-checkbox label {
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #4CAF50;
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+}
+
+.member-checkbox input[type="checkbox"]:checked + label:after {
+    content: '\f00c';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #4CAF50;
+    font-size: 12px;
+}
+
+.member-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 15px;
+}
+
+.member-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.member-name {
+    flex: 1;
+    font-weight: 500;
+    color: #333;
+}
+
+.popup-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+/* Group Avatar Upload */
+.group-avatar-upload {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 20px;
+}
+
+.group-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: relative;
+    border: 3px solid #4CAF50;
+}
+
+.group-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Group Members List Popup */
+.group-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.members-count {
+    color: #777;
+    margin-top: 5px;
+    font-size: 14px;
+}
+
+.admin-actions {
+    justify-content: space-between;
+    margin-bottom: 20px;
+}
+
+.group-members-list {
+    margin-top: 15px;
+}
+
+.group-members-list .member-item {
+    padding: 12px 0;
+}
+
+.member-info {
+    flex: 1;
+}
+
+.member-role {
+    font-size: 12px;
+    color: #4CAF50;
+    margin-top: 2px;
+}
+
+.member-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.admin-icon {
+    color: #FFC107;
+    font-size: 16px;
+}
+
+/* User Profile View Popup */
+.profile-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.profile-view-avatar {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 15px;
+    border: 3px solid #4CAF50;
+}
+
+.profile-view-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.profile-view h3 {
+    margin-bottom: 20px;
+    font-size: 20px;
+    color: #333;
+}
+
+.profile-view-info {
+    width: 100%;
+    margin-bottom: 20px;
+}
+
+.info-item {
+    display: flex;
+    padding: 10px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.info-label {
+    font-weight: 500;
+    color: #555;
+    width: 100px;
+}
+
+.info-value {
+    flex: 1;
+    color: #333;
+}
+
+/* Button Styles */
+.btn-green {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-green:hover {
+    background-color: #45a049;
+}
+
+.btn-green.btn-outline {
+    background-color: transparent;
+    border: 1px solid #4CAF50;
+    color: #4CAF50;
+}
+
+.btn-green.btn-outline:hover {
+    background-color: rgba(76, 175, 80, 0.1);
+}
+
+.btn-red {
+    background-color: #f44336;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.btn-red:hover {
+    background-color: #d32f2f;
+}
+
+.btn-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: #555;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+}
+
+.btn-icon:hover {
+    background-color: #f5f5f5;
+}
+
+.btn-icon i {
+    font-size: 16px;
+}
+
+.btn-green.btn-icon {
+    background-color: transparent;
+    color: #4CAF50;
+}
+
+.btn-red.btn-icon {
+    background-color: transparent;
+    color: #f44336;
+}
+
+.btn-green.btn-icon i,
+.btn-red.btn-icon i {
+    margin-right: 5px;
+}
+
+/* Dark Theme for Popups */
+body.dark-theme .popup {
+    background-color: #1f1f1f;
+}
+
+body.dark-theme .popup-header {
+    border-bottom: 1px solid #333;
+}
+
+body.dark-theme .popup-header h2 {
+    color: #f5f5f5;
+}
+
+body.dark-theme .close-popup {
+    color: #aaa;
+}
+
+body.dark-theme .form-group label {
+    color: #ccc;
+}
+
+body.dark-theme .form-group input,
+body.dark-theme .form-group select,
+body.dark-theme .form-group textarea {
+    background-color: #333;
+    border-color: #444;
+    color: #f5f5f5;
+}
+
+body.dark-theme .member-item {
+    border-bottom: 1px solid #333;
+}
+
+body.dark-theme .member-name {
+    color: #f5f5f5;
+}
+
+body.dark-theme .info-item {
+    border-bottom: 1px solid #333;
+}
+
+body.dark-theme .info-label {
+    color: #ccc;
+}
+
+body.dark-theme .info-value {
+    color: #f5f5f5;
+}
+
+body.dark-theme .profile-view h3 {
+    color: #f5f5f5;
+}
+
+body.dark-theme .btn-icon:hover {
+    background-color: #2a2a2a;
 }

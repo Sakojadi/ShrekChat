@@ -60,8 +60,258 @@
         </div>
     </div>
     
-    <!-- Overlay for when sidebar is active -->
+    <!-- Overlay for when sidebar or popup is active -->
     <div class="overlay" id="overlay"></div>
+    
+    <!-- User Profile Edit Popup -->
+    <div class="popup" id="editProfilePopup">
+        <div class="popup-header">
+            <h2>Редактирование профиля</h2>
+            <i class="fas fa-times close-popup"></i>
+        </div>
+        <div class="popup-content">
+            <div class="profile-edit-avatar">
+                <img src="images/shrek-logo.png" alt="Your Profile">
+                <div class="edit-avatar-overlay">
+                    <i class="fas fa-camera"></i>
+                </div>
+            </div>
+            <div class="popup-form">
+                <div class="form-group">
+                    <label>Имя</label>
+                    <input type="text" value="Shrek" placeholder="Ваше имя">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" value="shrek@swamp.com" placeholder="Ваш email">
+                </div>
+                <div class="form-group">
+                    <label>Телефон</label>
+                    <input type="tel" value="+7 (123) 456-7890" placeholder="Ваш телефон">
+                </div>
+                <div class="form-group">
+                    <label>Страна</label>
+                    <select>
+                        <option value="swamp">Болото</option>
+                        <option value="faraway">Далеко-далеко</option>
+                        <option value="duloc">Дюлок</option>
+                    </select>
+                </div>
+                <button class="btn-green">Сохранить изменения</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Add Friends Popup -->
+    <div class="popup" id="addFriendsPopup">
+        <div class="popup-header">
+            <h2>Добавить друга</h2>
+            <i class="fas fa-times close-popup"></i>
+        </div>
+        <div class="popup-content">
+            <div class="popup-form">
+                <div class="form-group">
+                    <label>Имя пользователя или email</label>
+                    <input type="text" placeholder="Введите имя пользователя или email">
+                </div>
+                <button class="btn-green">Добавить в друзья</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Group - Member Selection Popup -->
+    <div class="popup" id="createGroupMembersPopup">
+        <div class="popup-header">
+            <h2>Создать группу</h2>
+            <i class="fas fa-times close-popup"></i>
+        </div>
+        <div class="popup-content">
+            <h3>Выберите участников</h3>
+            <div class="members-list">
+                <div class="member-item">
+                    <div class="member-checkbox">
+                        <input type="checkbox" id="member1">
+                        <label for="member1"></label>
+                    </div>
+                    <div class="member-avatar">
+                        <img src="images/donkey.jpg" alt="Donkey">
+                    </div>
+                    <div class="member-name">Donkey</div>
+                </div>
+                <div class="member-item">
+                    <div class="member-checkbox">
+                        <input type="checkbox" id="member2">
+                        <label for="member2"></label>
+                    </div>
+                    <div class="member-avatar">
+                        <img src="images/fiona.jpg" alt="Fiona">
+                    </div>
+                    <div class="member-name">Princess Fiona</div>
+                </div>
+                <div class="member-item">
+                    <div class="member-checkbox">
+                        <input type="checkbox" id="member3">
+                        <label for="member3"></label>
+                    </div>
+                    <div class="member-avatar">
+                        <img src="images/puss.jpg" alt="Puss in Boots">
+                    </div>
+                    <div class="member-name">Puss in Boots</div>
+                </div>
+                <div class="member-item">
+                    <div class="member-checkbox">
+                        <input type="checkbox" id="member4">
+                        <label for="member4"></label>
+                    </div>
+                    <div class="member-avatar">
+                        <img src="images/gingerbread.jpg" alt="Gingy">
+                    </div>
+                    <div class="member-name">Gingy</div>
+                </div>
+            </div>
+            <div class="popup-actions">
+                <button class="btn-green btn-outline">Отмена</button>
+                <button class="btn-green" id="goToGroupDetails">Далее</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Group - Group Details Popup -->
+    <div class="popup" id="createGroupDetailsPopup">
+        <div class="popup-header">
+            <h2>Создать группу</h2>
+            <i class="fas fa-times close-popup"></i>
+        </div>
+        <div class="popup-content">
+            <div class="group-avatar-upload">
+                <div class="group-avatar">
+                    <img src="images/group-default.jpg" alt="Group Avatar">
+                    <div class="edit-avatar-overlay">
+                        <i class="fas fa-camera"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="popup-form">
+                <div class="form-group">
+                    <label>Название группы</label>
+                    <input type="text" placeholder="Введите название группы">
+                </div>
+                <div class="form-group">
+                    <label>Описание группы</label>
+                    <textarea placeholder="Введите описание группы"></textarea>
+                </div>
+                <div class="popup-actions">
+                    <button class="btn-green btn-outline" id="backToGroupMembers">Назад</button>
+                    <button class="btn-green">Создать</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Group Members List Popup -->
+    <div class="popup" id="groupMembersPopup">
+        <div class="popup-header">
+            <h2>Болотная банда</h2>
+            <i class="fas fa-times close-popup"></i>
+        </div>
+        <div class="popup-content">
+            <div class="group-info">
+                <div class="group-avatar">
+                    <img src="images/group-default.jpg" alt="Group Avatar">
+                </div>
+                <div class="members-count">4 участника</div>
+            </div>
+            <div class="popup-actions admin-actions">
+                <button class="btn-green btn-icon"><i class="fas fa-user-plus"></i> Добавить участников</button>
+                <button class="btn-red btn-icon"><i class="fas fa-trash"></i> Удалить группу</button>
+            </div>
+            <h3>Участники</h3>
+            <div class="group-members-list">
+                <div class="member-item">
+                    <div class="member-avatar">
+                        <img src="images/shrek-logo.png" alt="Shrek">
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">Shrek</div>
+                        <div class="member-role">Администратор</div>
+                    </div>
+                    <div class="member-actions">
+                        <i class="fas fa-crown admin-icon"></i>
+                    </div>
+                </div>
+                <div class="member-item">
+                    <div class="member-avatar">
+                        <img src="images/donkey.jpg" alt="Donkey">
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">Donkey</div>
+                    </div>
+                    <div class="member-actions">
+                        <button class="btn-icon"><i class="fas fa-crown"></i></button>
+                        <button class="btn-icon"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="member-item">
+                    <div class="member-avatar">
+                        <img src="images/fiona.jpg" alt="Fiona">
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">Princess Fiona</div>
+                    </div>
+                    <div class="member-actions">
+                        <button class="btn-icon"><i class="fas fa-crown"></i></button>
+                        <button class="btn-icon"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="member-item">
+                    <div class="member-avatar">
+                        <img src="images/puss.jpg" alt="Puss in Boots">
+                    </div>
+                    <div class="member-info">
+                        <div class="member-name">Puss in Boots</div>
+                    </div>
+                    <div class="member-actions">
+                        <button class="btn-icon"><i class="fas fa-crown"></i></button>
+                        <button class="btn-icon"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Profile View Popup -->
+    <div class="popup" id="viewProfilePopup">
+        <div class="popup-header">
+            <h2>Профиль пользователя</h2>
+            <i class="fas fa-times close-popup"></i>
+        </div>
+        <div class="popup-content">
+            <div class="profile-view">
+                <div class="profile-view-avatar">
+                    <img src="images/donkey.jpg" alt="Donkey">
+                </div>
+                <h3>Donkey</h3>
+                <div class="profile-view-info">
+                    <div class="info-item">
+                        <span class="info-label">Email:</span>
+                        <span class="info-value">donkey@swamp.com</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Телефон:</span>
+                        <span class="info-value">+7 (123) 456-7891</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Страна:</span>
+                        <span class="info-value">Болото</span>
+                    </div>
+                </div>
+                <div class="popup-actions">
+                    <button class="btn-green btn-outline">Закрыть</button>
+                    <button class="btn-green">Написать сообщение</button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <div class="chat-container">
         <!-- Sidebar with contacts -->
