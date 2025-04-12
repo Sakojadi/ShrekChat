@@ -1,9 +1,26 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Check if user is logged in
+    const token = localStorage.getItem('token');
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    
+    if (!token || !user.username) {
+        // Redirect to login if not authenticated
+        window.location.href = 'auth/login.html';
+        return;
+    }
+    
+    // API URL
+    const API_URL = 'http://localhost:8000/api';
+    
     // Variables
     const sendButton = document.querySelector('.send-button');
     const messageInput = document.querySelector('.input-area input');
     const messagesContainer = document.querySelector('.messages-container');
     const contacts = document.querySelectorAll('.contact');
+    let currentContact = null;
+    
+    // Set the current user's name in the profile
+    document.querySelector('.profile-name').textContent = user.username;
     
     // Profile sidebar functionality
     const profileButton = document.getElementById('profileButton');
@@ -52,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
         item.addEventListener('click', function() {
             if (this.querySelector('span').textContent === 'Выйти') {
                 // Log out functionality - redirects to login page
-                window.location.href = 'login.html';
+                window.location.href = 'auth/login.html';
             }
         });
     });
@@ -79,16 +96,82 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Fetch contacts from the server
+    async function fetchContacts() {
+        try {
+            const response = await fetch(`${API_URL}/chat/contacts`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch contacts');
+            }
+            
+            const data = await response.json();
+            
+            // Update contacts list here if needed
+            console.log('Contacts:', data.contacts);
+        } catch (error) {
+            console.error('Error fetching contacts:', error);
+        }
+    }
+    
+    // Fetch messages for a specific contact
+    async function fetchMessages(contact) {
+        try {
+            const response = await fetch(`${API_URL}/chat/messages/${contact}`, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch messages');
+            }
+            
+            const data = await response.json();
+            
+            // Clear existing messages
+            messagesContainer.innerHTML = '<div class="message-date">Today</div>';
+            
+            // Display fetched messages
+            data.messages.forEach(msg => {
+                const isReceived = msg.sender !== user.username;
+                const messageHTML = `
+                    <div class="message ${isReceived ? 'received' : 'sent'}">
+                        <div class="message-content">
+                            <p>${msg.content}</p>
+                            <span class="message-time">${formatMessageTime(msg.timestamp)}</span>
+                        </div>
+                    </div>
+                `;
+                messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
+            });
+            
+            // Scroll to bottom
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        } catch (error) {
+            console.error('Error fetching messages:', error);
+        }
+    }
+    
+    // Helper function to format message time
+    function formatMessageTime(timestamp) {
+        const date = new Date(timestamp);
+        return `${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
+    }
+    
     // Send message function
-    function sendMessage() {
+    async function sendMessage() {
         const messageText = messageInput.value.trim();
         
-        if (messageText) {
+        if (messageText && currentContact) {
             // Create timestamp
             const now = new Date();
-            const hours = now.getHours().toString().padStart(2, '0');
-            const minutes = now.getMinutes().toString().padStart(2, '0');
-            const timeString = `${hours}:${minutes}`;
+            const timestamp = now.toISOString();
+            const timeString = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
             
             // Create message HTML
             const messageHTML = `
@@ -100,7 +183,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 </div>
             `;
             
-            // Add message to container
+            // Add message to container immediately for better UX
             messagesContainer.insertAdjacentHTML('beforeend', messageHTML);
             
             // Clear input
@@ -109,8 +192,33 @@ document.addEventListener('DOMContentLoaded', function() {
             // Scroll to bottom
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             
-            // Simulate reply after 1-3 seconds (for demo purposes)
-            setTimeout(simulateReply, 1000 + Math.random() * 2000);
+            // Send message to backend
+            try {
+                const response = await fetch(`${API_URL}/chat/send`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        sender: user.username,
+                        receiver: currentContact,
+                        content: messageText,
+                        timestamp: timestamp
+                    })
+                });
+                
+                if (!response.ok) {
+                    console.error('Failed to send message:', await response.json());
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+            }
+            
+            // For demo purposes, simulate a reply
+            if (document.querySelector('.contact.active .contact-name').textContent === 'Donkey') {
+                setTimeout(simulateReply, 1000 + Math.random() * 2000);
+            }
         }
     }
     
@@ -189,8 +297,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.querySelector('.chat-header .contact-status').textContent = 'Offline';
             }
             
-            // Clear existing messages (in a real app, you'd load the conversation history)
-            messagesContainer.innerHTML = '<div class="message-date">Today</div>';
+            // Set current contact for sending messages
+            currentContact = this.querySelector('.contact-name').textContent;
+            
+            // Fetch messages for this contact
+            fetchMessages(currentContact);
             
             // Remove unread count badge if exists
             const unreadBadge = this.querySelector('.unread-count');
@@ -198,6 +309,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 unreadBadge.remove();
             }
         });
+    });
+    
+    // Set initial active contact
+    if (contacts.length > 0) {
+        currentContact = document.querySelector('.contact.active .contact-name').textContent;
+        // Load initial messages
+        fetchMessages(currentContact);
+    }
+    
+    // Initial load
+    fetchContacts();
+    
+    // Logout functionality
+    const logoutButton = document.querySelector('.menu-item.logout');
+    logoutButton.addEventListener('click', function() {
+        // Clear auth data from localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Redirect to login page
+        window.location.href = 'auth/login.html';
     });
     
     // Popup functionality
@@ -252,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     openPopup('createGroupMembers');
                     break;
                 case 'Выйти':
-                    window.location.href = 'login.html';
+                    window.location.href = 'auth/login.html';
                     break;
             }
         });
