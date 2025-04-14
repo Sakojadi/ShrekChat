@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import auth_routes, chat_routes
+from routes.auth import auth_routes
+from routes.chat import chat_routes
+from routes.users import users_routes
+
 
 app = FastAPI(title="ShrekChat")
 
@@ -16,6 +19,8 @@ app.add_middleware(
 # Include routes
 app.include_router(auth_routes, prefix="/api/auth")
 app.include_router(chat_routes, prefix="/api/chat")
+app.include_router(users_routes, prefix="/api/users")
+
 
 @app.get("/")
 def home():
