@@ -26,6 +26,7 @@ def create_tables():
                 phone TEXT,
                 status TEXT DEFAULT 'Online',
                 profile_picture TEXT,
+                country TEXT DEFAULT 'swamp',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)

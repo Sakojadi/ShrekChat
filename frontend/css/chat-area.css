@@ -1,0 +1,243 @@
+/* Styles for the main chat area */
+
+.chat-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: linear-gradient(rgba(0, 0, 0, 0.5), rgba(0, 0, 0, 0.5)), 
+                url('../images/forest-background.jpg');
+    background-size: cover;
+    background-position: center;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background-color: white;
+    border-bottom: 1px solid #e5e5e5;
+}
+
+.chat-contact-info {
+    display: flex;
+    align-items: center;
+}
+
+.chat-contact-info .contact-avatar {
+    margin-right: 15px;
+}
+
+.contact-status {
+    font-size: 12px;
+    color: #4CAF50;
+}
+
+.chat-actions {
+    display: flex;
+    gap: 20px;
+}
+
+.chat-actions i {
+    font-size: 18px;
+    color: #555;
+    cursor: pointer;
+}
+
+.messages-container {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+}
+
+.message-date {
+    align-self: center;
+    background-color: rgba(255, 255, 255, 0.7);
+    color: #555;
+    border-radius: 16px;
+    padding: 5px 15px;
+    margin: 15px 0;
+    font-size: 12px;
+}
+
+.message {
+    max-width: 65%;
+    margin-bottom: 15px;
+    display: flex;
+}
+
+.message.received {
+    align-self: flex-start;
+}
+
+.message.sent {
+    align-self: flex-end;
+}
+
+.message-content {
+    border-radius: 18px;
+    padding: 10px 15px;
+    position: relative;
+}
+
+.message.received .message-content {
+    background-color: white;
+    color: #333;
+    border-bottom-left-radius: 5px;
+}
+
+.message.sent .message-content {
+    background-color: #4CAF50;
+    color: white;
+    border-bottom-right-radius: 5px;
+}
+
+.message-content p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+.message-time {
+    font-size: 11px;
+    opacity: 0.7;
+    display: block;
+    text-align: right;
+    margin-top: 5px;
+}
+
+.input-area {
+    padding: 15px;
+    background-color: white;
+    display: flex;
+    align-items: center;
+}
+
+.input-area i {
+    font-size: 18px;
+    color: #777;
+    margin-right: 15px;
+    cursor: pointer;
+}
+
+.input-area input {
+    flex: 1;
+    border: none;
+    padding: 10px;
+    border-radius: 20px;
+    background-color: #f5f5f5;
+    font-size: 14px;
+}
+
+.input-area input:focus {
+    outline: none;
+}
+
+.send-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background-color: #4CAF50;
+    border: none;
+    color: white;
+    margin-left: 10px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.send-button:hover {
+    background-color: #45a049;
+}
+
+/* Wave Message Styling */
+.wave-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    text-align: center;
+    padding: 20px;
+}
+
+.wave-message {
+    font-size: 16px;
+    color: #777;
+    margin-bottom: 15px;
+}
+
+.wave-button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 10px 20px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.wave-button:hover {
+    background-color: #45a049;
+}
+
+.wave-button i {
+    margin-right: 8px;
+}
+
+/* Dropdown Menu Styling */
+.dropdown {
+    position: relative;
+    display: inline-block;
+}
+
+.dropdown-toggle {
+    cursor: pointer;
+}
+
+.dropdown-menu {
+    position: absolute;
+    right: 0;
+    background-color: white;
+    min-width: 200px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+    display: none;
+    z-index: 100;
+}
+
+.dropdown-menu.show {
+    display: block;
+}
+
+.dropdown-item {
+    padding: 12px 15px;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.dropdown-item:hover {
+    background-color: #f5f5f5;
+}
+
+.dropdown-item i {
+    margin-right: 10px;
+    font-size: 16px;
+    color: #555;
+}
+
+.dropdown-item span {
+    color: #333;
+}
+
+.dropdown-item.delete i {
+    color: #f44336;
+}
