@@ -3,6 +3,9 @@
 /* Import Base & Reset Styles */
 @import 'css/base.css';
 
+/* Import login and registration styles */
+@import 'css/auth.css';
+
 /* Import Layout Styles */
 @import 'css/layout.css';
 
