@@ -11,7 +11,7 @@ venv/
 .env/
 .env.bak/
 .venv/
-
+/app/routers.__pycache__/
 # IDEs
 .vscode/
 .idea/
