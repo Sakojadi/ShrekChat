@@ -7,6 +7,7 @@ import jwt
 import sqlite3
 import hashlib
 import os
+from config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 
 # Initialize router
 auth_routes = APIRouter()
@@ -65,11 +66,6 @@ except AttributeError:
             return f"sha256${salt}${hash_value}"
     
     pwd_context = FallbackPasswordHasher()
-
-# JWT settings
-SECRET_KEY = "your-secret-key-for-jwt"  # In production, use an environment variable
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 

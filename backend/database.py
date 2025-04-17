@@ -45,6 +45,18 @@ def create_tables():
             )
         """)
         
+        # Create contacts table - new table for storing user contacts
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS contacts (
+                user_id INTEGER NOT NULL,
+                contact_id INTEGER NOT NULL,
+                added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (user_id, contact_id),
+                FOREIGN KEY (user_id) REFERENCES users (id),
+                FOREIGN KEY (contact_id) REFERENCES users (id)
+            )
+        """)
+        
         # Create groups table
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS groups (

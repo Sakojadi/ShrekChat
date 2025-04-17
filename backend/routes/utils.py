@@ -2,11 +2,9 @@ from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from database import get_db
 import jwt
+from config import SECRET_KEY, ALGORITHM
 
-# JWT settings - keep them in sync with auth.py
-SECRET_KEY = "your-secret-key-for-jwt"
-ALGORITHM = "HS256"
-
+# Use configuration from central config
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):

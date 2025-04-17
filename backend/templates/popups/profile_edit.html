@@ -1,0 +1,41 @@
+<!-- Profile Edit Popup -->
+<div class="popup" id="profileEditPopup">
+    <div class="popup-content">
+        <div class="popup-header">
+            <h3>Edit Profile</h3>
+            <span class="close-popup">&times;</span>
+        </div>
+        <div class="popup-body">
+            <form id="profileEditForm">
+                <div class="form-group">
+                    <label for="profileUsername">Username</label>
+                    <input type="text" id="profileUsername" name="username" readonly>
+                </div>
+                <div class="form-group">
+                    <label for="profileEmail">Email</label>
+                    <input type="email" id="profileEmail" name="email">
+                </div>
+                <div class="form-group">
+                    <label for="profileStatus">Status</label>
+                    <select id="profileStatus" name="status">
+                        <option value="Online">Online</option>
+                        <option value="Away">Away</option>
+                        <option value="Busy">Busy</option>
+                        <option value="Offline">Offline</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="profileCountry">Country</label>
+                    <input type="text" id="profileCountry" name="country">
+                </div>
+                <div class="form-group">
+                    <label for="profilePic">Profile Picture</label>
+                    <input type="file" id="profilePic" name="profile_picture" accept="image/*">
+                </div>
+                <div class="form-footer">
+                    <button type="submit" class="btn primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

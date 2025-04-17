@@ -1,0 +1,588 @@
+{% extends "base.html" %}
+
+{% block title %}ShrekChat{% endblock %}
+
+{% block head_content %}
+<link rel="stylesheet" href="/static/css/layout.css">
+<link rel="stylesheet" href="/static/css/sidebar.css">
+<link rel="stylesheet" href="/static/css/chat-area.css">
+<link rel="stylesheet" href="/static/css/profile-sidebar.css">
+<link rel="stylesheet" href="/static/css/popups.css">
+<link rel="stylesheet" href="/static/css/responsive.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="app-container">
+    <!-- Left Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <button id="profileButton" class="profile-btn">
+                <div class="profile-picture">
+                    <img src="/static/images/shrek.jpg" alt="User Avatar">
+                    <span class="status-indicator online"></span>
+                </div>
+                <div class="profile-name">{{ username }}</div>
+            </button>
+        </div>
+        
+        <div class="search-container">
+            <div class="search-input-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Поиск...">
+            </div>
+        </div>
+        
+        <div id="contactsList" class="contacts-list">
+            {% for contact in contacts %}
+            <div class="contact-item" data-contact-id="{{ contact.id }}">
+                <div class="contact-avatar">
+                    <img src="{{ contact.avatar }}" alt="{{ contact.name }} Avatar">
+                    <span class="status-indicator {{ contact.status }}"></span>
+                </div>
+                <div class="contact-info">
+                    <div class="contact-name-time">
+                        <h4>{{ contact.name }}</h4>
+                        <span class="message-time">{{ contact.last_message_time }}</span>
+                    </div>
+                    <p class="last-message">{{ contact.last_message }}</p>
+                </div>
+                {% if contact.unread_count > 0 %}
+                <div class="unread-count">{{ contact.unread_count }}</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Main Chat Area -->
+    <div class="chat-area">
+        <!-- Welcome message when no chat is selected -->
+        <div id="welcomeContainer" class="welcome-container">
+            <img src="/static/images/shrek-logo.png" alt="ShrekChat Logo">
+            <h2>Welcome to ShrekChat</h2>
+            <p>Select a contact to start chatting</p>
+        </div>
+        
+        <!-- Active chat content -->
+        <div id="chatContent" class="chat-content" style="display: none;">
+            <!-- Chat Header -->
+            <div id="chatHeader" class="chat-header">
+                <button class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                
+                <div class="chat-contact-info">
+                    <div class="chat-contact-avatar">
+                        <img id="chatContactAvatar" src="/static/images/shrek.jpg" alt="Contact Avatar">
+                        <span class="status-indicator online"></span>
+                    </div>
+                    <div class="chat-contact-details">
+                        <h3 id="chatContactName">Contact Name</h3>
+                        <p id="chatContactPresence">Online</p>
+                    </div>
+                </div>
+                
+                <div class="chat-actions">
+                    <div class="dropdown">
+                        <button class="dropdown-toggle">
+                            <i class="fas fa-ellipsis-v"></i>
+                        </button>
+                        <div class="dropdown-menu">
+                            <div id="viewContactInfo" class="dropdown-item">
+                                <i class="fas fa-info-circle"></i>
+                                <span>Contact info</span>
+                            </div>
+                            <div class="dropdown-item">
+                                <i class="fas fa-search"></i>
+                                <span>Search</span>
+                            </div>
+                            <div class="dropdown-item">
+                                <i class="fas fa-bell-slash"></i>
+                                <span>Mute notifications</span>
+                            </div>
+                            <div class="dropdown-item">
+                                <i class="fas fa-trash"></i>
+                                <span>Clear chat</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Chat Messages -->
+            <div id="chatMessages" class="chat-messages">
+                <!-- Messages will be dynamically added here -->
+            </div>
+            
+            <!-- Message Input Area -->
+            <div class="message-input-container">
+                <button class="attachment-btn">
+                    <i class="fas fa-paperclip"></i>
+                </button>
+                
+                <div class="message-input">
+                    <input type="text" id="messageInput" placeholder="Type a message...">
+                </div>
+                
+                <button class="emoji-btn">
+                    <i class="far fa-smile"></i>
+                </button>
+                
+                <button id="sendMessageBtn" class="send-btn">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Contact Info Sidebar -->
+    <div id="contactInfoSidebar" class="profile-sidebar right-sidebar">
+        <div class="profile-header">
+            <button class="close-profile-btn">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Contact Info</h3>
+        </div>
+        
+        <div class="profile-content">
+            <div class="profile-avatar-large">
+                <img id="profileContactAvatar" src="/static/images/shrek.jpg" alt="Contact Avatar">
+                <span id="profileContactStatus" class="status-text">Online</span>
+            </div>
+            
+            <h2 id="profileContactName">Contact Name</h2>
+            
+            <div class="profile-info-section">
+                <h4>About</h4>
+                <p class="profile-about">Hey there! I'm using ShrekChat.</p>
+            </div>
+            
+            <div class="profile-actions">
+                <button class="profile-action-btn">
+                    <i class="fas fa-search"></i>
+                    <span>Search in conversation</span>
+                </button>
+                <button class="profile-action-btn">
+                    <i class="fas fa-bell-slash"></i>
+                    <span>Mute notifications</span>
+                </button>
+                <button class="profile-action-btn">
+                    <i class="fas fa-trash"></i>
+                    <span>Clear chat</span>
+                </button>
+                <button class="profile-action-btn danger">
+                    <i class="fas fa-ban"></i>
+                    <span>Block contact</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- User Profile Sidebar -->
+    <div id="profileSidebar" class="profile-sidebar left-sidebar">
+        <div class="profile-header">
+            <button id="closeProfileSidebar">
+                <i class="fas fa-arrow-left"></i>
+            </button>
+            <h3>Профиль</h3>
+        </div>
+        
+        <div class="profile-content">
+            <div class="profile-avatar-large">
+                <img src="/static/images/shrek.jpg" alt="User Avatar">
+                <div class="edit-avatar-overlay">
+                    <i class="fas fa-camera"></i>
+                </div>
+            </div>
+            
+            <div class="profile-info">
+                <div class="profile-name-container">
+                    <h2>{{ username }}</h2>
+                    <button class="edit-icon">
+                        <i class="fas fa-pencil-alt"></i>
+                    </button>
+                </div>
+                
+                <p class="profile-status">Hey there! I'm using ShrekChat.</p>
+            </div>
+            
+            <div class="profile-menu">
+                <div id="editProfileMenuItem" class="profile-menu-item">
+                    <i class="fas fa-user"></i>
+                    <span>Мой профиль</span>
+                </div>
+                <div id="createGroupMenuItem" class="profile-menu-item">
+                    <i class="fas fa-users"></i>
+                    <span>Новая группа</span>
+                </div>
+                <div id="addContactMenuItem" class="profile-menu-item">
+                    <i class="fas fa-user-plus"></i>
+                    <span>Добавить друга</span>
+                </div>
+                <div class="profile-menu-item">
+                    <i class="fas fa-moon"></i>
+                    <span>Тема</span>
+                    <label class="switch">
+                        <input type="checkbox" id="themeToggle">
+                        <span class="slider round"></span>
+                    </label>
+                </div>
+                <div class="profile-menu-item">
+                    <i class="fas fa-user-friends"></i>
+                    <span>Пригласить друзей</span>
+                </div>
+                <div class="profile-menu-item">
+                    <i class="fas fa-question-circle"></i>
+                    <span>Помощь</span>
+                </div>
+                <div class="profile-menu-item danger" id="logoutMenuItem">
+                    <i class="fas fa-sign-out-alt"></i>
+                    <span>Выйти</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Overlay for popups -->
+    <div id="overlay" class="overlay"></div>
+    
+    <!-- Contact Info Popup -->
+    <div id="contactInfoPopup" class="popup">
+        <div class="popup-header">
+            <button id="closeContactInfoPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Contact Info</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="contact-info-avatar">
+                <img id="contactInfoAvatar" src="/static/images/shrek.jpg" alt="Contact Avatar">
+            </div>
+            
+            <div class="contact-info-details">
+                <h2 id="contactInfoName">Contact Name</h2>
+                <p id="contactInfoStatus" class="status-text">Online</p>
+                
+                <div class="info-section">
+                    <span class="info-label">Username</span>
+                    <span id="contactInfoUsername" class="info-value">username</span>
+                </div>
+                
+                <div class="info-section">
+                    <span class="info-label">Email</span>
+                    <span id="contactInfoEmail" class="info-value">contact@example.com</span>
+                </div>
+            </div>
+            
+            <div class="popup-actions">
+                <button id="closeInfoButton" class="btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Profile Popup -->
+    <div id="editProfilePopup" class="popup">
+        <div class="popup-header">
+            <button id="closeEditProfilePopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Edit Profile</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="profile-edit-avatar">
+                <img src="/static/images/shrek.jpg" alt="User Avatar">
+                <div class="edit-avatar-overlay">
+                    <i class="fas fa-camera"></i>
+                </div>
+            </div>
+            
+            <form class="edit-profile-form">
+                <div class="form-group">
+                    <label for="displayName">Display Name</label>
+                    <input type="text" id="displayName" value="{{ username }}">
+                </div>
+                
+                <div class="form-group">
+                    <label for="statusMessage">Status Message</label>
+                    <input type="text" id="statusMessage" value="Hey there! I'm using ShrekChat.">
+                </div>
+                
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" value="user@example.com">
+                </div>
+                
+                <div class="popup-actions">
+                    <button type="button" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Group Creation Popup -->
+    <div id="createGroupPopup" class="popup">
+        <div class="popup-header">
+            <button id="closeCreateGroupPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Create Group</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="groupMemberSearch" placeholder="Search contacts...">
+                </div>
+            </div>
+            
+            <div id="selectableContacts" class="selectable-contacts-list">
+                <!-- Contacts will be dynamically loaded here -->
+            </div>
+            
+            <div class="popup-actions">
+                <button id="cancelGroupCreation" class="btn-secondary">Cancel</button>
+                <button id="proceedToGroupDetails" class="btn-primary" disabled>Next</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Details Popup -->
+    <div id="groupDetailsPopup" class="popup">
+        <div class="popup-header">
+            <button id="closeGroupDetailsPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Group Details</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="group-avatar-container">
+                <div class="group-avatar">
+                    <img id="groupAvatarPreview" src="/static/images/shrek.jpg" alt="Group Avatar">
+                    <div class="avatar-upload-overlay">
+                        <i class="fas fa-camera"></i>
+                    </div>
+                </div>
+                <input type="file" id="groupAvatarInput" accept="image/*" style="display: none;">
+            </div>
+            
+            <div class="form-group">
+                <label for="groupNameInput">Group Name</label>
+                <input type="text" id="groupNameInput" placeholder="Enter group name">
+            </div>
+            
+            <div class="form-group">
+                <label for="groupDescriptionInput">Group Description (Optional)</label>
+                <textarea id="groupDescriptionInput" placeholder="Enter group description"></textarea>
+            </div>
+            
+            <div class="selected-members">
+                <h4>Selected Members (<span id="selectedMembersCount">0</span>)</h4>
+                <div id="selectedMembersAvatars" class="selected-members-avatars">
+                    <!-- Selected members avatars will appear here -->
+                </div>
+            </div>
+            
+            <div class="popup-actions">
+                <button id="backToMemberSelection" class="btn-secondary">Back</button>
+                <button id="createGroupButton" class="btn-primary">Create</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Group Management Popup -->
+    <div id="groupManagementPopup" class="popup">
+        <div class="popup-header">
+            <button id="closeGroupManagementPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Group Info</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="group-info">
+                <div class="group-avatar">
+                    <img id="groupManagementAvatar" src="/static/images/shrek.jpg" alt="Group Avatar">
+                </div>
+                <h2 id="groupManagementName">Group Name</h2>
+                <p id="groupManagementDescription" class="group-description">Group Description</p>
+            </div>
+            
+            <div class="group-members-section">
+                <div class="members-header">
+                    <h4>Members <span id="groupMembersCount">(0)</span></h4>
+                    <a id="addGroupMemberLink" class="add-member-link">
+                        <i class="fas fa-user-plus"></i>
+                        <span>Add Member</span>
+                    </a>
+                </div>
+                
+                <div id="groupMembersList" class="group-members-list">
+                    <!-- Group members will be dynamically loaded here -->
+                </div>
+            </div>
+            
+            <div class="popup-actions">
+                <button id="backToGroupChat" class="btn-secondary">Back</button>
+                <button id="editGroupButton" class="btn-primary">Edit</button>
+                <button id="leaveGroupButton" class="btn-danger">Leave Group</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Group Member Popup -->
+    <div id="addGroupMemberPopup" class="popup">
+        <div class="popup-header">
+            <button id="closeAddGroupMemberPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Add Members</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="search-container">
+                <div class="search-input-wrapper">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="addMemberSearch" placeholder="Search contacts...">
+                </div>
+            </div>
+            
+            <div id="addMemberContacts" class="selectable-contacts-list">
+                <!-- Contacts will be dynamically loaded here -->
+            </div>
+            
+            <div class="popup-actions">
+                <button id="cancelAddMember" class="btn-secondary">Cancel</button>
+                <button id="confirmAddMember" class="btn-primary">Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Friend Popup -->
+    <div id="addFriendPopup" class="popup">
+        <div class="popup-header">
+            <button id="closeAddFriendPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+            <h3>Добавить друга</h3>
+        </div>
+        
+        <div class="popup-content">
+            <div class="form-group">
+                <label for="addFriendInput">Имя пользователя</label>
+                <input type="text" id="addFriendInput" placeholder="Введите имя пользователя...">
+            </div>
+            
+            <div id="searchResults" class="search-results">
+                <!-- Search results will appear here -->
+            </div>
+            
+            <div class="popup-actions">
+                <button id="addFriendButton" class="btn-primary">Добавить</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Templates -->
+<!-- Individual Message Template -->
+<template id="messageTemplate">
+    <div class="message">
+        <div class="message-content"></div>
+        <div class="message-info">
+            <span class="message-time">12:34</span>
+            <div class="message-status">
+                <i class="fas fa-check message-status-single"></i>
+                <i class="fas fa-check-double message-status-double"></i>
+            </div>
+        </div>
+    </div>
+</template>
+
+<!-- Group Message Template -->
+<template id="groupMessageTemplate">
+    <div class="message">
+        <div class="message-sender"></div>
+        <div class="message-content"></div>
+        <div class="message-info">
+            <span class="message-time">12:34</span>
+        </div>
+    </div>
+</template>
+
+<!-- Group Contact Item Template -->
+<template id="groupContactItemTemplate">
+    <div class="contact-item group-contact">
+        <div class="contact-avatar group-avatar">
+            <img src="/static/images/shrek.jpg" alt="Group">
+        </div>
+        <div class="contact-info">
+            <div class="contact-name-time">
+                <h4>Group Name</h4>
+                <span class="message-time">Now</span>
+            </div>
+            <p class="last-message">Click to start chatting!</p>
+        </div>
+    </div>
+</template>
+
+<!-- Selectable Contact Template -->
+<template id="selectableContactTemplate">
+    <div class="selectable-contact">
+        <div class="contact-avatar">
+            <img src="/static/images/shrek.jpg" alt="Contact">
+        </div>
+        <div class="contact-name">Contact Name</div>
+        <input type="checkbox" class="contact-select">
+    </div>
+</template>
+
+<!-- Selected Member Avatar Template -->
+<template id="selectedMemberAvatarTemplate">
+    <div class="member-avatar-preview">
+        <img src="/static/images/shrek.jpg" alt="Member">
+    </div>
+</template>
+
+<!-- Group Member Template -->
+<template id="groupMemberTemplate">
+    <div class="group-member">
+        <div class="member-avatar">
+            <img src="/static/images/shrek.jpg" alt="Member">
+        </div>
+        <div class="member-info">
+            <div class="member-name">Member Name</div>
+            <div class="member-role">Participant</div>
+        </div>
+        <div class="member-actions">
+            <button class="member-actions-toggle">
+                <i class="fas fa-ellipsis-v"></i>
+            </button>
+            <div class="dropdown-menu">
+                <div class="dropdown-item make-admin">
+                    <i class="fas fa-user-shield"></i>
+                    <span>Make Admin</span>
+                </div>
+                <div class="dropdown-item remove-member">
+                    <i class="fas fa-user-minus"></i>
+                    <span>Remove from Group</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/theme.js"></script>
+<script src="/static/js/chat.js"></script>
+<script src="/static/js/groupChat.js"></script>
+<script src="/static/js/validation.js"></script>
+<script src="/static/js/addFriend.js"></script>
+{% endblock %}

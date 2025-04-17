@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация - ShrekChat{% endblock %}
+
+{% block css %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="left-panel">
+        <div class="logo">
+            <img src="{{ url_for('static', path='images/shrek-logo.png') }}" alt="Shrek Logo">
+        </div>
+        <div class="welcome-text">
+            <h1>Создайте аккаунт в Shrek Chat!</h1>
+            <p>Присоединяйтесь к нашему болотному сообществу</p>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="form-container">
+            <h2>РЕГИСТРАЦИЯ</h2>
+            <form id="registerForm" method="POST" action="/register">
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="username" name="username" placeholder="ИМЯ ПОЛЬЗОВАТЕЛЯ" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="email" name="email" placeholder="E-MAIL" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" name="password" placeholder="ПАРОЛЬ" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="confirm_password" name="confirm_password" placeholder="ПОДТВЕРДИТЕ ПАРОЛЬ" required>
+                </div>
+                {% if error %}
+                <div class="error-message" id="registerErrorMessage">{{ error }}</div>
+                {% else %}
+                <div class="error-message" id="registerErrorMessage"></div>
+                {% endif %}
+                <button type="submit" class="btn-submit">Зарегистрироваться</button>
+                <div class="login-link">
+                    <p>Уже есть аккаунт? <a href="/login">Войти</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/validation.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,38 @@
+<!-- User Profile Popup -->
+<div class="popup" id="userProfilePopup">
+    <div class="popup-content">
+        <div class="popup-header">
+            <h3>User Profile</h3>
+            <span class="close-popup">&times;</span>
+        </div>
+        <div class="popup-body">
+            <div class="user-profile-details">
+                <div class="profile-avatar">
+                    <img src="{{ url_for('static', path='images/shrek-logo.png') }}" alt="Profile Picture" id="viewProfilePicture">
+                </div>
+                <div class="profile-info">
+                    <div class="profile-info-item">
+                        <span class="info-label">Username:</span>
+                        <span class="info-value" id="viewUsername"></span>
+                    </div>
+                    <div class="profile-info-item">
+                        <span class="info-label">Email:</span>
+                        <span class="info-value" id="viewEmail"></span>
+                    </div>
+                    <div class="profile-info-item">
+                        <span class="info-label">Status:</span>
+                        <span class="info-value" id="viewStatus"></span>
+                    </div>
+                    <div class="profile-info-item">
+                        <span class="info-label">Country:</span>
+                        <span class="info-value" id="viewCountry"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-actions">
+                <button type="button" class="btn primary" id="startChatBtn">Start Chat</button>
+                <button type="button" class="btn secondary" id="removeFriendBtn">Remove Friend</button>
+            </div>
+        </div>
+    </div>
+</div>

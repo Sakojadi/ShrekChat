@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}Вход - ShrekChat{% endblock %}
+
+{% block css %}
+    {{ super() }}
+    <link rel="stylesheet" href="{{ url_for('static', path='css/auth.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="left-panel">
+        <div class="logo">
+            <img src="{{ url_for('static', path='images/shrek-logo.png') }}" alt="Shrek Logo">
+        </div>
+        <div class="welcome-text">
+            <h1>С возвращением в Shrek Chat!</h1>
+            <p>Болотное общение никогда не было таким удобным</p>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="form-container">
+            <h2>ВХОД</h2>
+            <form id="loginForm" method="POST" action="/login">
+                <div class="input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="username" name="username" placeholder="ИМЯ ПОЛЬЗОВАТЕЛЯ" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" name="password" placeholder="ПАРОЛЬ" required>
+                </div>
+                {% if error %}
+                <div class="error-message" id="loginErrorMessage">{{ error }}</div>
+                {% else %}
+                <div class="error-message" id="loginErrorMessage"></div>
+                {% endif %}
+                <div class="forgot-password">
+                    <a href="#">Забыли пароль?</a>
+                </div>
+                <button type="submit" class="btn-submit">Войти</button>
+                <div class="register-link">
+                    <p>Нет аккаунта? <a href="/register">Регистрация</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', path='js/validation.js') }}"></script>
+{% endblock %}
