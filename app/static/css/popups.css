@@ -57,16 +57,17 @@
     font-weight: 500;
 }
 
-.close-popup {
+.popup-close{
     font-size: 1rem;
     color: #6a7480;
     cursor: pointer;
     padding: 8px;
-    border-radius: 50%;
+    border: none;
+    background: none;
     transition: background-color 0.2s;
 }
 
-.close-popup:hover {
+.popup-close:hover {
     background-color: #f1f1f1;
 }
 

@@ -31,7 +31,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const createGroupPopup = document.getElementById('createGroupPopup');
     const addFriendPopup = document.getElementById('addFriendPopup'); // For adding friends/contacts
     const closeEditProfilePopup = document.getElementById('closeEditProfilePopup');
-    const closeCreateGroupPopup = document.getElementById('closeCreateGroupPopup');
     const closeAddFriendPopup = document.getElementById('closeAddFriendPopup');
     const chatContactInfo = document.querySelector('.chat-contact-info');
     const contactInfoPopup = document.getElementById('contactInfoPopup');
@@ -270,14 +269,7 @@ document.addEventListener('DOMContentLoaded', function() {
             overlay.classList.remove('active');
         });
     }
-    
-    // Close create group popup
-    if (closeCreateGroupPopup) {
-        closeCreateGroupPopup.addEventListener('click', function() {
-            createGroupPopup.classList.remove('open');
-            overlay.classList.remove('active');
-        });
-    }
+
     
     // Close add friend popup
     if (closeAddFriendPopup) {
