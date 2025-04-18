@@ -25,10 +25,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const profileSidebar = document.getElementById('profileSidebar');
     const closeProfileSidebar = document.getElementById('closeProfileSidebar');
     const editProfileMenuItem = document.getElementById('editProfileMenuItem');
-    const createGroupMenuItem = document.getElementById('createGroupMenuItem');
     const addContactMenuItem = document.getElementById('addContactMenuItem');
     const editProfilePopup = document.getElementById('editProfilePopup');
-    const createGroupPopup = document.getElementById('createGroupPopup');
     const addFriendPopup = document.getElementById('addFriendPopup'); // For adding friends/contacts
     const closeEditProfilePopup = document.getElementById('closeEditProfilePopup');
     const closeAddFriendPopup = document.getElementById('closeAddFriendPopup');
@@ -203,30 +201,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Toggle create group popup
-    if (createGroupMenuItem) {
-        createGroupMenuItem.addEventListener('click', function() {
-            profileSidebar.classList.remove('active');
-            if (createGroupPopup) {
-                createGroupPopup.classList.add('open');
-                overlay.classList.add('active');
-                
-                // Reset selected contacts if the variable exists
-                if (window.selectedContacts !== undefined) {
-                    window.selectedContacts = [];
+    if(logoutMenuItem){
+        logoutMenuItem.addEventListener('click', function() {
+            // Perform logout action
+            fetch('/logout', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
                 }
-                
-                // Disable next button
-                const proceedBtn = document.getElementById('proceedToGroupDetails');
-                if (proceedBtn) {
-                    proceedBtn.disabled = true;
+            })
+            .then(response => {
+                if (response.ok) {
+                    window.location.href = '/login'; // Redirect to login page
+                } else {
+                    console.error('Logout failed:', response.statusText);
                 }
-                
-                // Load contacts for selection if the function exists
-                if (window.loadContactsForSelection && typeof window.loadContactsForSelection === 'function') {
-                    window.loadContactsForSelection();
-                }
-            }
+            })
+            .catch(error => {
+                console.error('Error during logout:', error);
+            });
         });
     }
     
@@ -316,6 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
     
     // Contact selection
     contactItems.forEach(item => {

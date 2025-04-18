@@ -7,8 +7,8 @@ import uuid
 import shutil
 
 from app.database import User, GroupChat, GroupMember, GroupMessage, GroupMessageRead
-from app.routers.chat.session import get_db, get_current_user_from_session, active_connections
-from app.routers.chat.utils import format_message_time, check_group_membership, check_group_admin
+from app.routers.session import get_db, get_current_user_from_session, active_connections
+from app.routers.utils import format_message_time, check_group_membership, check_group_admin
 
 router = APIRouter(prefix="/api/groups")
 

@@ -6,8 +6,8 @@ from typing import List, Dict, Any
 from datetime import datetime
 
 from app.database import User, Contact, Message
-from app.routers.chat.session import get_db, get_current_user_from_session, active_connections
-from app.routers.chat.utils import format_message_time, send_read_receipts
+from app.routers.session import get_db, get_current_user_from_session, active_connections
+from app.routers.utils import format_message_time, send_read_receipts
 
 router = APIRouter(prefix="/api")
 

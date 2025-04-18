@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from app.database import GroupMember, User, Message, Contact
 from typing import List
 from datetime import datetime
-from app.routers.chat.session import active_connections, id_to_username
+from app.routers.session import active_connections, id_to_username
 
 def format_message_time(timestamp: datetime) -> str:
     """Format message timestamp for display"""

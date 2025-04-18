@@ -3,7 +3,8 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.routers.chat.session import get_db, get_current_user, active_connections
+# Updated imports to use the new location
+from app.routers.session import get_db, get_current_user, active_connections
 from app.database import User, Contact
 
 router = APIRouter()

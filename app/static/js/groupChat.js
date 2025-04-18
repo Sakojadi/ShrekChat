@@ -142,6 +142,32 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    // Toggle create group popup
+    if (createGroupMenuItem) {
+        createGroupMenuItem.addEventListener('click', function() {
+            profileSidebar.classList.remove('active');
+            if (createGroupPopup) {
+                createGroupPopup.classList.add('open');
+                overlay.classList.add('active');
+                
+                // Reset selected contacts if the variable exists
+                if (window.selectedContacts !== undefined) {
+                    window.selectedContacts = [];
+                }
+                
+                // Disable next button
+                const proceedBtn = document.getElementById('proceedToGroupDetails');
+                if (proceedBtn) {
+                    proceedBtn.disabled = true;
+                }
+                
+                // Load contacts for selection if the function exists
+                if (window.loadContactsForSelection && typeof window.loadContactsForSelection === 'function') {
+                    window.loadContactsForSelection();
+                }
+            }
+        });
+    }
     
     // Create Group
     if (createGroupButton) {

@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Dict, Any
 
 from app.database import SessionLocal, User, Message, GroupMember, GroupMessage, GroupMessageRead
-from app.routers.chat.session import active_connections, username_to_id, id_to_username
-from app.routers.chat.utils import broadcast_presence_update, send_read_receipts
+from app.routers.session import active_connections, username_to_id, id_to_username
+from app.routers.utils import broadcast_presence_update, send_read_receipts
 
 router = APIRouter()
 
