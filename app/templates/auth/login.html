@@ -4,14 +4,14 @@
 
 {% block css %}
     {{ super() }}
-    <link rel="stylesheet" href="{{ url_for('static', path='css/auth.css') }}">
+    <link rel="stylesheet" href="/static/css/auth.css">
 {% endblock %}
 
 {% block content %}
 <div class="container">
     <div class="left-panel">
         <div class="logo">
-            <img src="{{ url_for('static', path='images/shrek-logo.png') }}" alt="Shrek Logo">
+            <img src="/static/images/shrek-logo.png" alt="Shrek Logo">
         </div>
         <div class="welcome-text">
             <h1>С возвращением в Shrek Chat!</h1>
@@ -49,5 +49,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', path='js/validation.js') }}"></script>
+<script src="/static/js/validation.js"></script>
 {% endblock %}

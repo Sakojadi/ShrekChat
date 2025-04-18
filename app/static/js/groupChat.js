@@ -3,6 +3,8 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
+    let socket_protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+
     // DOM Elements - Group Creation
     const createGroupMenuItem = document.getElementById('createGroupMenuItem');
     const createGroupPopup = document.getElementById('createGroupPopup');
@@ -844,9 +846,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Get current username
         const currentUsername = document.querySelector('.profile-name') ? 
                                document.querySelector('.profile-name').textContent.trim() : '';
-        
+
         // Open new WebSocket connection
-        const wsUrl = `ws://${window.location.host}/ws/group/${groupId}?username=${encodeURIComponent(currentUsername)}`;
+        const wsUrl = `${socket_protocol + window.location.host}/ws/group/${groupId}?username=${encodeURIComponent(currentUsername)}`;
         window.groupChatWs = new WebSocket(wsUrl);
         
         // WebSocket event handlers

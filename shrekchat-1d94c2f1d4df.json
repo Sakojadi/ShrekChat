@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "shrekchat",
+  "private_key_id": "1d94c2f1d4dfc31d8f33b66c892302965fcb5ad3",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQCQOEp/l+unLBhl\nxmseWXYhX5v/2lvOAwxYsiMyRABRq9rsD4R2XIi5Fm/K7vV7BRpu7A83kAJOeXJE\n/qUI7y/5rCwh81oC4xlfCt5D8mXhFmnQpjU0b6m+fmUYEs8S3X7KCBhYr5HT1YW/\nFQeXG/wI9ZycPNGWjOQV8TzcYixdxgYqI4THiOI2ZS2yVqi3prsAmayDOTrFpf+z\n2XFayOQNkWEDBr6f38lwq6eaCp7/kBpMq/VVElnDuKOIpHFmWZ45VuPWWquvKpBi\nR8xcBYqxsIm6GW2vULGjdzzzbsFLnTf6NVbq9sECvJMg5Y1T70CPMfnhxyaT2b9B\nSPbZYdRZAgMBAAECggEAAKfHHgitdII0ruRKMPiUmvSTzxXgjWzdVdH+RpiF3yJI\n50tdL8YVF2epYC4IB+jDxxgNB4JcNFK7myso7uhINkfa+6E6cPO0CGuAHdxuLAVd\nlvNAsiTXnj0+4CY84AWJTRKp/M144KSG8L9Sd8IT1XPf/21VwX4RV/5TeboyV1ia\nGhjtt9glIdZSHYj3QwzdyTNaGsEMKqGQIpHQfbjbowxX9p7tBNppj2VTDCxUuTVL\noLtr4kA6BTEDcltqTl1Aa4pTIIXv8qvLqhLJGoNJs9HwYtFPugPBH8GQihnPODCL\nJuwqaRmqC4e3DJPee9MEtg9L7CRiyht8ggq4uIN/VQKBgQDHpareNuThypkUOIo1\nrdCK1U+jyl4cJawsFgbQ2FsS6tMqxLLOqBZPBVJHwsBNsDLuyDHg/Mcu6VMeYVEV\nvQUg8Rxa4085B10LuS5SaR59xrWA+dpJNEWJZDniFXtVci8AHEHzZzu2+5/cZCui\n+evz3pxD9M9i2QzlNwS3Vikb1QKBgQC47X9ZH0N5HVcNx9POuQyTBi2e5zQnZ6E+\n6zKCdFB3i1Ir9YsbOo4mYGWMmjYdRaWToBBQPojDKRSCWTUh89Ff5c/NwQq8ZMrN\n/ZiKm4i2EcE8GtqwCOup2YZZV+UV9Dg7VZ5+4m89rkp6vsLjZqDg3mGZTiwqVPrN\nH0hKHdGsdQKBgGdQ8WK7r6i1SpCvTb7Hq0MdbnBJmngger/5yh8rx727bfoU/p95\nVsof69udCh1qEIGHcmCHD6DUOCJhpC+GuO+6Nr1GIspVaC5X74PQSGo4edc79V2q\nwk1+Y4H/MesfAvmgpfSLONjR0IGiCP73LMbwLZfxSZ1Sy5yW40bpPK7dAoGBAIEN\n/VmM3+GeACq10bLqoUPZg+zpHRSC1Zy7Nryjv6QtrmLPMQ0HiDxv+W5uEGXNPQgR\nJFFb0sWf3Zg5+UKAjRWHo8XLelqPXJj06YeRk468RUZU11kSYKRgEco39L+ld7iw\nv7N9AnThNUkD564a6RsFFseOLnQ8aerMcf6HYNQhAoGACslSV0Ne8AeOUdWJPugs\nG89FWo5gQJOKPTSqoE8oZYVETL2NsrCiS3ghXONXFI07epAkygCfZ3WuQWSF7ncs\nzJbabc0vWgl7v1mL4RiDVTU+cxNuizpKDzStZTgJ6rCfY1iEPRVtM7syiv9DZKwQ\ntExBbawlcODSmVjBR+VMvXw=\n-----END PRIVATE KEY-----\n",
+  "client_email": "shrekchat@shrekchat.iam.gserviceaccount.com",
+  "client_id": "108398628569489527369",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/shrekchat%40shrekchat.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

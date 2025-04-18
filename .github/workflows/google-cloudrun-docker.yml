@@ -1,0 +1,95 @@
+name: 'Build and Deploy to Cloud Run'
+
+on:
+  push:
+    branches:
+      - 'main'
+      
+env:
+  PROJECT_ID: 'shrekchat'
+  REGION: 'us-central1'
+
+jobs:
+  deploy:
+    runs-on: 'ubuntu-latest'
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+      - name: 'Checkout'
+        uses: 'actions/checkout@v2'
+
+      - id: auth
+        name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: '${{ secrets.GCP_SA_KEY }}'
+        
+      - name: Clear old Docker credentials
+        run: rm -rf ~/.docker/config.json
+
+      - name: Authenticate Docker with GCloud
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
+
+      - name: Environment variables for frontend
+        run: |-
+          echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" >> ./hiddenwhaleai/.env
+          echo "VITE_API_KEY=${{ secrets.VITE_API_KEY }}" >> ./hiddenwhaleai/.env
+          echo "VITE_APP_ID=${{ secrets.VITE_APP_ID }}" >> ./hiddenwhaleai/.env
+          echo "VITE_AUTH_DOMAIN=${{ secrets.VITE_AUTH_DOMAIN }}" >> ./hiddenwhaleai/.env
+          echo "VITE_PROJECT_ID=${{ secrets.VITE_PROJECT_ID }}" >> ./hiddenwhaleai/.env
+          echo "VITE_STORAGE_BUCKET=${{ secrets.VITE_STORAGE_BUCKET }}" >> ./hiddenwhaleai/.env
+          echo "VITE_MESSAGING_SENDER=${{ secrets.VITE_MESSAGING_SENDER }}" >> ./hiddenwhaleai/.env
+          echo "VITE_MEASUREMENT_ID=${{ secrets.VITE_MEASUREMENT_ID }}" >> ./hiddenwhaleai/.env
+          echo "VITE_POSTHOG_API_KEY=${{ secrets.VITE_POSTHOG_API_KEY }}" >> ./hiddenwhaleai/.env
+          echo "VITE_POSTHOG_API_HOST=${{ secrets.VITE_POSTHOG_API_HOST }}" >> ./hiddenwhaleai/.env
+          echo "VITE_POLYGON_API_KEY=${{ secrets.VITE_POLYGON_API_KEY }}" >> ./hiddenwhaleai/.env
+          echo "VITE_STRIPE_PUBLISHABLE_KEY=${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}" >> ./hiddenwhaleai/.env
+
+      - name: Build and Push Frontend
+        run: |-
+          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/hiddenwhale/hiddenwhale"
+          docker build --tag "${DOCKER_TAG}" ./hiddenwhaleai
+          docker push "${DOCKER_TAG}"
+
+      - name: Deploy Frontend to Cloud Run
+        run: |-
+          gcloud run deploy hiddenwhale \
+            --image="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/hiddenwhale/hiddenwhale" \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated
+
+      - name: Environment variables for backend
+        run: |-
+          echo "PORT=${{ secrets.PORT }}" >> ./hiddenwhaleai/backend/.env
+          echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> ./hiddenwhaleai/backend/.env
+          echo "X_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> ./hiddenwhaleai/backend/.env
+          echo "TWITTER_CONSUMER_KEY=${{ secrets.TWITTER_CONSUMER_KEY }}" >> ./hiddenwhaleai/backend/.env
+          echo "TWITTER_CONSUMER_SECRET=${{ secrets.TWITTER_CONSUMER_SECRET }}" >> ./hiddenwhaleai/backend/.env
+          echo "TWITTER_ACCESS_TOKEN=${{ secrets.TWITTER_ACCESS_TOKEN }}" >> ./hiddenwhaleai/backend/.env
+          echo "TWITTER_ACCESS_TOKEN_SECRET=${{ secrets.TWITTER_ACCESS_TOKEN_SECRET }}" >> ./hiddenwhaleai/backend/.env
+          echo "REDDIT_CLIENT_ID=${{ secrets.REDDIT_CLIENT_ID }}" >> ./hiddenwhaleai/backend/.env
+          echo "REDDIT_CLIENT_SECRET=${{ secrets.REDDIT_CLIENT_SECRET }}" >> ./hiddenwhaleai/backend/.env
+          echo "REDDIT_REFRESH_TOKEN=${{ secrets.REDDIT_REFRESH_TOKEN }}" >> ./hiddenwhaleai/backend/.env
+          echo "STRIPE_API_KEY=${{ secrets.STRIPE_API_KEY }}" >> ./hiddenwhaleai/backend/.env
+          echo "STRIPE_API_SECRET=${{ secrets.STRIPE_API_SECRET }}" >> ./hiddenwhaleai/backend/.env
+          echo "STRIPE_ELITE_PRICE_ID=${{ secrets.STRIPE_ELITE_PRICE_ID }}" >> ./hiddenwhaleai/backend/.env
+          echo "STRIPE_ELITE_3_PRICE_ID=${{ secrets.STRIPE_ELITE_3_PRICE_ID }}" >> ./hiddenwhaleai/backend/.env
+          echo "STRIPE_ELITE_12_PRICE_ID=${{ secrets.STRIPE_ELITE_12_PRICE_ID }}" >> ./hiddenwhaleai/backend/.env
+          echo "STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }}" >> ./hiddenwhaleai/backend/.env
+
+      - name: Build and Push Backend
+        run: |-
+          DOCKER_TAG="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/hiddenwhale/hiddenwhale-back"
+          docker build --tag "${DOCKER_TAG}" ./hiddenwhaleai/backend
+          docker push "${DOCKER_TAG}"
+
+      - name: Deploy Backend to Cloud Run
+        run: |-
+          gcloud run deploy hiddenwhale-back \
+            --image="${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/hiddenwhale/hiddenwhale-back" \
+            --platform=managed \
+            --region=${{ env.REGION }} \
+            --allow-unauthenticated
