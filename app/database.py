@@ -2,8 +2,14 @@ from sqlalchemy import create_engine, Column, Integer, String, DateTime, Foreign
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
+import os
+from dotenv import load_dotenv
 
-DATABASE_URL = "sqlite:///./shrekchat.db"
+# Load environment variables
+load_dotenv()
+
+# Get database URL from environment or use default for development
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shrekchat.db")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

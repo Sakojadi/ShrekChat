@@ -4,6 +4,11 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 import uvicorn
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Direct imports from new router files in app/routers/
 from app.routers.auth import router as auth_router
@@ -20,11 +25,15 @@ app.mount("/static", StaticFiles(directory="app/static"), name="static")
 # Configure Jinja2 templates
 templates = Jinja2Templates(directory="app/templates")
 
+# Get secret key from environment or use default for development
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
+SESSION_MAX_AGE = int(os.getenv("SESSION_MAX_AGE", "3600"))  # 1 hour default
+
 # Add session middleware
 app.add_middleware(
     SessionMiddleware, 
-    secret_key="your-secret-key-here",  # In production, use a proper secure key
-    max_age=3600  # Session expiry time in seconds (1 hour)
+    secret_key=SECRET_KEY,
+    max_age=SESSION_MAX_AGE
 )
 
 # Include routers directly
@@ -40,4 +49,7 @@ async def root(request: Request):
     return RedirectResponse(url="/login")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)
+    # Get host and port from environment or use defaults
+    host = os.getenv("HOST", "127.0.0.1")
+    port = int(os.getenv("PORT", "8000"))
+    uvicorn.run("main:app", host=host, port=port, reload=True)

@@ -819,17 +819,15 @@ document.addEventListener('DOMContentLoaded', function() {
             messageContent.textContent = message.content;
             messageTime.textContent = message.time;
             
-            // Set sender name
-            messageSender.textContent = message.sender;
-            
             // Determine if this is an incoming or outgoing message
-            if (message.sender === currentUsername) {
+            if (message.sender === "user" || message.sender === currentUsername) {
                 messageDiv.classList.add('outgoing');
                 messageDiv.classList.add('group-message');
                 messageSender.textContent = "You";
             } else {
                 messageDiv.classList.add('incoming');
                 messageDiv.classList.add('group-message');
+                messageSender.textContent = message.sender_name || message.sender;
             }
             
             chatMessages.appendChild(messageElement);

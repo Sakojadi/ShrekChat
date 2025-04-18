@@ -307,6 +307,27 @@
     color: #4CAF50;
 }
 
+/* Group message styling to match direct messages */
+.message.outgoing.group-message {
+    align-self: flex-end;
+    margin-left: auto;
+}
+
+.message.outgoing.group-message .message-content {
+    background-color: #dcf8c6;
+    border-bottom-right-radius: 5px;
+}
+
+.message.incoming.group-message {
+    align-self: flex-start;
+    margin-right: auto;
+}
+
+.message.incoming.group-message .message-content {
+    background-color: #ffffff;
+    border-bottom-left-radius: 5px;
+}
+
 /* Group contact item styles */
 .contact-item.group-contact .contact-avatar::before {
     content: '';

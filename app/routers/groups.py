@@ -204,6 +204,90 @@ async def get_group_details(group_id: int, request: Request, db: Session = Depen
         "is_admin": is_member.is_admin
     }
 
+@router.get("/{group_id}/members")
+async def get_group_members(group_id: int, request: Request, db: Session = Depends(get_db)):
+    """Get all members of a specific group"""
+    current_user = get_current_user_from_session(request, db)
+    
+    # Check if user is member of the group
+    check_group_membership(db, group_id, current_user.id)
+    
+    # Get group members
+    members = db.query(GroupMember, User).join(
+        User, GroupMember.user_id == User.id
+    ).filter(
+        GroupMember.group_id == group_id
+    ).all()
+    
+    member_list = []
+    for member, user in members:
+        member_data = {
+            "id": user.id,
+            "name": user.full_name or user.username,
+            "username": user.username,
+            "email": user.email,
+            "avatar": user.avatar or "/static/images/shrek.jpg",  # Default avatar
+            "role": "Admin" if member.is_admin else "Participant",
+            "is_admin": member.is_admin,
+            "status": "online" if user.username in active_connections else "offline",
+            "added_at": member.added_at
+        }
+        member_list.append(member_data)
+    
+    # Sort members: admins first, then by added date
+    member_list.sort(key=lambda x: (not x["is_admin"], x["added_at"]))
+    
+    return member_list
+
+@router.post("/{group_id}/members")
+async def add_group_members(
+    group_id: int,
+    request: Request,
+    data: Dict[str, Any],
+    db: Session = Depends(get_db)
+):
+    """Add members to a group (admin only)"""
+    current_user = get_current_user_from_session(request, db)
+    
+    # Check if user is admin
+    check_group_admin(db, group_id, current_user.id)
+    
+    # Get members to add from request body
+    member_ids = data.get("members", [])
+    
+    # Get current members
+    existing_members = db.query(GroupMember.user_id).filter(
+        GroupMember.group_id == group_id
+    ).all()
+    existing_member_ids = [member[0] for member in existing_members]
+    
+    # Add new members
+    added_members = []
+    
+    for member_id in member_ids:
+        # Skip if already a member
+        if member_id in existing_member_ids:
+            continue
+            
+        # Check if user exists
+        user = db.query(User).filter(User.id == member_id).first()
+        if user:
+            member = GroupMember(
+                group_id=group_id,
+                user_id=user.id,
+                is_admin=False,
+                added_at=datetime.utcnow()
+            )
+            db.add(member)
+            added_members.append({
+                "id": user.id,
+                "name": user.full_name or user.username,
+                "username": user.username
+            })
+    
+    db.commit()
+    return {"added_members": added_members}
+
 @router.put("/{group_id}")
 async def update_group(
     group_id: int,
@@ -271,59 +355,6 @@ async def upload_group_avatar(
     db.commit()
     
     return {"avatar_url": relative_path}
-
-@router.post("/{group_id}/members")
-async def add_group_members(
-    group_id: int,
-    request: Request,
-    member_ids: str = Form(...),  # Comma-separated IDs
-    db: Session = Depends(get_db)
-):
-    """Add members to a group (admin only)"""
-    current_user = get_current_user_from_session(request, db)
-    
-    # Check if user is admin
-    check_group_admin(db, group_id, current_user.id)
-    
-    # Get current members
-    existing_members = db.query(GroupMember.user_id).filter(
-        GroupMember.group_id == group_id
-    ).all()
-    existing_member_ids = [member[0] for member in existing_members]
-    
-    # Add new members
-    try:
-        member_id_list = [int(id.strip()) for id in member_ids.split(',') if id.strip()]
-        added_members = []
-        
-        for member_id in member_id_list:
-            # Skip if already a member
-            if member_id in existing_member_ids:
-                continue
-                
-            # Check if user exists
-            user = db.query(User).filter(User.id == member_id).first()
-            if user:
-                member = GroupMember(
-                    group_id=group_id,
-                    user_id=user.id,
-                    is_admin=False,
-                    added_at=datetime.utcnow()
-                )
-                db.add(member)
-                added_members.append({
-                    "id": user.id,
-                    "name": user.full_name or user.username,
-                    "username": user.username
-                })
-        
-        db.commit()
-        return {"added_members": added_members}
-        
-    except ValueError:
-        # Handle invalid ID format
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid member ID format")
 
 @router.delete("/{group_id}/members/{member_id}")
 async def remove_group_member(
