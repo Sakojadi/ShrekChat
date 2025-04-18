@@ -61,7 +61,6 @@ class GroupChat(Base):
 
 class GroupMember(Base):
     __tablename__ = "group_members"
-    id = Column(Integer, primary_key=True, index=True)
     group_id = Column(Integer, ForeignKey("group_chats.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_admin = Column(Boolean, default=False)
@@ -87,7 +86,6 @@ class GroupMessage(Base):
 
 class GroupMessageRead(Base):
     __tablename__ = "group_message_reads"
-    id = Column(Integer, primary_key=True, index=True)
     message_id = Column(Integer, ForeignKey("group_messages.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     read_at = Column(DateTime, default=datetime.utcnow)

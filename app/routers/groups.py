@@ -113,7 +113,7 @@ async def create_group(
         description=description,
         created_at=datetime.utcnow()
     )
-    db.add(new_group)
+    db.add(new_group) 
     db.commit()
     db.refresh(new_group)
     

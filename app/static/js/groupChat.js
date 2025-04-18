@@ -145,26 +145,23 @@ document.addEventListener('DOMContentLoaded', function() {
     // Toggle create group popup
     if (createGroupMenuItem) {
         createGroupMenuItem.addEventListener('click', function() {
-            profileSidebar.classList.remove('active');
+            const profileSidebar = document.getElementById('profileSidebar');
+            if (profileSidebar) {
+                profileSidebar.classList.remove('active');
+            }
+            
             if (createGroupPopup) {
                 createGroupPopup.classList.add('open');
                 overlay.classList.add('active');
                 
-                // Reset selected contacts if the variable exists
-                if (window.selectedContacts !== undefined) {
-                    window.selectedContacts = [];
-                }
+                // Reset selected contacts
+                selectedContacts = [];
                 
                 // Disable next button
-                const proceedBtn = document.getElementById('proceedToGroupDetails');
-                if (proceedBtn) {
-                    proceedBtn.disabled = true;
-                }
+                proceedToGroupDetails.disabled = true;
                 
-                // Load contacts for selection if the function exists
-                if (window.loadContactsForSelection && typeof window.loadContactsForSelection === 'function') {
-                    window.loadContactsForSelection();
-                }
+                // Load contacts for selection
+                loadContactsForSelection();
             }
         });
     }
@@ -190,10 +187,9 @@ document.addEventListener('DOMContentLoaded', function() {
             formData.append('name', groupName);
             formData.append('description', groupDescription);
             
-            // Add selected contact IDs
-            selectedContacts.forEach(function(contact, index) {
-                formData.append(`members[${index}]`, contact.id);
-            });
+            // Convert selected contacts to comma-separated IDs string
+            const memberIds = selectedContacts.map(contact => contact.id).join(',');
+            formData.append('member_ids', memberIds);
             
             // Add group avatar if selected
             if (groupAvatarFile) {
@@ -385,16 +381,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                     
                     contacts.forEach(function(contact) {
-                        const contactElement = selectableContactTemplate.content.cloneNode(true);
-                        const contactDiv = contactElement.querySelector('.selectable-contact');
-                        const contactAvatar = contactElement.querySelector('img');
-                        const contactName = contactElement.querySelector('.contact-name');
-                        const contactSelect = contactElement.querySelector('.contact-select');
+                        const contactElement = document.createElement('div');
+                        contactElement.className = 'selectable-contact';
+                        contactElement.setAttribute('data-contact-id', contact.id);
                         
-                        // Set contact data
-                        contactAvatar.src = contact.avatar || '/static/images/shrek.jpg';
-                        contactName.textContent = contact.name;
-                        contactDiv.setAttribute('data-contact-id', contact.id);
+                        // Create contact HTML with visible checkbox
+                        contactElement.innerHTML = `
+                            <input type="checkbox" id="contact_${contact.id}" class="contact-select">
+                            <div class="contact-avatar">
+                                <img src="${contact.avatar || '/static/images/shrek.jpg'}" alt="${contact.name}">
+                            </div>
+                            <div class="contact-name">${contact.name}</div>
+                        `;
+                        
+                        const contactSelect = contactElement.querySelector('.contact-select');
                         
                         // Handle checkbox click
                         contactSelect.addEventListener('change', function() {
@@ -408,12 +408,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                 selectedContacts = selectedContacts.filter(c => c.id !== contact.id);
                             }
                             
-                            // Enable/disable next button
-                            proceedToGroupDetails.disabled = selectedContacts.length === 0;
+                            // Enable/disable next button - require at least 2 members
+                            proceedToGroupDetails.disabled = selectedContacts.length < 2;
                         });
                         
                         // Handle clicking on the contact row
-                        contactDiv.addEventListener('click', function(event) {
+                        contactElement.addEventListener('click', function(event) {
                             if (event.target !== contactSelect) {
                                 contactSelect.checked = !contactSelect.checked;
                                 
