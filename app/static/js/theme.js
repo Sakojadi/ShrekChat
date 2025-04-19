@@ -1,44 +1,57 @@
 /**
- * Theme toggling between dark and light mode
+ * Theme toggling functionality
  */
 
 document.addEventListener('DOMContentLoaded', function() {
     const themeToggle = document.getElementById('themeToggle');
-    const toggleThemeBtn = document.getElementById('toggleThemeBtn');
-    const body = document.body;
     
-    // Check for saved theme preference
-    const savedTheme = localStorage.getItem('theme');
-    if (savedTheme === 'dark') {
-        body.classList.add('dark-theme');
+    // Check for saved theme preference or respect OS preference
+    const prefersDarkScheme = window.matchMedia('(prefers-color-scheme: dark)');
+    const savedTheme = localStorage.getItem('darkTheme');
+    
+    // Function to enable dark theme
+    function enableDarkTheme() {
+        document.body.classList.add('dark-theme');
         if (themeToggle) themeToggle.checked = true;
+        localStorage.setItem('darkTheme', 'enabled');
     }
     
-    // Toggle theme via checkbox in profile sidebar
+    // Function to disable dark theme
+    function disableDarkTheme() {
+        document.body.classList.remove('dark-theme');
+        if (themeToggle) themeToggle.checked = false;
+        localStorage.setItem('darkTheme', 'disabled');
+    }
+    
+    // Initial theme setup based on saved preference or OS preference
+    if (savedTheme === 'enabled') {
+        enableDarkTheme();
+    } else if (savedTheme === 'disabled') {
+        disableDarkTheme();
+    } else if (prefersDarkScheme.matches) {
+        // If no saved preference, use OS preference
+        enableDarkTheme();
+    }
+    
+    // Listen for theme toggle changes
     if (themeToggle) {
         themeToggle.addEventListener('change', function() {
             if (this.checked) {
-                body.classList.add('dark-theme');
-                localStorage.setItem('theme', 'dark');
+                enableDarkTheme();
             } else {
-                body.classList.remove('dark-theme');
-                localStorage.setItem('theme', 'light');
+                disableDarkTheme();
             }
         });
     }
     
-    // Toggle theme via button in header
-    if (toggleThemeBtn) {
-        toggleThemeBtn.addEventListener('click', function() {
-            const isDarkTheme = body.classList.toggle('dark-theme');
-            
-            if (isDarkTheme) {
-                localStorage.setItem('theme', 'dark');
-                if (themeToggle) themeToggle.checked = true;
+    // Listen for OS theme changes
+    prefersDarkScheme.addEventListener('change', function(e) {
+        if (!localStorage.getItem('darkTheme')) {
+            if (e.matches) {
+                enableDarkTheme();
             } else {
-                localStorage.setItem('theme', 'light');
-                if (themeToggle) themeToggle.checked = false;
+                disableDarkTheme();
             }
-        });
-    }
+        }
+    });
 });

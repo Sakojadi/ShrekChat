@@ -54,13 +54,21 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def authenticate_user(username: str, password: str):
-    user = get_user(username)
-    if not user:
-        return False
-    if not verify_password(password, user.hashed_password):
-        return False
-    return user
+def authenticate_user(login_input: str, password: str):
+    db = SessionLocal()
+    try:
+        # Try to find user by username or email
+        user = db.query(User).filter(
+            (User.username == login_input) | (User.email == login_input)
+        ).first()
+        
+        if not user:
+            return False
+        if not verify_password(password, user.hashed_password):
+            return False
+        return user
+    finally:
+        db.close()
 
 # Routes
 @router.get("/login", response_class=HTMLResponse)
@@ -71,9 +79,14 @@ async def login_page(request: Request):
 async def login(request: Request, username: str = Form(...), password: str = Form(...)):
     user = authenticate_user(username, password)
     if not user:
+        # Return the username input so it can be preserved in the form
         return templates.TemplateResponse(
             "auth/login.html", 
-            {"request": request, "error": "Invalid username or password"}
+            {
+                "request": request, 
+                "error": "Invalid username or password",
+                "username": username  # Pass the username back to preserve it
+            }
         )
     
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -125,3 +138,98 @@ async def register(request: Request, username: str = Form(...), email: str = For
 async def logout(request: Request):
     request.session.clear()
     return RedirectResponse("/login")
+
+@router.post("/api/profile/update")
+async def update_profile(request: Request):
+    # Check if user is logged in
+    if "username" not in request.session:
+        return {"success": False, "message": "Not authenticated"}
+    
+    # Get form data
+    form_data = await request.json()
+    username = request.session["username"]
+    
+    db = SessionLocal()
+    try:
+        # Get current user
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            return {"success": False, "message": "User not found"}
+        
+        # Check if username is changed and not already taken
+        username_changed = False
+        if "username" in form_data and form_data["username"] != user.username:
+            existing_username = db.query(User).filter(User.username == form_data["username"]).first()
+            if existing_username:
+                return {"success": False, "message": "Username already in use"}
+            user.username = form_data["username"]
+            username_changed = True
+        
+        # Check if email is changed and not already taken
+        if "email" in form_data and form_data["email"] != user.email:
+            existing_email = db.query(User).filter(User.email == form_data["email"]).first()
+            if existing_email:
+                return {"success": False, "message": "Email already in use"}
+            user.email = form_data["email"]
+        
+        # Update other fields
+        if "full_name" in form_data:
+            user.full_name = form_data["full_name"]
+        
+        if "phone_number" in form_data:
+            user.phone_number = form_data["phone_number"]
+        
+        if "country" in form_data:
+            user.country = form_data["country"]
+        
+        # Save changes
+        db.commit()
+        
+        # Update session if username changed
+        if username_changed:
+            # Create new access token with updated username
+            access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+            access_token = create_access_token(
+                data={"sub": user.username}, expires_delta=access_token_expires
+            )
+            
+            # Update session with new username and token
+            request.session["access_token"] = access_token
+            request.session["username"] = user.username
+        
+        return {"success": True, "message": "Profile updated successfully"}
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "message": str(e)}
+    finally:
+        db.close()
+
+@router.get("/api/profile")
+async def get_profile(request: Request):
+    # Check if user is logged in
+    if "username" not in request.session:
+        return {"success": False, "message": "Not authenticated"}
+    
+    username = request.session["username"]
+    db = SessionLocal()
+    try:
+        # Get current user
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            return {"success": False, "message": "User not found"}
+        
+        # Return user profile data
+        return {
+            "success": True, 
+            "data": {
+                "username": user.username,
+                "email": user.email,
+                "full_name": user.full_name or "",
+                "phone_number": user.phone_number or "",
+                "country": user.country or ""
+            }
+        }
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+    finally:
+        db.close()

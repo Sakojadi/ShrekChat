@@ -22,6 +22,8 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
+    phone_number = Column(String, nullable=True)
+    country = Column(String, nullable=True)
     messages_sent = relationship("Message", back_populates="sender", foreign_keys='Message.sender_id')
     messages_received = relationship("Message", back_populates="recipient", foreign_keys='Message.recipient_id')
     contacts = relationship("Contact", back_populates="user", foreign_keys='Contact.user_id')

@@ -38,12 +38,12 @@
             {% for contact in contacts %}
             <div class="contact-item" data-contact-id="{{ contact.id }}">
                 <div class="contact-avatar">
-                    <img src="{{ contact.avatar }}" alt="{{ contact.name }} Avatar">
+                    <img src="{{ contact.avatar }}" alt="{{ contact.username }} Avatar">
                     <span class="status-indicator {{ contact.status }}"></span>
                 </div>
                 <div class="contact-info">
                     <div class="contact-name-time">
-                        <h4>{{ contact.name }}</h4>
+                        <h4>{{ contact.username }}</h4>
                         <span class="message-time">{{ contact.last_message_time }}</span>
                     </div>
                     <p class="last-message">{{ contact.last_message }}</p>
@@ -76,11 +76,11 @@
                 <div class="chat-contact-info">
                     <div class="chat-contact-avatar">
                         <img id="chatContactAvatar" src="/static/images/shrek.jpg" alt="Contact Avatar">
-                        <span class="status-indicator online"></span>
+                        <span id="chatContactStatus" class="status-indicator"></span>
                     </div>
                     <div class="chat-contact-details">
                         <h3 id="chatContactName">Contact Name</h3>
-                        <p id="chatContactPresence">Online</p>
+                        <p id="chatContactPresence">Offline</p>
                     </div>
                 </div>
                 
@@ -137,49 +137,6 @@
         </div>
     </div>
     
-    <!-- Contact Info Sidebar -->
-    <div id="contactInfoSidebar" class="profile-sidebar right-sidebar">
-        <div class="profile-header">
-            <button class="close-profile-btn">
-                <i class="fas fa-times"></i>
-            </button>
-            <h3>Contact Info</h3>
-        </div>
-        
-        <div class="profile-content">
-            <div class="profile-avatar-large">
-                <img id="profileContactAvatar" src="/static/images/shrek.jpg" alt="Contact Avatar">
-                <span id="profileContactStatus" class="status-text">Online</span>
-            </div>
-            
-            <h2 id="profileContactName">Contact Name</h2>
-            
-            <div class="profile-info-section">
-                <h4>About</h4>
-                <p class="profile-about">Hey there! I'm using ShrekChat.</p>
-            </div>
-            
-            <div class="profile-actions">
-                <button class="profile-action-btn">
-                    <i class="fas fa-search"></i>
-                    <span>Search in conversation</span>
-                </button>
-                <button class="profile-action-btn">
-                    <i class="fas fa-bell-slash"></i>
-                    <span>Mute notifications</span>
-                </button>
-                <button class="profile-action-btn">
-                    <i class="fas fa-trash"></i>
-                    <span>Clear chat</span>
-                </button>
-                <button class="profile-action-btn danger">
-                    <i class="fas fa-ban"></i>
-                    <span>Block contact</span>
-                </button>
-            </div>
-        </div>
-    </div>
-    
     <!-- User Profile Sidebar -->
     <div id="profileSidebar" class="profile-sidebar left-sidebar">
         <div class="profile-header">
@@ -198,14 +155,9 @@
             </div>
             
             <div class="profile-info">
-                <div class="profile-name-container">
-                    <h2>{{ username }}</h2>
-                    <button class="edit-icon">
-                        <i class="fas fa-pencil-alt"></i>
-                    </button>
+                <div class="profile-name">
+                    {{ username }}
                 </div>
-                
-                <p class="profile-status">Hey there! I'm using ShrekChat.</p>
             </div>
             
             <div class="profile-menu">
@@ -251,10 +203,10 @@
     <!-- Contact Info Popup -->
     <div id="contactInfoPopup" class="popup">
         <div class="popup-header">
+            <h3>Contact Info</h3>
             <button id="closeContactInfoPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h3>Contact Info</h3>
         </div>
         
         <div class="popup-content">
@@ -284,53 +236,51 @@
     </div>
     
     <!-- Edit Profile Popup -->
-    <div id="editProfilePopup" class="popup">
-        <div class="popup-header">
-            <button id="closeEditProfilePopup" class="popup-close">
-                <i class="fas fa-times"></i>
-            </button>
-            <h3>Edit Profile</h3>
-        </div>
-        
-        <div class="popup-content">
-            <div class="profile-edit-avatar">
-                <img src="/static/images/shrek.jpg" alt="User Avatar">
-                <div class="edit-avatar-overlay">
-                    <i class="fas fa-camera"></i>
+    <div id="editProfilePopup" class="popup">            
+            <div class="popup-header">
+                <div class="profile-avatar-circle">
+                    <img src="/static/images/shrek.jpg" alt="User Avatar">
                 </div>
+                <h3>Edit Profile</h3>
+                <button id="closeEditProfilePopup" class="popup-close">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             
-            <form class="edit-profile-form">
+            <form id="editProfileForm" class="edit-profile-form">
                 <div class="form-group">
-                    <label for="displayName">Display Name</label>
-                    <input type="text" id="displayName" value="{{ username }}">
+                    <label for="profileNickname">Nickname</label>
+                    <input type="text" id="profileNickname" name="username" placeholder="Your display name">
                 </div>
                 
                 <div class="form-group">
-                    <label for="statusMessage">Status Message</label>
-                    <input type="text" id="statusMessage" value="Hey there! I'm using ShrekChat.">
+                    <label for="profileEmail">Email</label>
+                    <input type="email" id="profileEmail" name="email" placeholder="Your email address">
                 </div>
                 
                 <div class="form-group">
-                    <label for="email">Email</label>
-                    <input type="email" id="email" value="user@example.com">
+                    <label for="profilePhone">Phone Number (optional)</label>
+                    <input type="tel" id="profilePhone" name="phone_number" placeholder="Your phone number">
                 </div>
                 
-                <div class="popup-actions">
-                    <button type="button" class="btn-secondary">Cancel</button>
-                    <button type="submit" class="btn-primary">Save</button>
+                <div class="form-group">
+                    <label for="profileCountry">Country (optional)</label>
+                    <input type="text" id="profileCountry" name="country" placeholder="Your country">
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" class="btn-success">Save Changes</button>
                 </div>
             </form>
-        </div>
     </div>
 
     <!-- Group Creation Popup -->
     <div id="createGroupPopup" class="popup">
         <div class="popup-header">
+            <h3>Create Group</h3>
             <button id="closeCreateGroupPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h3>Create Group</h3>
         </div>
         
         <div class="popup-content">
@@ -355,10 +305,10 @@
     <!-- Group Details Popup -->
     <div id="groupDetailsPopup" class="popup">
         <div class="popup-header">
+            <h3>Group Details</h3>
             <button id="closeGroupDetailsPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h3>Group Details</h3>
         </div>
         
         <div class="popup-content">
@@ -399,10 +349,10 @@
     <!-- Group Management Popup -->
     <div id="groupManagementPopup" class="popup">
         <div class="popup-header">
+            <h3>Group Info</h3>
             <button id="closeGroupManagementPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h3>Group Info</h3>
         </div>
         
         <div class="popup-content">
@@ -439,10 +389,10 @@
     <!-- Add Group Member Popup -->
     <div id="addGroupMemberPopup" class="popup">
         <div class="popup-header">
+            <h3>Add Members</h3>
             <button id="closeAddGroupMemberPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h3>Add Members</h3>
         </div>
         
         <div class="popup-content">
@@ -467,10 +417,10 @@
     <!-- Add Friend Popup -->
     <div id="addFriendPopup" class="popup">
         <div class="popup-header">
+            <h3>Добавить друга</h3>
             <button id="closeAddFriendPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
-            <h3>Добавить друга</h3>
         </div>
         
         <div class="popup-content">

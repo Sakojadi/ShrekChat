@@ -6,10 +6,19 @@ document.addEventListener('DOMContentLoaded', function() {
     // Login form validation
     const loginForm = document.getElementById('loginForm');
     if (loginForm) {
+        // Check if there's no error message, which means we're viewing a fresh form
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // If there's no error message and not coming back from failed login,
+        // clear the form fields for a fresh start
+        if (errorMessage && !errorMessage.textContent.trim()) {
+            document.getElementById('username').value = '';
+            document.getElementById('password').value = '';
+        }
+        
         loginForm.addEventListener('submit', function(e) {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value.trim();
-            const errorMessage = document.getElementById('loginErrorMessage');
             
             if (username === '' || password === '') {
                 e.preventDefault();
@@ -17,19 +26,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 return false;
             }
             
+            // On successful submission - we'll let the form submit normally
+            // and the backend will handle the redirect
             return true;
         });
     }
     
     // Registration form validation
-    const registerForm = document.getElementById('registerForm');
+    const registerForm = document.getElementById('registrationForm');
     if (registerForm) {
         registerForm.addEventListener('submit', function(e) {
             const username = document.getElementById('username').value.trim();
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value.trim();
-            const confirmPassword = document.getElementById('confirm_password').value.trim();
-            const errorMessage = document.getElementById('registerErrorMessage');
+            const confirmPassword = document.getElementById('confirmPassword').value.trim();
+            const errorMessage = document.getElementById('errorMessage');
             
             if (username === '' || email === '' || password === '' || confirmPassword === '') {
                 e.preventDefault();

@@ -13,9 +13,7 @@ document.addEventListener("DOMContentLoaded", function () {
   const chatContactName = document.getElementById("chatContactName");
   const chatContactStatus = document.getElementById("chatContactPresence");
   const chatContactAvatar = document.getElementById("chatContactAvatar");
-  const contactInfoBtn = document.getElementById("contactInfoBtn");
-  const contactInfoSidebar = document.getElementById("contactInfoSidebar");
-  const closeProfileBtn = document.querySelector(".close-profile-btn");
+  const chatContactStatusIndicator = document.getElementById("chatContactStatus");
   const profileContactName = document.getElementById("profileContactName");
   const profileContactStatus = document.getElementById("profileContactStatus");
   const profileContactAvatar = document.getElementById("profileContactAvatar");
@@ -127,6 +125,12 @@ document.addEventListener("DOMContentLoaded", function () {
       if (currentContactId == userId) {
         chatContactStatus.textContent =
           status === "online" ? "Online" : "Offline";
+        
+        // Update status indicator in chat header
+        if (chatContactStatusIndicator) {
+          chatContactStatusIndicator.classList.remove("online", "offline");
+          chatContactStatusIndicator.classList.add(status);
+        }
 
         // Also update contact info popup if open
         if (contactInfoStatus && contactInfoPopup.classList.contains("open")) {
@@ -208,9 +212,90 @@ document.addEventListener("DOMContentLoaded", function () {
     editProfileMenuItem.addEventListener("click", function () {
       profileSidebar.classList.remove("active");
       if (editProfilePopup) {
-        editProfilePopup.classList.add("open");
-        overlay.classList.add("active");
+        // Fetch user profile data
+        fetch("/api/profile")
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.success) {
+              // Populate form fields
+              document.getElementById("profileNickname").value = data.data.username;
+              document.getElementById("profileEmail").value = data.data.email;
+              document.getElementById("profilePhone").value = data.data.phone_number;
+              document.getElementById("profileCountry").value = data.data.country;
+              
+              // Show popup
+              editProfilePopup.classList.add("open");
+              overlay.classList.add("active");
+            } else {
+              console.error("Failed to fetch profile:", data.message);
+            }
+          })
+          .catch((error) => {
+            console.error("Error fetching profile:", error);
+          });
       }
+    });
+  }
+
+  // Handle profile form submission
+  const editProfileForm = document.getElementById("editProfileForm");
+  if (editProfileForm) {
+    editProfileForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      
+      // Get form data
+      const formData = {
+        username: document.getElementById("profileNickname").value,
+        email: document.getElementById("profileEmail").value,
+        phone_number: document.getElementById("profilePhone").value,
+        country: document.getElementById("profileCountry").value
+      };
+      
+      // Get the current username for comparison
+      const currentUsername = document.querySelector(".profile-name")
+        ? document.querySelector(".profile-name").textContent.trim()
+        : "";
+      
+      // Check if username is being changed
+      const isUsernameChanged = formData.username !== currentUsername;
+      
+      // Send data to server
+      fetch("/api/profile/update", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (data.success) {
+            // Show success message
+            alert("Profile updated successfully!");
+            
+            if (isUsernameChanged) {
+              // If username was changed, we should reload the page to update all references
+              // This ensures the session is properly updated
+              window.location.reload();
+            } else {
+              // Just update the UI for other changes without reload
+              const profileName = document.querySelector(".profile-name");
+              if (profileName) {
+                profileName.textContent = formData.username;
+              }
+              
+              // Close the popup
+              editProfilePopup.classList.remove("open");
+              overlay.classList.remove("active");
+            }
+          } else {
+            alert("Failed to update profile: " + data.message);
+          }
+        })
+        .catch((error) => {
+          console.error("Error updating profile:", error);
+          alert("An error occurred while updating your profile");
+        });
     });
   }
 
@@ -345,11 +430,10 @@ document.addEventListener("DOMContentLoaded", function () {
       const contactName = this.querySelector(
         ".contact-name-time h4"
       ).textContent;
-      const contactStatus = this.querySelector(
+      const isOnline = this.querySelector(
         ".status-indicator"
-      ).classList.contains("online")
-        ? "Online"
-        : "Offline";
+      ).classList.contains("online");
+      const contactStatus = isOnline ? "Online" : "Offline";
       const contactAvatar =
         this.querySelector(".contact-info img") ||
         this.querySelector(".contact-avatar img");
@@ -360,12 +444,12 @@ document.addEventListener("DOMContentLoaded", function () {
       chatContactName.textContent = contactName;
       chatContactStatus.textContent = contactStatus;
       chatContactAvatar.src = avatarSrc;
-
-      // Update profile sidebar
-      if (profileContactName) profileContactName.textContent = contactName;
-      if (profileContactStatus)
-        profileContactStatus.textContent = contactStatus;
-      if (profileContactAvatar) profileContactAvatar.src = avatarSrc;
+      
+      // Update status indicator in chat header
+      if (chatContactStatusIndicator) {
+        chatContactStatusIndicator.classList.remove("online", "offline");
+        chatContactStatusIndicator.classList.add(isOnline ? "online" : "offline");
+      }
 
       // Show mobile chat area
       sidebar.classList.remove("active");
@@ -551,23 +635,6 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     }
   }
-
-  // Toggle contact info sidebar
-  if (contactInfoBtn && contactInfoSidebar) {
-    contactInfoBtn.addEventListener("click", function () {
-      contactInfoSidebar.classList.toggle("active");
-      overlay.classList.toggle("active");
-    });
-  }
-
-  // Close profile sidebar
-  if (closeProfileBtn && contactInfoSidebar) {
-    closeProfileBtn.addEventListener("click", function () {
-      contactInfoSidebar.classList.remove("active");
-      overlay.classList.remove("active");
-    });
-  }
-
   // Close any sidebar or popup when overlay is clicked
   if (overlay) {
     overlay.addEventListener("click", function () {

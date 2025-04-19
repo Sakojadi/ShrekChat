@@ -28,7 +28,7 @@ async def chat_page(request: Request, username: str = Depends(get_current_user),
     contacts_list = []
     for contact, user in contacts:
         # Check if contact is in active connections
-        status = "online" if user.username in active_connections else "offline"
+        connection_status = "online" if user.username in active_connections else "offline"
         
         contact_data = {
             "id": user.id,
@@ -36,7 +36,7 @@ async def chat_page(request: Request, username: str = Depends(get_current_user),
             "username": user.username,
             "email": user.email,
             "avatar": "/static/images/shrek.jpg",  # Default avatar
-            "status": status,
+            "status": connection_status,
             "last_message": "Click to start chatting!",  # Placeholder 
             "last_message_time": "Now",  # Placeholder
             "unread_count": 0  # Placeholder
