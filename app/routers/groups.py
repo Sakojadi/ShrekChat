@@ -169,7 +169,7 @@ async def create_group(
     db.commit()
     
     # Notify members about the new group
-    await notify_new_group(new_room.id, member_id_list)
+    await notify_new_group(new_room.id, member_id_list, db)
     
     return {
         "id": new_room.id,
@@ -576,6 +576,14 @@ async def delete_group(
             detail="Only admins can delete the group"
         )
     
+    # Get member IDs before deleting the group to notify them
+    member_ids = [member.user_id for member in db.query(room_members.c.user_id).filter(
+        and_(
+            room_members.c.room_id == room_id,
+            room_members.c.user_id != current_user.id  # Exclude current user who is deleting the group
+        )
+    ).all()]
+    
     # Delete all messages from this room
     db.query(Message).filter(Message.room_id == room_id).delete()
     
@@ -591,6 +599,11 @@ async def delete_group(
     db.query(Room).filter(Room.id == room_id).delete()
     
     db.commit()
+    
+    # Notify all members that the group has been deleted
+    from app.routers.websockets import notify_group_deleted
+    if member_ids:
+        await notify_group_deleted(room_id, member_ids, db)
     
     return {"status": "success", "message": "Group has been deleted"}
 

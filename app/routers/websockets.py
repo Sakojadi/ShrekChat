@@ -14,7 +14,7 @@ from app.routers.session import ConnectionManager
 # Initialize our own manager instance
 manager = ConnectionManager()
 
-from app.database import User, Room, Message, room_members
+from app.database import User, Room, Message, room_members, GroupChat
 
 router = APIRouter()
 
@@ -637,4 +637,16 @@ async def notify_new_group(room_id: int, target_user_ids: list, db: Session):
                 await ws.send_json({
                     "type": "new_room",
                     "room": room_data
+                })
+
+async def notify_group_deleted(room_id: int, target_user_ids: list, db: Session):
+    """Notify users that a group chat has been deleted"""
+    # Notify each online user
+    for user_id in target_user_ids:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.username in active_connections:
+            for ws in active_connections[user.username]:
+                await ws.send_json({
+                    "type": "group_deleted",
+                    "room_id": room_id
                 })

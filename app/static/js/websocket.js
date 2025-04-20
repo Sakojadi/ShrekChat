@@ -291,6 +291,9 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
             } else if (data.type === "message_deleted") {
                 // Handle message deletion notification
                 handleMessageDeleted(data);
+            } else if (data.type === "group_deleted") {
+                // Handle group deletion notification
+                handleGroupDeleted(data);
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error, event.data);
@@ -496,6 +499,29 @@ function handleChatCleared(data) {
             'Chat cleared', 
             new Date(data.cleared_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
         );
+    }
+}
+
+// Handle group deletion notification
+function handleGroupDeleted(data) {
+    wsLog("Handling group deletion notification:", data);
+    
+    // Remove the group from the sidebar
+    const groupElement = document.querySelector(`.contact-item[data-room-id="${data.room_id}"]`);
+    if (groupElement) {
+        groupElement.remove();
+        wsLog(`Group ${data.room_id} removed from sidebar`);
+    }
+    
+    // If the deleted group is the currently open chat, show the welcome screen
+    if (parseInt(data.room_id) === parseInt(currentRoomId)) {
+        wsLog(`Currently open group ${data.room_id} was deleted, showing welcome screen`);
+        const welcomeContainer = document.getElementById('welcomeContainer');
+        const chatContent = document.getElementById('chatContent');
+        if (welcomeContainer && chatContent) {
+            welcomeContainer.style.display = 'flex';
+            chatContent.style.display = 'none';
+        }
     }
 }
 

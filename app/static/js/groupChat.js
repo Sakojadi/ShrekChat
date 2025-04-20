@@ -300,9 +300,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: JSON.stringify({ members: memberIds })
                 })
                 .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Failed to add members');
-                    }
+                    // if (!response.ok) {
+                    //     throw new Error('Failed to add members');
+                    // }
                     return response.json();
                 })
                 .then(data => {
