@@ -14,6 +14,79 @@ from app.database import User, Room, Message, room_members, GroupChat
 
 router = APIRouter(prefix="/api")
 
+# Get room details by ID
+@router.get("/rooms/{room_id}")
+async def get_room_details(
+    room_id: int,
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get details of a room (direct chat or group)"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if room exists
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    
+    # Check if user is a member of this room
+    is_member = db.query(room_members).filter(
+        and_(
+            room_members.c.room_id == room_id,
+            room_members.c.user_id == current_user.id
+        )
+    ).first() is not None
+    
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this room"
+        )
+    
+    # Prepare response based on room type
+    if room.is_group:
+        # Get group chat details
+        group_chat = db.query(GroupChat).filter(GroupChat.id == room_id).first()
+        if not group_chat:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group details not found")
+        
+        return {
+            "id": room.id,
+            "name": room.name,
+            "is_group": True,
+            "created_at": room.created_at.isoformat(),
+            "description": group_chat.description,
+            "avatar": group_chat.avatar
+        }
+    else:
+        # For direct chat, get the other user's details
+        other_user_id = db.query(room_members.c.user_id).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id != current_user.id
+            )
+        ).scalar()
+        
+        if not other_user_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chat partner not found")
+        
+        other_user = db.query(User).filter(User.id == other_user_id).first()
+        
+        return {
+            "id": room.id,
+            "name": other_user.full_name or other_user.username,
+            "username": other_user.username,
+            "full_name": other_user.full_name,
+            "avatar": other_user.avatar,
+            "is_group": False,
+            "user_id": other_user.id,
+            "status": "online" if other_user.is_online else "offline",
+            "created_at": room.created_at.isoformat()
+        }
+
 # Create a group chat
 @router.post("/rooms/group")
 async def create_group(
@@ -75,7 +148,6 @@ async def create_group(
     group_chat = GroupChat(
         id=new_room.id,  # Same ID as the room
         description=description,
-        created_by=current_user.id,
         avatar=avatar_path
     )
     db.add(group_chat)
@@ -536,3 +608,80 @@ async def make_group_admin(
     db.commit()
     
     return {"status": "success", "message": "User is now an admin"}
+
+# Update group details (for any member)
+@router.post("/rooms/{room_id}/update")
+async def update_group(
+    room_id: int,
+    name: str = Form(...),
+    description: str = Form(None),
+    avatar: Optional[UploadFile] = File(None),
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update group details (any member can update)"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if room exists and is a group
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    
+    if not room.is_group:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This is not a group chat")
+    
+    # Check if user is a member of this group (no admin check required)
+    is_member = db.query(room_members).filter(
+        and_(
+            room_members.c.room_id == room_id,
+            room_members.c.user_id == current_user.id
+        )
+    ).first() is not None
+    
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You must be a member to update group details"
+        )
+    
+    # Update room name
+    room.name = name.strip()
+    
+    # Get group chat details
+    group_chat = db.query(GroupChat).filter(GroupChat.id == room_id).first()
+    if not group_chat:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group details not found")
+    
+    # Update group description
+    group_chat.description = description.strip() if description else None
+    
+    # Handle avatar upload if provided
+    if avatar:
+        # Create upload directory if it doesn't exist
+        upload_dir = Path("app/static/uploads/group_avatars")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save the file with a unique name
+        file_extension = os.path.splitext(avatar.filename)[1]
+        avatar_filename = f"group_{room_id}_{int(datetime.utcnow().timestamp())}{file_extension}"
+        avatar_path = f"/static/uploads/group_avatars/{avatar_filename}"
+        
+        with open(f"app/{avatar_path}", "wb") as buffer:
+            shutil.copyfileobj(avatar.file, buffer)
+        
+        # Update avatar path
+        group_chat.avatar = avatar_path
+    
+    db.commit()
+    
+    return {
+        "id": room.id,
+        "name": room.name,
+        "is_group": True,
+        "created_at": room.created_at.isoformat(),
+        "description": group_chat.description,
+        "avatar": group_chat.avatar
+    }

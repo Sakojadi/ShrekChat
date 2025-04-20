@@ -376,6 +376,192 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Edit Group
+    if (editGroupButton) {
+        editGroupButton.addEventListener('click', function() {
+            if (currentGroupId) {
+                // Create edit group popup on the fly if it doesn't exist
+                let editGroupPopup = document.getElementById('editGroupPopup');
+                if (!editGroupPopup) {
+                    // Create the popup element
+                    editGroupPopup = document.createElement('div');
+                    editGroupPopup.id = 'editGroupPopup';
+                    editGroupPopup.className = 'popup';
+                    
+                    // Create popup content
+                    editGroupPopup.innerHTML = `
+                        <div class="popup-header">
+                            <h3>Edit Group</h3>
+                            <button id="closeEditGroupPopup" class="popup-close">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="popup-content">
+                            <div class="group-avatar-container">
+                                <div class="group-avatar">
+                                    <img id="editGroupAvatarPreview" src="${groupManagementAvatar.src}" alt="Group Avatar">
+                                    <div class="avatar-upload-overlay">
+                                        <i class="fas fa-camera"></i>
+                                    </div>
+                                </div>
+                                <input type="file" id="editGroupAvatarInput" accept="image/*" style="display: none;">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editGroupNameInput">Group Name</label>
+                                <input type="text" id="editGroupNameInput" value="${groupManagementName.textContent}">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editGroupDescriptionInput">Group Description</label>
+                                <textarea id="editGroupDescriptionInput">${groupManagementDescription.textContent}</textarea>
+                            </div>
+                            
+                            <div class="popup-actions">
+                                <button id="cancelEditGroup" class="btn-secondary">Cancel</button>
+                                <button id="saveGroupChanges" class="btn-primary">Save Changes</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add to document
+                    document.body.appendChild(editGroupPopup);
+                    
+                    // Setup avatar upload functionality
+                    const editAvatarInput = document.getElementById('editGroupAvatarInput');
+                    const editAvatarPreview = document.getElementById('editGroupAvatarPreview');
+                    const avatarOverlay = editGroupPopup.querySelector('.avatar-upload-overlay');
+                    
+                    if (avatarOverlay && editAvatarInput) {
+                        avatarOverlay.addEventListener('click', function() {
+                            editAvatarInput.click();
+                        });
+                        
+                        editAvatarInput.addEventListener('change', function() {
+                            if (this.files && this.files[0]) {
+                                const file = this.files[0];
+                                const reader = new FileReader();
+                                
+                                reader.onload = function(e) {
+                                    editAvatarPreview.src = e.target.result;
+                                };
+                                
+                                reader.readAsDataURL(file);
+                            }
+                        });
+                    }
+                    
+                    // Setup close button
+                    const closeEditGroupBtn = document.getElementById('closeEditGroupPopup');
+                    if (closeEditGroupBtn) {
+                        closeEditGroupBtn.addEventListener('click', function() {
+                            editGroupPopup.classList.remove('open');
+                            overlay.classList.remove('active');
+                        });
+                    }
+                    
+                    // Setup cancel button
+                    const cancelEditGroupBtn = document.getElementById('cancelEditGroup');
+                    if (cancelEditGroupBtn) {
+                        cancelEditGroupBtn.addEventListener('click', function() {
+                            editGroupPopup.classList.remove('open');
+                            overlay.classList.remove('active');
+                            groupManagementPopup.classList.add('open');
+                        });
+                    }
+                    
+                    // Setup save button
+                    const saveGroupChangesBtn = document.getElementById('saveGroupChanges');
+                    if (saveGroupChangesBtn) {
+                        saveGroupChangesBtn.addEventListener('click', function() {
+                            const editGroupNameInput = document.getElementById('editGroupNameInput');
+                            const editGroupDescInput = document.getElementById('editGroupDescriptionInput');
+                            
+                            if (!editGroupNameInput.value.trim()) {
+                                alert('Group name cannot be empty');
+                                return;
+                            }
+                            
+                            // Create FormData to send updated info
+                            const formData = new FormData();
+                            formData.append('name', editGroupNameInput.value);
+                            formData.append('description', editGroupDescInput.value || '');
+                            
+                            // Add avatar if changed
+                            if (editAvatarInput.files && editAvatarInput.files[0]) {
+                                formData.append('avatar', editAvatarInput.files[0]);
+                            }
+                            
+                            // Send update request
+                            fetch(`/api/rooms/${currentGroupId}/update`, {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to update group');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log('Group updated:', data);
+                                
+                                // Update group management screen with new data
+                                groupManagementName.textContent = data.name;
+                                groupManagementDescription.textContent = data.description || 'No description';
+                                if (data.avatar) {
+                                    groupManagementAvatar.src = data.avatar;
+                                }
+                                
+                                // Update the room in contacts list if it exists
+                                const roomElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
+                                if (roomElement) {
+                                    const roomNameEl = roomElement.querySelector('.contact-name-time h4');
+                                    const roomAvatarEl = roomElement.querySelector('.contact-avatar img');
+                                    if (roomNameEl) roomNameEl.textContent = data.name;
+                                    if (roomAvatarEl && data.avatar) roomAvatarEl.src = data.avatar;
+                                }
+                                
+                                // Also update the chat header if this group is currently open
+                                const chatContent = document.getElementById('chatContent');
+                                if (chatContent && chatContent.getAttribute('data-current-room-id') === currentGroupId.toString()) {
+                                    const chatContactName = document.getElementById('chatContactName');
+                                    const chatContactAvatar = document.getElementById('chatContactAvatar');
+                                    
+                                    if (chatContactName) chatContactName.textContent = data.name;
+                                    if (chatContactAvatar && data.avatar) chatContactAvatar.src = data.avatar;
+                                }
+                                
+                                // Close edit popup and show group management
+                                editGroupPopup.classList.remove('open');
+                                overlay.classList.add('active');
+                                groupManagementPopup.classList.add('open');
+                            })
+                            .catch(error => {
+                                console.error('Error updating group:', error);
+                                alert('Failed to update group. Please try again.');
+                            });
+                        });
+                    }
+                } else {
+                    // If popup already exists, update its contents
+                    const editAvatarPreview = document.getElementById('editGroupAvatarPreview');
+                    const editGroupNameInput = document.getElementById('editGroupNameInput');
+                    const editGroupDescInput = document.getElementById('editGroupDescriptionInput');
+                    
+                    if (editAvatarPreview) editAvatarPreview.src = groupManagementAvatar.src;
+                    if (editGroupNameInput) editGroupNameInput.value = groupManagementName.textContent;
+                    if (editGroupDescInput) editGroupDescInput.value = groupManagementDescription.textContent;
+                }
+                
+                // Hide group management popup and show edit popup
+                groupManagementPopup.classList.remove('open');
+                editGroupPopup.classList.add('open');
+                overlay.classList.add('active');
+            }
+        });
+    }
+    
     // Load contacts for selection
     function loadContactsForSelection() {
         if (selectableContacts) {
@@ -573,6 +759,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Clear and populate members list
                             groupMembersList.innerHTML = '';
                             
+                            // Check if current user is an admin
+                            const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+                            const currentUser = members.find(member => member.username === currentUsername);
+                            const isCurrentUserAdmin = currentUser?.is_admin || false;
+                            
+                            // Show or hide admin-specific UI elements
+                            if (addGroupMemberLink) {
+                                addGroupMemberLink.style.display = isCurrentUserAdmin ? 'flex' : 'none';
+                            }
+                            
                             members.forEach(function(member) {
                                 const memberElement = groupMemberTemplate.content.cloneNode(true);
                                 const memberAvatar = memberElement.querySelector('.member-avatar img');
@@ -586,6 +782,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                 memberAvatar.src = member.avatar || '/static/images/shrek.jpg';
                                 memberName.textContent = member.name;
                                 memberRole.textContent = member.is_admin ? 'Admin' : 'Participant';
+                                
+                                // Hide action toggle button for non-admins or when current user is viewing themselves
+                                const isSelf = member.username === currentUsername;
+                                if (memberActionsToggle) {
+                                    // Only show actions toggle if user is admin AND not looking at themselves
+                                    memberActionsToggle.style.display = (isCurrentUserAdmin && !isSelf) ? 'block' : 'none';
+                                }
                                 
                                 // Handle member actions toggle
                                 if (memberActionsToggle) {
@@ -609,8 +812,13 @@ document.addEventListener('DOMContentLoaded', function() {
                                     });
                                 }
                                 
-                                // Handle make admin action
+                                // Handle make admin action - only shown to admins, and only for non-admin members
                                 if (makeAdminAction) {
+                                    // Hide make admin option for existing admins
+                                    if (member.is_admin) {
+                                        makeAdminAction.style.display = 'none';
+                                    }
+                                    
                                     makeAdminAction.addEventListener('click', function() {
                                         if (confirm(`Make ${member.name} an admin of this group?`)) {
                                             // Make admin using API
@@ -628,6 +836,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 
                                                 // Update member role
                                                 memberRole.textContent = 'Admin';
+                                                makeAdminAction.style.display = 'none'; // Hide make admin option
                                             })
                                             .catch(error => {
                                                 console.error('Error making admin:', error);
@@ -637,7 +846,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                     });
                                 }
                                 
-                                // Handle remove member action
+                                // Handle remove member action - only shown to admins
                                 if (removeMemberAction) {
                                     removeMemberAction.addEventListener('click', function() {
                                         if (confirm(`Remove ${member.name} from this group?`)) {

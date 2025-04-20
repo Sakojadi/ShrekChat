@@ -22,6 +22,7 @@ room_members = Table(
     Column("room_id", Integer, ForeignKey("rooms.id"), primary_key=True),
     Column("user_id", Integer, ForeignKey("users.id"), primary_key=True),
     Column("joined_at", DateTime, default=datetime.utcnow),
+    Column("is_admin", Boolean, default=False),  # Add admin flag for group chats
 )
 
 class Room(Base):
