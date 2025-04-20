@@ -159,16 +159,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 return response.json();
             })
             .then(data => {
+                // Add room to the current user's sidebar
+                if (window.addRoomToList) {
+                    window.addRoomToList(data);
+                }
+                
+                // Make sure WebSocket connection is established
+                if (window.shrekChatWebSocket && window.shrekChatWebSocket.connectPresenceWebSocket) {
+                    window.shrekChatWebSocket.connectPresenceWebSocket();
+                }
+                
                 alert('Contact added successfully!');
                 closePopup();
-                
-                // Refresh the contacts list
-                if (window.refreshRoomsList) {
-                    window.refreshRoomsList();
-                } else {
-                    // Fallback to location reload if no refresh function is available
-                    window.location.reload();
-                }
             })
             .catch(error => {
                 console.error('Error adding contact:', error);

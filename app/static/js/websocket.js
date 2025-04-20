@@ -468,6 +468,15 @@ function handleNewRoom(data) {
         } catch (soundError) {
             console.log('Failed to play notification sound', soundError);
         }
+        
+        // Add a visual notification
+        const newRoomElement = document.querySelector(`.contact-item[data-room-id="${data.room.id}"]`);
+        if (newRoomElement) {
+            newRoomElement.classList.add('new-contact');
+            setTimeout(() => {
+                newRoomElement.classList.remove('new-contact');
+            }, 3000);
+        }
     } else {
         console.error("addRoomToList function not available");
     }
