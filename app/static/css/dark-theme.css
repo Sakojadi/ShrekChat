@@ -86,7 +86,7 @@ body.dark-theme .chat-area {
 }
 
 body.dark-theme .welcome-container {
-    background-color: var(--dark-background);
+    background-color: var(--dark-surface);
 }
 
 body.dark-theme .welcome-container h2,

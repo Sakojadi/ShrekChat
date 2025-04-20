@@ -1,262 +1,409 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
-from sqlalchemy.exc import IntegrityError
-from typing import List, Dict, Any
+from sqlalchemy import and_, or_, func, desc
+from sqlalchemy.sql import text
+from typing import List, Optional
 from datetime import datetime
+from pydantic import BaseModel
 
-from app.database import User, Contact, Message
-from app.routers.session import get_db, get_current_user_from_session, active_connections
-from app.routers.utils import format_message_time, send_read_receipts
+from app.routers.session import get_db, get_current_user
+from app.database import User, Room, Message, room_members, GroupChat
+
+# Add Pydantic model for request validation
+class DirectMessageRequest(BaseModel):
+    username_to_add: str
 
 router = APIRouter(prefix="/api")
 
-@router.get("/contacts", response_model=List[Dict[str, Any]])
-async def get_contacts(request: Request, db: Session = Depends(get_db)):
-    """Get all contacts of the current user"""
-    current_user = get_current_user_from_session(request, db)
+# Get all rooms for current user
+@router.get("/rooms")
+async def get_rooms(username: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all chat rooms for the current user"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    # Get all contacts of the current user
-    contacts = db.query(Contact, User).join(
-        User, Contact.contact_id == User.id
+    # Get all rooms where the user is a member
+    rooms = db.query(Room).join(
+        room_members, Room.id == room_members.c.room_id
     ).filter(
-        Contact.user_id == current_user.id
+        room_members.c.user_id == current_user.id
     ).all()
     
     result = []
-    for contact, user in contacts:
-        # Check if contact is online
-        status = "online" if user.username in active_connections else "offline"
+    for room in rooms:
+        # Get latest message in the room
+        latest_message = db.query(Message).filter(
+            Message.room_id == room.id
+        ).order_by(desc(Message.timestamp)).first()
         
-        # Get the last message between the user and this contact
-        last_sent_message = db.query(Message).filter(
-            Message.sender_id == current_user.id,
-            Message.recipient_id == user.id
-        ).order_by(Message.timestamp.desc()).first()
-        
-        last_received_message = db.query(Message).filter(
-            Message.sender_id == user.id,
-            Message.recipient_id == current_user.id
-        ).order_by(Message.timestamp.desc()).first()
-        
-        # Determine which message is more recent
-        last_message = None
-        if last_sent_message and last_received_message:
-            last_message = last_sent_message if last_sent_message.timestamp > last_received_message.timestamp else last_received_message
+        # For group chats
+        if room.is_group:
+            # Get group info
+            group_chat = db.query(func.count(room_members.c.user_id).label('member_count')).filter(
+                room_members.c.room_id == room.id
+            ).scalar()
+            
+            # Count unread messages
+            unread_count = db.query(func.count(Message.id)).filter(
+                and_(
+                    Message.room_id == room.id,
+                    Message.sender_id != current_user.id,
+                    Message.read == False
+                )
+            ).scalar()
+            
+            # Get group info for avatar
+            group_info = db.query(GroupChat).filter(GroupChat.id == room.id).first()
+            
+            result.append({
+                "id": room.id,
+                "name": room.name,
+                "is_group": True,
+                "avatar": group_info.avatar if group_info else "/static/images/shrek-logo.png",
+                "description": group_info.description if group_info else "",
+                "member_count": group_chat,
+                "last_message": latest_message.content if latest_message else "Group created. Click to start chatting!",
+                "last_message_time": latest_message.timestamp.strftime("%H:%M") if latest_message else "Now",
+                "unread_count": unread_count
+            })
+        # For direct chats
         else:
-            last_message = last_sent_message or last_received_message
+            # Get the other user in the room
+            other_user = db.query(User).join(
+                room_members, User.id == room_members.c.user_id
+            ).filter(
+                and_(
+                    room_members.c.room_id == room.id,
+                    User.id != current_user.id
+                )
+            ).first()
             
-        # Format last message and timestamp
-        last_message_text = "Click to start chatting!"
-        last_message_time = "Now"
-        
-        if last_message:
-            # Truncate message content if too long
-            content = last_message.content
-            if len(content) > 30:
-                content = content[:27] + "..."
+            # If no other user found, this might be a self-chat
+            if not other_user:
+                other_user = current_user
                 
-            # Format timestamp
-            last_message_time = format_message_time(last_message.timestamp)
-            last_message_text = content
-        
-        # Get unread messages count
-        unread_count = db.query(Message).filter(
-            Message.sender_id == user.id,
-            Message.recipient_id == current_user.id,
-            Message.read == False
-        ).count()
+            # Count unread messages
+            unread_count = db.query(func.count(Message.id)).filter(
+                and_(
+                    Message.room_id == room.id,
+                    Message.sender_id != current_user.id,
+                    Message.read == False
+                )
+            ).scalar()
             
-        contact_data = {
-            "id": user.id,
-            "name": user.full_name or user.username,
-            "username": user.username,
-            "email": user.email,
-            "avatar": "/static/images/shrek.jpg",  # Default avatar
-            "status": status,
-            "last_message": last_message_text,
-            "last_message_time": last_message_time,
-            "unread_count": unread_count,
-            "added_at": contact.added_at,
-            "type": "contact"  # To distinguish from groups
-        }
-        result.append(contact_data)
+            # Craft room name from other user's info
+            room_name = other_user.full_name or other_user.username
+            
+            result.append({
+                "id": room.id,
+                "name": room_name,
+                "username": other_user.username,
+                "avatar": other_user.avatar or "/static/images/shrek.jpg",
+                "user_id": other_user.id,
+                "is_group": False,
+                "last_message": latest_message.content if latest_message else "Click to start chatting!",
+                "last_message_time": latest_message.timestamp.strftime("%H:%M") if latest_message else "Now",
+                "unread_count": unread_count,
+                "status": "online" if other_user.is_online else "offline"
+            })
     
-    # Sort contacts by the most recent message
-    result.sort(key=lambda x: x["added_at"] if x["last_message"] == "Click to start chatting!" else datetime.now(), reverse=True)
+    # Sort by latest message time
+    result.sort(key=lambda x: x.get("last_message_time", "1900-01-01") or "1900-01-01", reverse=True)
     
     return result
 
-@router.post("/contacts/add")
-async def add_contact(request: Request, contact_username: str = Form(...), db: Session = Depends(get_db)):
-    """Add a new contact"""
-    current_user = get_current_user_from_session(request, db)
-    
-    # Find contact user by username or email
-    if "@" in contact_username:
-        contact_user = db.query(User).filter(User.email == contact_username).first()
-    else:
-        contact_user = db.query(User).filter(User.username == contact_username).first()
-    
-    if not contact_user:
+# Get or create a direct message room with another user
+@router.get("/rooms/direct/{user_id}")
+async def get_direct_room(
+    user_id: int, 
+    username: str = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Get or create a direct message room with another user"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    # Check if trying to add self
-    if current_user.id == contact_user.id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                          detail="You cannot add yourself as a contact")
+    # Get target user
+    target_user = db.query(User).filter(User.id == user_id).first()
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target user not found")
     
-    # Check if already contacts
-    existing_contact = db.query(Contact).filter(
-        Contact.user_id == current_user.id, 
-        Contact.contact_id == contact_user.id
+    # Check if a direct room already exists between these users
+    existing_room = db.query(Room).join(
+        room_members, Room.id == room_members.c.room_id
+    ).filter(
+        and_(
+            Room.is_group == False,  # Direct chat only
+            room_members.c.user_id == current_user.id
+        )
+    ).join(
+        room_members.table, and_(
+            room_members.c.room_id == Room.id,
+            room_members.c.user_id == target_user.id
+        )
     ).first()
     
-    if existing_contact:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                          detail="This user is already in your contacts")
+    if existing_room:
+        # Room exists, return it
+        return {
+            "id": existing_room.id,
+            "name": target_user.full_name or target_user.username,
+            "username": target_user.username,
+            "avatar": target_user.avatar,
+            "is_group": False
+        }
     
-    try:
-        # Create bidirectional relationship - add each other as contacts
-        now = datetime.utcnow()
-        
-        # Current user adds contact
-        contact1 = Contact(user_id=current_user.id, contact_id=contact_user.id, added_at=now)
-        db.add(contact1)
-        
-        # Contact adds current user
-        contact2 = Contact(user_id=contact_user.id, contact_id=current_user.id, added_at=now)
-        db.add(contact2)
-        
-        db.commit()
-        return {"status": "success", "message": f"Added {contact_username} to contacts"}
+    # Create new direct message room
+    new_room = Room(
+        name=f"DM: {current_user.username} - {target_user.username}",  # Internal name
+        is_group=False,
+        created_at=datetime.utcnow()
+    )
+    db.add(new_room)
+    db.flush()  # Get ID of new room
     
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, 
-                          detail="Contact relationship already exists")
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                          detail=f"Error adding contact: {str(e)}")
-
-@router.delete("/contacts/remove/{contact_id}")
-async def remove_contact(request: Request, contact_id: int, db: Session = Depends(get_db)):
-    """Remove a contact (bidirectional)"""
-    current_user = get_current_user_from_session(request, db)
-    
-    # Check if contact exists
-    contact_user = db.query(User).filter(User.id == contact_id).first()
-    if not contact_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
-    
-    try:
-        # Delete bidirectional relationship
-        # First direction - user removes contact
-        db.query(Contact).filter(
-            Contact.user_id == current_user.id, 
-            Contact.contact_id == contact_id
-        ).delete()
-        
-        # Second direction - contact removes user
-        db.query(Contact).filter(
-            Contact.user_id == contact_id, 
-            Contact.contact_id == current_user.id
-        ).delete()
-        
-        db.commit()
-        return {"status": "success", "message": "Contact removed successfully"}
-    
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
-                          detail=f"Error removing contact: {str(e)}")
-
-@router.get("/messages/{contact_id}")
-async def get_messages(contact_id: int, request: Request, db: Session = Depends(get_db)):
-    """Get all messages between current user and contact"""
-    current_user = get_current_user_from_session(request, db)
-    
-    # Get contact user
-    contact_user = db.query(User).filter(User.id == contact_id).first()
-    if not contact_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
-    
-    # Get messages between current user and contact
-    messages_sent = db.query(Message).filter(
-        Message.sender_id == current_user.id,
-        Message.recipient_id == contact_id
-    ).all()
-    
-    messages_received = db.query(Message).filter(
-        Message.sender_id == contact_id,
-        Message.recipient_id == current_user.id
-    ).all()
-    
-    # Mark received messages as read
-    for msg in messages_received:
-        if not msg.read:
-            msg.read = True
-            msg.read_at = datetime.utcnow()
+    # Add both users to the room
+    from sqlalchemy import insert
+    db.execute(
+        insert(room_members).values(
+            room_id=new_room.id,
+            user_id=current_user.id,
+            joined_at=datetime.utcnow()
+        )
+    )
+    db.execute(
+        insert(room_members).values(
+            room_id=new_room.id,
+            user_id=target_user.id,
+            joined_at=datetime.utcnow()
+        )
+    )
     
     db.commit()
     
-    # Notify the sender that their messages were read
-    if contact_user.username in active_connections and messages_received:
-        await send_read_receipts(contact_user.id, messages_received)
+    return {
+        "id": new_room.id,
+        "name": target_user.full_name or target_user.username,
+        "username": target_user.username,
+        "avatar": target_user.avatar,
+        "is_group": False
+    }
+
+# Create a direct message room with another user by username
+@router.post("/rooms/direct")
+async def create_direct_room_by_username(
+    request_data: DirectMessageRequest,
+    username: str = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Create a direct message room with another user by username"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    # Combine and sort messages by timestamp
-    all_messages = messages_sent + messages_received
-    all_messages.sort(key=lambda x: x.timestamp)
+    username_to_add = request_data.username_to_add
+    if not username_to_add:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username to add is required")
     
-    # Format messages for frontend
+    # Get target user
+    target_user = db.query(User).filter(User.username == username_to_add).first()
+    if not target_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Can't add self
+    if current_user.id == target_user.id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot create chat with yourself")
+    
+    # Check if a direct room already exists between these users
+    # Fixed join syntax for correct query
+    existing_room = db.query(Room).filter(Room.is_group == False).filter(
+        Room.id.in_(
+            db.query(room_members.c.room_id).filter(
+                room_members.c.user_id == current_user.id
+            ).intersect(
+                db.query(room_members.c.room_id).filter(
+                    room_members.c.user_id == target_user.id
+                )
+            )
+        )
+    ).first()
+        
+    if existing_room:
+        return {
+            "id": existing_room.id,
+            "name": target_user.full_name or target_user.username,
+            "username": target_user.username,
+            "avatar": target_user.avatar,
+            "is_group": False
+        }
+    
+    # Create new direct message room
+    new_room = Room(
+        name=f"DM: {current_user.username} - {target_user.username}",  # Internal name
+        is_group=False,
+        created_at=datetime.utcnow()
+    )
+    db.add(new_room)
+    db.flush()  # Get ID of new room
+    
+    # Add both users to the room
+    from sqlalchemy import insert
+    db.execute(
+        insert(room_members).values(
+            room_id=new_room.id,
+            user_id=current_user.id,
+            joined_at=datetime.utcnow()
+        )
+    )
+    db.execute(
+        insert(room_members).values(
+            room_id=new_room.id,
+            user_id=target_user.id,
+            joined_at=datetime.utcnow()
+        )
+    )
+    
+    db.commit()
+    
+    return {
+        "id": new_room.id,
+        "name": target_user.full_name or target_user.username,
+        "username": target_user.username,
+        "avatar": target_user.avatar,
+        "is_group": False
+    }
+
+# Get messages from a specific room
+@router.get("/messages/{room_id}")
+async def get_room_messages(
+    room_id: int, 
+    before_id: Optional[int] = None,
+    limit: int = 20,
+    username: str = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """Get messages from a specific room with pagination"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if room exists
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    
+    # Check if user is a member of this room
+    is_member = db.query(room_members).filter(
+        and_(
+            room_members.c.room_id == room_id,
+            room_members.c.user_id == current_user.id
+        )
+    ).first() is not None
+    
+    if not is_member:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have access to this room"
+        )
+    
+    # Get messages with pagination
+    query = db.query(Message).filter(Message.room_id == room_id)
+    
+    if before_id:
+        query = query.filter(Message.id < before_id)
+    
+    messages = query.order_by(desc(Message.timestamp)).limit(limit).all()
+    
+    # Format messages
     result = []
-    for msg in all_messages:
-        time_str = msg.timestamp.strftime("%H:%M")
-        if msg.sender_id == current_user.id:
-            sender = "user"
-            # Add delivery status
-            status = "sent"
-            if msg.delivered:
-                status = "delivered"
-            if msg.read:
-                status = "read"
-        else:
-            sender = "contact"
-            status = None  # No status for incoming messages
+    for message in reversed(messages):  # Reverse to get chronological order
+        sender = db.query(User).filter(User.id == message.sender_id).first()
         
         result.append({
-            "id": msg.id,
-            "sender": sender,
-            "content": msg.content,
-            "time": time_str,
-            "status": status
+            "id": message.id,
+            "content": message.content,
+            "sender_id": message.sender_id,
+            "sender": "user" if message.sender_id == current_user.id else sender.username if sender else "unknown",
+            "sender_name": sender.full_name or sender.username if sender else "Unknown",
+            "timestamp": message.timestamp.isoformat(),
+            "time": message.timestamp.strftime("%H:%M"),
+            "delivered": message.delivered,
+            "read": message.read
         })
+    
+    # Mark unread messages as read
+    unread_messages = db.query(Message).filter(
+        and_(
+            Message.room_id == room_id,
+            Message.sender_id != current_user.id,
+            Message.read == False
+        )
+    ).all()
+    
+    for msg in unread_messages:
+        msg.read = True
+        msg.read_at = datetime.utcnow()
+    
+    db.commit()
     
     return result
 
+# Search for users
 @router.get("/users/search")
-async def search_users(request: Request, query: str, db: Session = Depends(get_db)):
-    """Search for users by username, email, or full name"""
-    current_user = get_current_user_from_session(request, db)
+async def search_users(
+    query: str,
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Search for users by username or full name"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
     # Search for users
+    search_pattern = f"%{query}%"
     users = db.query(User).filter(
-        or_(
-            User.username.like(f"%{query}%"),
-            User.email.like(f"%{query}%"),
-            User.full_name.like(f"%{query}%")
+        and_(
+            or_(
+                User.username.ilike(search_pattern),
+                User.full_name.ilike(search_pattern)
+            ),
+            User.id != current_user.id  # Exclude current user
         )
-    ).filter(
-        User.username != current_user.username  # Don't return the current user
     ).limit(10).all()
     
-    return [
-        {
-            "id": user.id, 
-            "username": user.username, 
-            "email": user.email, 
-            "name": user.full_name or user.username
-        } 
-        for user in users
-    ]
+    result = []
+    for user in users:
+        # Check if direct chat room exists with this user
+        direct_room = db.query(Room).join(
+            room_members, Room.id == room_members.c.room_id
+        ).filter(
+            and_(
+                Room.is_group == False,
+                room_members.c.user_id == current_user.id
+            )
+        ).join(
+            room_members, and_(
+                room_members.c.room_id == Room.id, 
+                room_members.c.user_id == user.id
+            )
+        ).first()
+        
+        result.append({
+            "id": user.id,
+            "username": user.username,
+            "full_name": user.full_name,
+            "avatar": user.avatar,
+            "has_chat": direct_room is not None,
+            "room_id": direct_room.id if direct_room else None
+        })
+    
+    return result

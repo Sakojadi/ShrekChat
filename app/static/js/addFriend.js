@@ -1,8 +1,8 @@
 document.addEventListener('DOMContentLoaded', function() {
+    // Get DOM elements
     const addFriendButton = document.getElementById('addFriendButton');
     const addFriendInput = document.getElementById('addFriendInput');
     const searchResults = document.getElementById('searchResults');
-    const showAddContactBtn = document.getElementById('showAddContactBtn');
     const addFriendPopup = document.getElementById('addFriendPopup');
     const overlay = document.getElementById('overlay');
     const closeAddFriendPopup = document.getElementById('closeAddFriendPopup');
@@ -17,7 +17,12 @@ document.addEventListener('DOMContentLoaded', function() {
             if (overlay) overlay.classList.add('active');
             if (addFriendInput) {
                 addFriendInput.focus();
+                addFriendInput.value = '';
             }
+            if (searchResults) {
+                searchResults.innerHTML = '';
+            }
+            selectedUsername = null;
         }
     }
 
@@ -36,11 +41,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Event listeners for opening/closing popup
-    if (showAddContactBtn) {
-        showAddContactBtn.addEventListener('click', showAddFriendPopup);
-    }
-    
+    // Event listeners for opening popup
     if (addFriendMenuItem) {
         addFriendMenuItem.addEventListener('click', function() {
             const profileSidebar = document.getElementById('profileSidebar');
@@ -51,6 +52,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Event listeners for closing popup
     if (closeAddFriendPopup) {
         closeAddFriendPopup.addEventListener('click', closePopup);
     }
@@ -75,7 +77,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             fetch(`/api/users/search?query=${encodeURIComponent(query)}`)
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Search failed');
+                    }
+                    return response.json();
+                })
                 .then(data => {
                     searchResults.innerHTML = '';
                     
@@ -87,47 +94,35 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     
-                    const searchResultTemplate = document.getElementById('searchResultTemplate');
-                    
-                    if (searchResultTemplate) {
-                        data.forEach(user => {
-                            const searchResultItem = searchResultTemplate.content.cloneNode(true);
-                            searchResultItem.querySelector('.search-result-name').textContent = user.name;
-                            searchResultItem.querySelector('.search-result-username').textContent = user.username;
-                            
-                            const resultDiv = searchResultItem.querySelector('.search-result-item');
-                            resultDiv.addEventListener('click', function() {
-                                addFriendInput.value = user.username;
-                                selectedUsername = user.username;
-                                searchResults.innerHTML = '';
-                            });
-                            
-                            searchResults.appendChild(searchResultItem);
+                    data.forEach(user => {
+                        const div = document.createElement('div');
+                        div.className = 'search-result-item';
+                        
+                        // Add a visual indicator if chat already exists
+                        let chatIndicator = '';
+                        if (user.has_chat) {
+                            chatIndicator = '<span class="already-friend">Already a friend</span>';
+                        }
+                        
+                        div.innerHTML = `
+                            <div class="search-result-avatar">
+                                <img src="${user.avatar || '/static/images/shrek.jpg'}" alt="${user.full_name || user.username}">
+                            </div>
+                            <div class="search-result-info">
+                                <div class="search-result-name">${user.full_name || user.username}</div>
+                                <div class="search-result-username">@${user.username}</div>
+                                ${chatIndicator}
+                            </div>
+                        `;
+                        
+                        div.addEventListener('click', function() {
+                            addFriendInput.value = user.username;
+                            selectedUsername = user.username;
+                            searchResults.innerHTML = '';
                         });
-                    } else {
-                        // Fallback if template is not found
-                        data.forEach(user => {
-                            const div = document.createElement('div');
-                            div.className = 'search-result-item';
-                            div.innerHTML = `
-                                <div class="search-result-avatar">
-                                    <img src="/static/images/shrek.jpg" alt="${user.name}">
-                                </div>
-                                <div class="search-result-info">
-                                    <div class="search-result-name">${user.name}</div>
-                                    <div class="search-result-username">@${user.username}</div>
-                                </div>
-                            `;
-                            
-                            div.addEventListener('click', function() {
-                                addFriendInput.value = user.username;
-                                selectedUsername = user.username;
-                                searchResults.innerHTML = '';
-                            });
-                            
-                            searchResults.appendChild(div);
-                        });
-                    }
+                        
+                        searchResults.appendChild(div);
+                    });
                 })
                 .catch(error => {
                     console.error('Error searching for users:', error);
@@ -140,19 +135,20 @@ document.addEventListener('DOMContentLoaded', function() {
     if (addFriendButton) {
         addFriendButton.addEventListener('click', function() {
             const username = selectedUsername || addFriendInput.value.trim();
-            
             if (!username) {
                 alert('Please enter or select a username');
                 return;
             }
             
-            // Create form data
-            const formData = new FormData();
-            formData.append('contact_username', username);
-            
-            fetch('/api/contacts/add', {
+            // Send request to create direct message room
+            fetch('/api/rooms/direct', {
                 method: 'POST',
-                body: formData
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    username_to_add: username
+                })
             })
             .then(response => {
                 if (!response.ok) {
@@ -166,127 +162,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Contact added successfully!');
                 closePopup();
                 
-                // Refresh the contacts list by fetching fresh data from the server
-                fetch('/api/contacts')
-                    .then(response => response.json())
-                    .then(contacts => {
-                        const contactsList = document.getElementById('contactsList');
-                        
-                        // Save the add contact button
-                        const addContactButton = document.querySelector('.add-contact-button');
-                        
-                        // Clear existing contacts
-                        contactsList.innerHTML = '';
-                        
-                        // Add contacts from the server
-                        contacts.forEach(contact => {
-                            const contactElement = document.createElement('div');
-                            contactElement.className = 'contact-item';
-                            contactElement.setAttribute('data-contact-id', contact.id);
-                            
-                            contactElement.innerHTML = `
-                                <div class="contact-avatar">
-                                    <img src="${contact.avatar}" alt="${contact.name} Avatar">
-                                    <span class="status-indicator ${contact.status}"></span>
-                                </div>
-                                <div class="contact-info">
-                                    <div class="contact-name-time">
-                                        <h4>${contact.name}</h4>
-                                        <span class="message-time">${contact.last_message_time}</span>
-                                    </div>
-                                    <p class="last-message">${contact.last_message}</p>
-                                </div>
-                                ${contact.unread_count > 0 ? 
-                                `<div class="unread-count">${contact.unread_count}</div>` : ''}
-                            `;
-                            
-                            // Attach click handler
-                            contactElement.addEventListener('click', function() {
-                                // Get all contact items and remove active class
-                                document.querySelectorAll('.contact-item').forEach(item => {
-                                    item.classList.remove('active');
-                                });
-                                
-                                // Add active class to clicked contact
-                                this.classList.add('active');
-                                
-                                // Get contact details
-                                const contactId = this.getAttribute('data-contact-id');
-                                const contactName = this.querySelector('.contact-name-time h4').textContent;
-                                const contactStatus = this.querySelector('.status-indicator').classList.contains('online') ? 'Online' : 'Offline';
-                                const contactAvatar = this.querySelector('.contact-avatar img').src;
-                                
-                                // Update chat header
-                                document.getElementById('chatContactName').textContent = contactName;
-                                document.getElementById('chatContactPresence').textContent = contactStatus;
-                                document.getElementById('chatContactAvatar').src = contactAvatar;
-                                
-                                // Update contact info sidebar
-                                document.getElementById('profileContactName').textContent = contactName;
-                                document.getElementById('profileContactStatus').textContent = contactStatus;
-                                document.getElementById('profileContactAvatar').src = contactAvatar;
-                                
-                                // Hide sidebar on mobile
-                                document.querySelector('.sidebar').classList.remove('active');
-                                
-                                // Load messages for this contact
-                                fetch(`/api/messages/${contactId}`)
-                                    .then(response => response.json())
-                                    .then(messages => {
-                                        const chatMessages = document.getElementById('chatMessages');
-                                        chatMessages.innerHTML = '';
-                                        
-                                        const messageTemplate = document.getElementById('messageTemplate');
-                                        
-                                        messages.forEach(msg => {
-                                            const messageElement = messageTemplate.content.cloneNode(true);
-                                            const messageDiv = messageElement.querySelector('.message');
-                                            const messageContent = messageElement.querySelector('.message-content');
-                                            const messageTime = messageElement.querySelector('.message-time');
-                                            
-                                            // Set message content and time
-                                            messageContent.textContent = msg.content;
-                                            messageTime.textContent = msg.time;
-                                            
-                                            // Add appropriate class based on sender
-                                            if (msg.sender === 'user') {
-                                                messageDiv.classList.add('outgoing');
-                                            } else {
-                                                messageDiv.classList.add('incoming');
-                                            }
-                                            
-                                            // Add message to chat
-                                            chatMessages.appendChild(messageElement);
-                                        });
-                                        
-                                        // Scroll to bottom
-                                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                                    })
-                                    .catch(error => {
-                                        console.error('Error loading messages:', error);
-                                    });
-                            });
-                            
-                            contactsList.appendChild(contactElement);
-                        });
-                        
-                        // Add back the add contact button
-                        if (addContactButton) {
-                            contactsList.appendChild(addContactButton);
-                        }
-                        
-                        // Select the newly added contact
-                        if (contacts.length > 0) {
-                            const newContact = contacts.find(c => c.username === username);
-                            if (newContact) {
-                                const newContactElement = document.querySelector(`[data-contact-id="${newContact.id}"]`);
-                                if (newContactElement) {
-                                    newContactElement.click();
-                                }
-                            }
-                        }
-                    })
-                    .catch(error => console.error('Error refreshing contacts:', error));
+                // Refresh the contacts list
+                if (window.refreshRoomsList) {
+                    window.refreshRoomsList();
+                } else {
+                    // Fallback to location reload if no refresh function is available
+                    window.location.reload();
+                }
             })
             .catch(error => {
                 console.error('Error adding contact:', error);

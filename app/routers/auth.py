@@ -7,10 +7,12 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 import bcrypt
 import jwt
+import os
 from app.database import SessionLocal, User
+from app.routers.session import manager
 
 # JWT settings
-SECRET_KEY = "your-secret-key"  # In production, use a secure key
+SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")  # In production, use a secure key
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -94,9 +96,27 @@ async def login(request: Request, username: str = Form(...), password: str = For
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     
-    # Store token in session
+    # Generate WebSocket token using the manager
+    ws_token = manager.create_token(user.username, user.id)
+    
+    # Update user's online status
+    db = SessionLocal()
+    try:
+        db_user = db.query(User).filter(User.username == user.username).first()
+        if db_user:
+            db_user.is_online = True
+            db_user.last_seen = datetime.utcnow()
+            db.commit()
+    except:
+        db.rollback()
+    finally:
+        db.close()
+    
+    # Store tokens and user data in session
     request.session["access_token"] = access_token
+    request.session["ws_token"] = ws_token
     request.session["username"] = user.username
+    request.session["user_id"] = user.id
     
     return RedirectResponse("/chat", status_code=status.HTTP_303_SEE_OTHER)
 
@@ -136,6 +156,22 @@ async def register(request: Request, username: str = Form(...), email: str = For
 
 @router.get("/logout")
 async def logout(request: Request):
+    # Update user's online status to offline
+    if "username" in request.session:
+        db = SessionLocal()
+        try:
+            username = request.session["username"]
+            user = db.query(User).filter(User.username == username).first()
+            if user:
+                user.is_online = False
+                user.last_seen = datetime.utcnow()
+                db.commit()
+        except:
+            db.rollback()
+        finally:
+            db.close()
+    
+    # Clear session
     request.session.clear()
     return RedirectResponse("/login")
 
