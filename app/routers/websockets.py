@@ -426,3 +426,37 @@ async def broadcast_status(user: User, status: str, db: Session):
             }
             for ws in active_connections[contact.username]:
                 await ws.send_json(status_message)
+
+async def notify_new_room(room_id: int, target_user_id: int, current_user: User, db: Session):
+    """Notify a user about a new room they've been added to"""
+    # Get the target user
+    target_user = db.query(User).filter(User.id == target_user_id).first()
+    if not target_user or target_user.username not in active_connections:
+        # User not found or not online
+        return
+        
+    # Get the room data to send to the user
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        return
+        
+    # For direct messages, customize the room display for the target user
+    room_data = {
+        "id": room.id,
+        "name": current_user.full_name or current_user.username,
+        "username": current_user.username,
+        "avatar": current_user.avatar or "/static/images/shrek.jpg",
+        "user_id": current_user.id,
+        "is_group": False,
+        "last_message": "Click to start chatting!",
+        "last_message_time": "Now",
+        "unread_count": 0,
+        "status": "online" if current_user.is_online else "offline"
+    }
+    
+    # Send the notification to all of the target user's connections
+    for ws in active_connections[target_user.username]:
+        await ws.send_json({
+            "type": "new_room",
+            "room": room_data
+        })

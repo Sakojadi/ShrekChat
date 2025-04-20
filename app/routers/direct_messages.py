@@ -9,6 +9,7 @@ from pydantic import BaseModel
 
 from app.routers.session import get_db, get_current_user
 from app.database import User, Room, Message, room_members, GroupChat
+from app.routers.websockets import notify_new_room  # Import the new notification function
 
 # Add Pydantic model for request validation
 class DirectMessageRequest(BaseModel):
@@ -186,6 +187,9 @@ async def get_direct_room(
     
     db.commit()
     
+    # Notify the target user about the new room
+    await notify_new_room(new_room.id, target_user.id, current_user, db)
+    
     return {
         "id": new_room.id,
         "name": target_user.full_name or target_user.username,
@@ -270,6 +274,9 @@ async def create_direct_room_by_username(
     )
     
     db.commit()
+    
+    # Notify the target user about the new room
+    await notify_new_room(new_room.id, target_user.id, current_user, db)
     
     return {
         "id": new_room.id,

@@ -336,7 +336,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 chatMessages.innerHTML = '';
                 
                 if (messages.length === 0) {
-                    chatMessages.innerHTML = '<div class="no-messages">No messages yet. Be the first to say hello!</div>';
+                    // Empty chat - just leave it blank
+                    chatMessages.innerHTML = '';
                 } else {
                     messages.forEach(message => {
                         displayMessage(message);

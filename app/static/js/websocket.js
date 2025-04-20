@@ -221,6 +221,8 @@ function connectChatWebSocket(roomId, onConnectCallback) {
                             if (window.shrekChatUtils) {
                                 window.shrekChatUtils.updateContactStatus(data.user_id, data.status);
                             }
+                        } else if (data.type === "new_room") {
+                            handleNewRoom(data);
                         } else if (data.type === "pong") {
                             // Heartbeat response - nothing to do
                             wsLog("Received pong response");
@@ -358,6 +360,34 @@ function handleMessageRead(data) {
 function handleTypingIndicator(data) {
     wsLog("Typing indicator:", data);
     // Implementation would depend on how you want to show typing indicators in the UI
+}
+
+// Handle new room notifications
+function handleNewRoom(data) {
+    wsLog("Handling new room notification:", data);
+    
+    // Check if we already have this room in the sidebar
+    const existingRoom = document.querySelector(`.contact-item[data-room-id="${data.room.id}"]`);
+    if (existingRoom) {
+        wsLog("Room already exists in sidebar, skipping");
+        return;
+    }
+    
+    // Use the addRoomToList function to add the room to the sidebar
+    if (window.addRoomToList) {
+        wsLog("Adding new room to sidebar:", data.room);
+        window.addRoomToList(data.room);
+        
+        // Play a notification sound if available
+        try {
+            const notificationSound = new Audio('/static/sounds/notification.mp3');
+            notificationSound.play().catch(e => console.log('Failed to play notification sound'));
+        } catch (soundError) {
+            console.log('Failed to play notification sound', soundError);
+        }
+    } else {
+        console.error("addRoomToList function not available");
+    }
 }
 
 // Send a message through WebSocket
