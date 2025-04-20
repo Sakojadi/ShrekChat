@@ -566,6 +566,7 @@ async def make_group_admin(
         )
     ).first() is not None
     
+    
     if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
