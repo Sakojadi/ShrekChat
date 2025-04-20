@@ -2,49 +2,116 @@ from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_
 
-# Updated imports to use the new location
+# Updated imports to use the new location and updated models
 from app.routers.session import get_db, get_current_user, active_connections
-from app.database import User, Contact
+from app.database import User, Room, Message, GroupChat, room_members
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
 @router.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request, username: str = Depends(get_current_user), db: Session = Depends(get_db)):
-    """Render the main chat page with user's contacts"""
+    """Render the main chat page with user's rooms (direct and group chats)"""
     # Get current user
     current_user = db.query(User).filter(User.username == username).first()
     if not current_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
-    # Get all contacts of the current user
-    contacts = db.query(Contact, User).join(
-        User, Contact.contact_id == User.id
+    # Get all rooms where user is a member
+    rooms_query = db.query(Room).join(
+        room_members, Room.id == room_members.c.room_id
     ).filter(
-        Contact.user_id == current_user.id
-    ).all()
+        room_members.c.user_id == current_user.id
+    )
     
-    contacts_list = []
-    for contact, user in contacts:
-        # Check if contact is in active connections
-        connection_status = "online" if user.username in active_connections else "offline"
-        
-        contact_data = {
-            "id": user.id,
-            "name": user.full_name or user.username,
-            "username": user.username,
-            "email": user.email,
-            "avatar": "/static/images/shrek.jpg",  # Default avatar
-            "status": connection_status,
-            "last_message": "Click to start chatting!",  # Placeholder 
-            "last_message_time": "Now",  # Placeholder
-            "unread_count": 0  # Placeholder
-        }
-        contacts_list.append(contact_data)
+    rooms_list = []
+    
+    for room in rooms_query.all():
+        # For direct chats, get the other user
+        if not room.is_group:
+            # Find the other user in the room
+            other_member = db.query(User).join(
+                room_members, User.id == room_members.c.user_id
+            ).filter(
+                and_(
+                    room_members.c.room_id == room.id,
+                    User.id != current_user.id
+                )
+            ).first()
+            
+            if other_member:
+                # Check if other user is online
+                connection_status = "online" if other_member.username in active_connections else "offline"
+                
+                # Get last message in room if any
+                last_message = db.query(Message).filter(
+                    Message.room_id == room.id
+                ).order_by(Message.timestamp.desc()).first()
+                
+                # Count unread messages
+                unread_count = db.query(Message).filter(
+                    Message.room_id == room.id,
+                    Message.sender_id != current_user.id,
+                    Message.read == False
+                ).count()
+                
+                room_data = {
+                    "id": room.id,
+                    "user_id": other_member.id,
+                    "name": other_member.full_name or other_member.username,
+                    "username": other_member.username,
+                    "email": other_member.email,
+                    "avatar": other_member.avatar or "/static/images/shrek.jpg",
+                    "status": connection_status,
+                    "is_group": False,
+                    "last_message": last_message.content if last_message else "Click to start chatting!",
+                    "last_message_time": last_message.timestamp.strftime("%H:%M") if last_message else "Now",
+                    "unread_count": unread_count
+                }
+                rooms_list.append(room_data)
+        else:
+            # For group chats, get the group data
+            group_chat = db.query(GroupChat).filter(GroupChat.id == room.id).first()
+            
+            if group_chat:
+                # Count members
+                member_count = db.query(room_members).filter(
+                    room_members.c.room_id == room.id
+                ).count()
+                
+                # Get last message in group if any
+                last_message = db.query(Message).filter(
+                    Message.room_id == room.id
+                ).order_by(Message.timestamp.desc()).first()
+                
+                # Count unread messages
+                unread_count = db.query(Message).filter(
+                    Message.room_id == room.id,
+                    Message.sender_id != current_user.id,
+                    Message.read == False
+                ).count()
+                
+                room_data = {
+                    "id": room.id,
+                    "name": room.name,
+                    "avatar": group_chat.avatar or "/static/images/shrek-logo.png",
+                    "is_group": True,
+                    "description": group_chat.description,
+                    "member_count": member_count,
+                    "last_message": last_message.content if last_message else "Group created. Click to start chatting!",
+                    "last_message_time": last_message.timestamp.strftime("%H:%M") if last_message else "Now",
+                    "unread_count": unread_count
+                }
+                rooms_list.append(room_data)
+    
+    # Sort rooms by last message time (most recent first)
+    # For now, we're not actually sorting as we're using placeholder data
+    # In a real implementation, you would sort by actual last_message timestamp
     
     return templates.TemplateResponse("chat.html", {
         "request": request,
         "username": username,
-        "contacts": contacts_list
+        "rooms": rooms_list
     })

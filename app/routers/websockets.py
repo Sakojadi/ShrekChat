@@ -1,388 +1,428 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
+from typing import Dict, List, Set, Optional
 from datetime import datetime
-from typing import Dict, Any
+import json
 
-from app.database import SessionLocal, User, Message, GroupMember, GroupMessage, GroupMessageRead
-from app.routers.session import active_connections, username_to_id, id_to_username
-from app.routers.utils import broadcast_presence_update, send_read_receipts
+# Import get_db and active_connections separately to avoid circular import issues
+from app.routers.session import get_db, active_connections
+# Import the ConnectionManager class and initialize it here instead of importing manager
+from app.routers.session import ConnectionManager
+# Initialize our own manager instance
+manager = ConnectionManager()
+
+from app.database import User, Room, Message, room_members
 
 router = APIRouter()
 
-@router.websocket("/ws/presence")
-async def presence_websocket(websocket: WebSocket):
-    """WebSocket for presence updates (online/offline status)"""
-    await websocket.accept()
-    
-    # Get username from query parameters
-    username = None
+# Active WebSocket connections mapped to rooms
+# Format: {room_id: {user_id: websocket}}
+room_connections: Dict[int, Dict[int, WebSocket]] = {}
+
+@router.websocket("/ws/chat/{token}")
+async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
+    """WebSocket endpoint for chat messaging"""
     try:
-        query_params = dict(websocket.query_params)
-        username = query_params.get("username")
-    except Exception as e:
-        print(f"Error parsing query params: {e}")
-    
-    if not username:
-        await websocket.close(code=1008, reason="Username is required")
-        return
-        
-    # Create database session
-    db = SessionLocal()
-    
-    try:
-        # Get user
-        user = db.query(User).filter(User.username == username).first()
+        # Authenticate user from token
+        user = await manager.get_user_from_token(token, db)
         if not user:
-            await websocket.close(code=1008, reason="User not found")
-            db.close()
+            await websocket.close(code=1008)  # Policy violation - invalid token
             return
         
-        # Store username to user ID mapping
-        username_to_id[username] = user.id
-        id_to_username[user.id] = username
+        # Accept connection
+        await websocket.accept()
         
-        # Mark user as online
+        # Store connection
+        if user.username not in active_connections:
+            active_connections[user.username] = set()
+        active_connections[user.username].add(websocket)
+        
+        # Broadcast user online status to all friends (connected users)
+        await broadcast_status(user, "online", db)
+        
+        # Process messages
+        try:
+            while True:
+                # Receive message
+                data = await websocket.receive_text()
+                message_data = json.loads(data)
+                
+                # Validate message format
+                if "type" not in message_data:
+                    await websocket.send_json({"error": "Invalid message format"})
+                    continue
+                
+                # Handle different message types
+                if message_data["type"] == "message":
+                    await handle_chat_message(websocket, user, message_data, db)
+                elif message_data["type"] == "seen":
+                    await handle_seen_notification(websocket, user, message_data, db)
+                elif message_data["type"] == "typing":
+                    await handle_typing_notification(websocket, user, message_data, db)
+                else:
+                    await websocket.send_json({"error": "Unknown message type"})
+        
+        except WebSocketDisconnect:
+            # Handle disconnect
+            if user.username in active_connections:
+                active_connections[user.username].discard(websocket)
+                if not active_connections[user.username]:
+                    del active_connections[user.username]
+            
+            # Remove from room connections
+            for room_id in list(room_connections.keys()):
+                if user.id in room_connections[room_id]:
+                    room_connections[room_id].pop(user.id)
+                    if not room_connections[room_id]:
+                        room_connections.pop(room_id)
+            
+            # Broadcast offline status
+            await broadcast_status(user, "offline", db)
+    
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011)  # Internal error
+        except:
+            pass
+
+@router.websocket("/ws/presence")
+async def presence_endpoint(websocket: WebSocket, username: str, db: Session = Depends(get_db)):
+    """WebSocket endpoint for presence status updates"""
+    try:
+        # Authenticate user from username parameter
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            await websocket.close(code=1008)  # Policy violation - user not found
+            return
+        
+        # Accept connection
+        await websocket.accept()
+        
+        # Store connection
+        if user.username not in active_connections:
+            active_connections[user.username] = set()
+        active_connections[user.username].add(websocket)
+        
+        # Set user online status in database
         user.is_online = True
         user.last_seen = datetime.utcnow()
         db.commit()
         
-        # Store the connection
-        active_connections[username] = websocket
-        
-        # Broadcast online status to all contacts
-        await broadcast_presence_update(user.id, "online", db)
+        # Broadcast user online status to all friends
+        await broadcast_status(user, "online", db)
         
         try:
-            # Keep connection alive to track presence
             while True:
+                # Just keep connection alive and handle "ping" messages
                 data = await websocket.receive_text()
-                # Ping-pong to keep connection alive
                 if data == "ping":
                     await websocket.send_text("pong")
-                
+        
         except WebSocketDisconnect:
-            # Clean up when user disconnects
-            cleanup_user_disconnect(username, user.id, db)
-    finally:
-        db.close()
-
-def cleanup_user_disconnect(username, user_id, db):
-    """Clean up when a user disconnects"""
-    if username in active_connections:
-        del active_connections[username]
-    
-    if username in username_to_id:
-        del username_to_id[username]
-        
-    if user_id in id_to_username:
-        del id_to_username[user_id]
-    
-    # Mark user as offline in database
-    user = db.query(User).filter(User.id == user_id).first()
-    if user:
-        user.is_online = False
-        user.last_seen = datetime.utcnow()
-        db.commit()
-    
-    # Broadcast offline status to all contacts
-    broadcast_presence_update(user_id, "offline", db)
-
-@router.websocket("/ws/chat/{contact_id}")
-async def direct_chat_websocket(websocket: WebSocket, contact_id: int):
-    """WebSocket for direct chat messages between users"""
-    await websocket.accept()
-    
-    # Get username from query parameters
-    username = None
-    try:
-        query_params = dict(websocket.query_params)
-        username = query_params.get("username")
-    except Exception as e:
-        print(f"Error parsing query params: {e}")
-        
-    if not username:
-        await websocket.close(code=1008, reason="Username is required")
-        return
-    
-    # Create database session
-    db = SessionLocal()
-    
-    try:
-        # Get sender user
-        sender_user = db.query(User).filter(User.username == username).first()
-        if not sender_user:
-            await websocket.close(code=1008, reason="User not found")
-            return
+            # Handle disconnect
+            if user.username in active_connections:
+                active_connections[user.username].discard(websocket)
+                if not active_connections[user.username]:
+                    del active_connections[user.username]
             
-        # Get recipient user
-        recipient_user = db.query(User).filter(User.id == contact_id).first()
-        if not recipient_user:
-            await websocket.close(code=1008, reason="Recipient not found")
-            return
-        
-        # Store the connection with the username
-        active_connections[username] = websocket
-        
-        # Store user ID mappings
-        username_to_id[username] = sender_user.id
-        id_to_username[sender_user.id] = username
-        
-        # Mark unread messages as read when opening a chat
-        unread_messages = db.query(Message).filter(
-            Message.sender_id == recipient_user.id,
-            Message.recipient_id == sender_user.id,
-            Message.read == False
-        ).all()
-        
-        now = datetime.utcnow()
-        for msg in unread_messages:
-            msg.read = True
-            msg.read_at = now
-        
-        db.commit()
-        
-        # If recipient is online, send read receipts
-        if unread_messages and recipient_user.username in active_connections:
-            await send_read_receipts(recipient_user.id, unread_messages)
-        
-        try:
-            while True:
-                data = await websocket.receive_json()
-                
-                # Handle different message types
-                await handle_direct_message(data, sender_user, recipient_user, websocket, db)
-        
-        except WebSocketDisconnect:
-            # Handle disconnection (presence update handled by presence socket)
-            pass
-        except Exception as e:
-            print(f"WebSocket error: {e}")
-    finally:
-        db.close()
-
-async def handle_direct_message(data, sender_user, recipient_user, websocket, db):
-    """Handle different types of direct messages"""
-    message_type = data.get("type", "message")
+            # Update user status in database
+            user.is_online = False
+            user.last_seen = datetime.utcnow()
+            db.commit()
+            
+            # Broadcast offline status
+            await broadcast_status(user, "offline", db)
     
-    if message_type == "message":
-        await handle_text_message(data, sender_user, recipient_user, websocket, db)
-    elif message_type == "read_receipt":
-        await handle_read_receipt(data, sender_user, db)  
-    elif message_type == "delivered_receipt":
-        await handle_delivery_receipt(data, sender_user, db)
-
-async def handle_text_message(data, sender_user, recipient_user, websocket, db):
-    """Handle text message between users"""
-    content = data.get("content")
-    
-    # Save message to database
-    message = Message(
-        sender_id=sender_user.id,
-        recipient_id=recipient_user.id,
-        content=content,
-        timestamp=datetime.utcnow()
-    )
-    db.add(message)
-    db.commit()
-    db.refresh(message)
-    
-    # Create response with message details
-    message_response = {
-        "type": "message",
-        "id": message.id,
-        "sender": sender_user.username,
-        "content": content,
-        "time": data.get("time"),
-        "status": "sent"
-    }
-    
-    # Check if recipient is online
-    recipient_username = recipient_user.username
-    if recipient_username in active_connections:
-        # Send message to recipient
-        await active_connections[recipient_username].send_json({
-            "type": "message",
-            "id": message.id,
-            "sender": sender_user.username,
-            "content": content,
-            "time": data.get("time")
-        })
-        
-        # Mark as delivered immediately since recipient is online
-        message.delivered = True
-        message.delivered_at = datetime.utcnow()
-        db.commit()
-        
-        # Update status to delivered
-        message_response["status"] = "delivered"
-    
-    # Echo back to sender with status
-    await websocket.send_json(message_response)
-
-async def handle_read_receipt(data, sender_user, db):
-    """Handle read receipt for a message"""
-    message_id = data.get("message_id")
-    message = db.query(Message).filter(Message.id == message_id).first()
-    
-    if message:
-        message.read = True
-        message.read_at = datetime.utcnow()
-        db.commit()
-        
-        # Send read receipt to the original sender
-        original_sender_id = message.sender_id
-        if (original_sender_id != sender_user.id and 
-            original_sender_id in id_to_username and 
-            id_to_username[original_sender_id] in active_connections):
-                
-            sender_username = id_to_username[original_sender_id]
-            await active_connections[sender_username].send_json({
-                "type": "read_receipt",
-                "message_id": message_id,
-                "read_at": message.read_at.isoformat()
-            })
-
-async def handle_delivery_receipt(data, sender_user, db):
-    """Handle delivery receipt for a message"""
-    message_id = data.get("message_id")
-    message = db.query(Message).filter(Message.id == message_id).first()
-    
-    if message and not message.delivered:
-        message.delivered = True
-        message.delivered_at = datetime.utcnow()
-        db.commit()
-        
-        # Notify original sender about delivery if they're online
-        original_sender_id = message.sender_id
-        if (original_sender_id != sender_user.id and 
-            original_sender_id in id_to_username and 
-            id_to_username[original_sender_id] in active_connections):
-                
-            sender_username = id_to_username[original_sender_id]
-            await active_connections[sender_username].send_json({
-                "type": "delivered_receipt",
-                "message_id": message_id,
-                "delivered_at": message.delivered_at.isoformat()
-            })
-
-@router.websocket("/ws/group/{group_id}")
-async def group_chat_websocket(websocket: WebSocket, group_id: int):
-    """WebSocket for group chat messages"""
-    await websocket.accept()
-    
-    # Get username from query parameters
-    username = None
-    try:
-        query_params = dict(websocket.query_params)
-        username = query_params.get("username")
     except Exception as e:
-        print(f"Error parsing query params: {e}")
-    
-    if not username:
-        await websocket.close(code=1008, reason="Username is required")
-        return
-    
-    # Create database session
-    db = SessionLocal()
-    
+        print(f"Presence WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011)  # Internal error
+        except:
+            pass
+
+async def handle_chat_message(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle chat message"""
     try:
-        # Get user
-        user = db.query(User).filter(User.username == username).first()
-        if not user:
-            await websocket.close(code=1008, reason="User not found")
-            db.close()
+        # Validate message data
+        required_fields = ["room_id", "content"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"error": "Missing required fields"})
             return
         
-        # Check if user is member of the group
-        is_member = db.query(GroupMember).filter(
-            GroupMember.group_id == group_id,
-            GroupMember.user_id == user.id
-        ).first()
+        room_id = message_data["room_id"]
+        content = message_data["content"]
+        # Extract temp_id if provided by client
+        temp_id = message_data.get("temp_id")
+        
+        # Check if room exists
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            await websocket.send_json({"error": "Room not found"})
+            return
+        
+        # Check if user is a member of this room
+        is_member = db.query(room_members).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id == user.id
+            )
+        ).first() is not None
         
         if not is_member:
-            await websocket.close(code=1008, reason="Not a member of this group")
-            db.close()
+            await websocket.send_json({"error": "You are not a member of this room"})
             return
         
-        # Store connection
-        connection_key = f"group-{group_id}-{username}"
-        active_connections[connection_key] = websocket
+        # Create message
+        new_message = Message(
+            content=content,
+            sender_id=user.id,
+            room_id=room_id,
+            timestamp=datetime.utcnow(),
+            delivered=True,  # Delivered to server
+            read=False       # Not read by recipient(s) yet
+        )
+        db.add(new_message)
+        db.commit()
+        db.refresh(new_message)
         
-        # Store user ID mappings
-        username_to_id[username] = user.id
-        id_to_username[user.id] = username
+        # Prepare base message response with real sender information
+        base_message_response = {
+            "id": new_message.id,
+            "content": new_message.content,
+            "sender_id": new_message.sender_id,
+            "sender": user.username,  # The actual username of sender
+            "sender_name": user.full_name or user.username,
+            "room_id": room_id,
+            "timestamp": new_message.timestamp.isoformat(),
+            "time": new_message.timestamp.strftime("%H:%M"),
+            "delivered": True,
+            "read": False,
+            "is_group": room.is_group
+        }
         
-        try:
-            while True:
-                data = await websocket.receive_json()
-                
-                # Handle message
-                if data.get("type") == "message":
-                    await handle_group_message(data, user, group_id, websocket, db)
+        # Send confirmation to sender with special "user" marker for client-side identification
+        sender_response = {
+            "type": "message",
+            "message": {
+                **base_message_response,
+                "sender": "user"  # Special marker for the sender's UI
+            }
+        }
         
-        except WebSocketDisconnect:
-            # Clean up when user disconnects
-            if connection_key in active_connections:
-                del active_connections[connection_key]
+        # Include the temp_id in the response to the sender if it was provided
+        if temp_id:
+            sender_response["message"]["temp_id"] = temp_id
+            
+        await websocket.send_json(sender_response)
         
-    finally:
-        db.close()
+        # Send to all other room members who are connected
+        members = db.query(User.id).join(
+            room_members, User.id == room_members.c.user_id
+        ).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                User.id != user.id  # Exclude sender
+            )
+        ).all()
+        
+        member_ids = [member.id for member in members]
+        
+        # Prepare recipient message - this keeps the actual sender information
+        recipient_response = {
+            "type": "message",
+            "message": base_message_response  # Use base response with real sender info
+        }
+        
+        # Initialize room connections if not exists
+        if room_id not in room_connections:
+            room_connections[room_id] = {}
+        
+        # Add current user to room connections
+        room_connections[room_id][user.id] = websocket
+        
+        # Get online members and send message
+        for member_id in member_ids:
+            member = db.query(User).filter(User.id == member_id).first()
+            if member and member.username in active_connections:
+                # Find sockets for this user
+                for member_ws in active_connections[member.username]:
+                    await member_ws.send_json(recipient_response)
+                    
+                    # Add this connection to room connections
+                    room_connections[room_id][member_id] = member_ws
+    except Exception as e:
+        print(f"Error handling chat message: {e}")
+        await websocket.send_json({"error": "Failed to send message"})
 
-async def handle_group_message(data, user, group_id, websocket, db):
-    """Handle message in a group chat"""
-    content = data.get("content")
-    
-    # Save message to database
-    message = GroupMessage(
-        group_id=group_id,
-        sender_id=user.id,
-        content=content,
-        timestamp=datetime.utcnow()
-    )
-    db.add(message)
-    db.commit()
-    db.refresh(message)
-    
-    # Create read receipt for sender
-    read_receipt = GroupMessageRead(
-        message_id=message.id,
-        user_id=user.id,
-        read_at=datetime.utcnow()
-    )
-    db.add(read_receipt)
-    db.commit()
-    
-    # Prepare message for broadcast
-    message_data = {
-        "type": "message",
-        "id": message.id,
-        "sender_id": user.id,
-        "sender_name": user.full_name or user.username,
-        "content": content,
-        "time": data.get("time"),
-        "group_id": group_id
-    }
-    
-    # Send message to all online group members
-    members = db.query(GroupMember, User).join(
-        User, GroupMember.user_id == User.id
+async def handle_seen_notification(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle seen notification"""
+    try:
+        # Validate data
+        required_fields = ["room_id", "message_ids"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"error": "Missing required fields"})
+            return
+        
+        room_id = message_data["room_id"]
+        message_ids = message_data["message_ids"]
+        
+        # Check if room exists
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            await websocket.send_json({"error": "Room not found"})
+            return
+        
+        # Check if user is a member of this room
+        is_member = db.query(room_members).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id == user.id
+            )
+        ).first() is not None
+        
+        if not is_member:
+            await websocket.send_json({"error": "You are not a member of this room"})
+            return
+        
+        # Mark messages as read
+        messages = db.query(Message).filter(
+            and_(
+                Message.id.in_(message_ids),
+                Message.room_id == room_id,
+                Message.sender_id != user.id,  # Don't mark own messages
+                Message.read == False
+            )
+        ).all()
+        
+        read_message_ids = []
+        senders = set()
+        
+        for message in messages:
+            message.read = True
+            message.read_at = datetime.utcnow()
+            read_message_ids.append(message.id)
+            senders.add(message.sender_id)
+        
+        db.commit()
+        
+        # Send confirmation to current user
+        await websocket.send_json({
+            "type": "seen_confirmation",
+            "room_id": room_id,
+            "message_ids": read_message_ids
+        })
+        
+        # Notify senders that their messages were read
+        for sender_id in senders:
+            sender = db.query(User).filter(User.id == sender_id).first()
+            if sender and sender.username in active_connections:
+                for sender_ws in active_connections[sender.username]:
+                    await sender_ws.send_json({
+                        "type": "message_read",
+                        "room_id": room_id,
+                        "reader_id": user.id,
+                        "reader": user.username,
+                        "message_ids": read_message_ids
+                    })
+    except Exception as e:
+        print(f"Error handling seen notification: {e}")
+        await websocket.send_json({"error": "Failed to process seen notification"})
+
+async def handle_typing_notification(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle typing notification"""
+    try:
+        # Validate data
+        required_fields = ["room_id", "status"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"error": "Missing required fields"})
+            return
+        
+        room_id = message_data["room_id"]
+        status = message_data["status"]  # "typing" or "idle"
+        
+        # Check if room exists
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            await websocket.send_json({"error": "Room not found"})
+            return
+        
+        # Check if user is a member of this room
+        is_member = db.query(room_members).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id == user.id
+            )
+        ).first() is not None
+        
+        if not is_member:
+            await websocket.send_json({"error": "You are not a member of this room"})
+            return
+        
+        # Send typing notification to all other members in the room
+        members = db.query(User.id).join(
+            room_members, User.id == room_members.c.user_id
+        ).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                User.id != user.id  # Exclude sender
+            )
+        ).all()
+        
+        typing_notification = {
+            "type": "typing",
+            "room_id": room_id,
+            "user_id": user.id,
+            "username": user.username,
+            "status": status
+        }
+        
+        for member in members:
+            member_user = db.query(User).filter(User.id == member.id).first()
+            if member_user and member_user.username in active_connections:
+                for member_ws in active_connections[member_user.username]:
+                    await member_ws.send_json(typing_notification)
+    except Exception as e:
+        print(f"Error handling typing notification: {e}")
+        await websocket.send_json({"error": "Failed to process typing notification"})
+
+async def broadcast_status(user: User, status: str, db: Session):
+    """Broadcast user's online/offline status to contacts"""
+    # Find all users who have direct chat rooms with this user
+    rooms_with_user = db.query(Room).join(
+        room_members, Room.id == room_members.c.room_id
     ).filter(
-        GroupMember.group_id == group_id
+        and_(
+            Room.is_group == False,  # Only direct chats
+            room_members.c.user_id == user.id
+        )
     ).all()
     
-    for member, member_user in members:
-        # Don't send to self
-        if member_user.id == user.id:
-            continue
-        
-        # Check if member is online
-        member_connection_key = f"group-{group_id}-{member_user.username}"
-        if member_connection_key in active_connections:
-            # Send message
-            await active_connections[member_connection_key].send_json(message_data)
+    room_ids = [room.id for room in rooms_with_user]
     
-    # Echo back to sender
-    await websocket.send_json({
-        **message_data,
-        "sender": "user"  # Mark as own message
-    })
+    if not room_ids:
+        return
+    
+    # Find all users who are in these rooms
+    contacts = db.query(User).join(
+        room_members, User.id == room_members.c.user_id
+    ).filter(
+        and_(
+            room_members.c.room_id.in_(room_ids),
+            User.id != user.id  # Exclude the user themselves
+        )
+    ).all()
+    
+    # Send status to all online contacts
+    for contact in contacts:
+        if contact.username in active_connections:
+            status_message = {
+                "type": "status",
+                "user_id": user.id,
+                "username": user.username,
+                "status": status
+            }
+            for ws in active_connections[contact.username]:
+                await ws.send_json(status_message)

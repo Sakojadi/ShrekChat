@@ -21,7 +21,6 @@
             <button id="profileButton" class="profile-btn">
                 <div class="profile-picture">
                     <img src="/static/images/shrek.jpg" alt="User Avatar">
-                    <span class="status-indicator online"></span>
                 </div>
                 <div class="profile-name">{{ username }}</div>
             </button>
@@ -35,21 +34,23 @@
         </div>
         
         <div id="contactsList" class="contacts-list">
-            {% for contact in contacts %}
-            <div class="contact-item" data-contact-id="{{ contact.id }}">
+            {% for room in rooms %}
+            <div class="contact-item" data-room-id="{{ room.id }}" {% if room.is_group %}data-is-group="true"{% else %}data-user-id="{{ room.user_id }}"{% endif %}>
                 <div class="contact-avatar">
-                    <img src="{{ contact.avatar }}" alt="{{ contact.username }} Avatar">
-                    <span class="status-indicator {{ contact.status }}"></span>
+                    <img src="{{ room.avatar }}" alt="{{ room.name }} Avatar">
+                    {% if not room.is_group %}
+                    <span class="status-indicator {{ room.status }}"></span>
+                    {% endif %}
                 </div>
                 <div class="contact-info">
                     <div class="contact-name-time">
-                        <h4>{{ contact.username }}</h4>
-                        <span class="message-time">{{ contact.last_message_time }}</span>
+                        <h4>{{ room.name }}</h4>
+                        <span class="message-time">{{ room.last_message_time }}</span>
                     </div>
-                    <p class="last-message">{{ contact.last_message }}</p>
+                    <p class="last-message">{{ room.last_message }}</p>
                 </div>
-                {% if contact.unread_count > 0 %}
-                <div class="unread-count">{{ contact.unread_count }}</div>
+                {% if room.unread_count > 0 %}
+                <div class="unread-count">{{ room.unread_count }}</div>
                 {% endif %}
             </div>
             {% endfor %}
@@ -76,7 +77,6 @@
                 <div class="chat-contact-info">
                     <div class="chat-contact-avatar">
                         <img id="chatContactAvatar" src="/static/images/shrek.jpg" alt="Contact Avatar">
-                        <span id="chatContactStatus" class="status-indicator"></span>
                     </div>
                     <div class="chat-contact-details">
                         <h3 id="chatContactName">Contact Name</h3>
@@ -531,7 +531,10 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/utils.js"></script>
+<script src="/static/js/websocket.js"></script>
 <script src="/static/js/theme.js"></script>
+<script src="/static/js/sidebar.js"></script>
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/groupChat.js"></script>
 <script src="/static/js/validation.js"></script>

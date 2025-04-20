@@ -2,799 +2,659 @@
  * Chat functionality for ShrekChat
  */
 
-document.addEventListener("DOMContentLoaded", function () {
-  // DOM Elements
-  const contactItems = document.querySelectorAll(".contact-item");
-  const chatMessages = document.getElementById("chatMessages");
-  const messageInput = document.getElementById("messageInput");
-  const sendMessageBtn = document.getElementById("sendMessageBtn");
-  const backBtn = document.querySelector(".back-btn");
-  const sidebar = document.querySelector(".sidebar");
-  const chatContactName = document.getElementById("chatContactName");
-  const chatContactStatus = document.getElementById("chatContactPresence");
-  const chatContactAvatar = document.getElementById("chatContactAvatar");
-  const chatContactStatusIndicator = document.getElementById("chatContactStatus");
-  const profileContactName = document.getElementById("profileContactName");
-  const profileContactStatus = document.getElementById("profileContactStatus");
-  const profileContactAvatar = document.getElementById("profileContactAvatar");
-  const searchInput = document.getElementById("searchInput");
-  const overlay = document.getElementById("overlay");
-  const profileButton = document.getElementById("profileButton");
-  const profileSidebar = document.getElementById("profileSidebar");
-  const closeProfileSidebar = document.getElementById("closeProfileSidebar");
-  const editProfileMenuItem = document.getElementById("editProfileMenuItem");
-  const addContactMenuItem = document.getElementById("addContactMenuItem");
-  const editProfilePopup = document.getElementById("editProfilePopup");
-  const addFriendPopup = document.getElementById("addFriendPopup"); // For adding friends/contacts
-  const closeEditProfilePopup = document.getElementById(
-    "closeEditProfilePopup"
-  );
-  const closeAddFriendPopup = document.getElementById("closeAddFriendPopup");
-  const chatContactInfo = document.querySelector(".chat-contact-info");
-  const contactInfoPopup = document.getElementById("contactInfoPopup");
-  const closeContactInfoPopup = document.getElementById(
-    "closeContactInfoPopup"
-  );
-  const closeInfoButton = document.getElementById("closeInfoButton");
-  const contactInfoAvatar = document.getElementById("contactInfoAvatar");
-  const contactInfoName = document.getElementById("contactInfoName");
-  const contactInfoStatus = document.getElementById("contactInfoStatus");
-  const contactInfoUsername = document.getElementById("contactInfoUsername");
-  const contactInfoEmail = document.getElementById("contactInfoEmail");
-  const viewContactInfo = document.getElementById("viewContactInfo");
-  const welcomeContainer = document.getElementById("welcomeContainer");
-  const chatContent = document.getElementById("chatContent");
-  const dropdownToggle = document.querySelector(".dropdown-toggle");
-  const dropdownMenu = document.querySelector(".dropdown-menu");
-  const themeToggle = document.getElementById("themeToggle");
-  const logoutMenuItem = document.getElementById("logoutMenuItem");
+console.log("Script execution started");
 
-  let currentContactId = null;
-  let ws = null;
-  let presenceWs = null; // WebSocket for online/offline status
-  let currentContactUsername = null;
-  let currentContactEmail = null;
-  let messageMap = new Map(); // Map to store message IDs for receipt tracking
-  let socket_protocol =
-    window.location.protocol === "https:" ? "wss://" : "ws://";
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM loaded - chat.js");
 
-  // Get the current user's username from the page
-  const currentUsername = document.querySelector(".profile-name")
-    ? document.querySelector(".profile-name").textContent.trim()
-    : "";
+    // DOM Elements - Chat
+    const contactsList = document.getElementById('contactsList');
+    const searchInput = document.getElementById('searchInput');
+    
+    const chatContent = document.getElementById('chatContent');
+    const welcomeContainer = document.getElementById('welcomeContainer');
+    const chatMessages = document.getElementById('chatMessages');
+    const messageInput = document.getElementById('messageInput');
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    
+    const chatContactName = document.getElementById('chatContactName');
+    const chatContactStatus = document.getElementById('chatContactPresence');
+    const chatContactAvatar = document.getElementById('chatContactAvatar');
+    const chatHeader = document.getElementById('chatHeader');
+    const overlay = document.getElementById('overlay');
+    
+    // DOM Elements - Contact Info
+    const contactInfoPopup = document.getElementById('contactInfoPopup');
+    const closeContactInfoPopup = document.getElementById('closeContactInfoPopup');
+    const contactInfoName = document.getElementById('contactInfoName');
+    const contactInfoUsername = document.getElementById('contactInfoUsername');
+    const contactInfoEmail = document.getElementById('contactInfoEmail');
+    const contactInfoAvatar = document.getElementById('contactInfoAvatar');
+    const contactInfoStatus = document.getElementById('contactInfoStatus');
+    const closeInfoButton = document.getElementById('closeInfoButton');
+    
+    // DOM Elements - Message Template
+    const messageTemplate = document.getElementById('messageTemplate');
+    
+    // Store current username to identify self messages
+    const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+    
+    // Mobile responsiveness
+    const backButton = document.querySelector('.back-btn');
+    const sidebar = document.querySelector('.sidebar');
 
-  // Show welcome container initially, hide chat content
-  if (welcomeContainer && chatContent) {
-    welcomeContainer.style.display = "flex";
-    chatContent.style.display = "none";
-  }
+    // Log key DOM elements for debugging
+    console.log("Chat.js: Key DOM elements loaded", {
+        contactsList: !!contactsList,
+        chatContent: !!chatContent,
+        chatContactName: !!chatContactName,
+        chatContactStatus: !!chatContactStatus,
+        messageTemplate: !!messageTemplate
+    });
 
-  // Connect to presence WebSocket to track online/offline status
-  function connectPresenceWebSocket() {
-    const wsUrl = `${
-      socket_protocol + window.location.host
-    }/ws/presence?username=${encodeURIComponent(currentUsername)}`;
-    presenceWs = new WebSocket(wsUrl);
+    if (!chatContactName || !chatContactStatus) {
+        console.error("Critical DOM elements missing:", {
+            chatContactName: !!chatContactName,
+            chatContactStatus: !!chatContactStatus
+        });
+    }
 
-    presenceWs.onopen = function () {
-      console.log("Presence WebSocket connected");
-
-      // Start ping interval to keep connection alive
-      setInterval(function () {
-        if (presenceWs && presenceWs.readyState === WebSocket.OPEN) {
-          presenceWs.send("ping");
-        }
-      }, 30000); // Send ping every 30 seconds
-    };
-
-    presenceWs.onmessage = function (event) {
-      const data = JSON.parse(event.data);
-
-      if (data.type === "status_update") {
-        updateContactStatus(data.user_id, data.status);
-      }
-    };
-
-    presenceWs.onclose = function () {
-      console.log("Presence WebSocket closed, reconnecting...");
-      // Try to reconnect after a delay
-      setTimeout(connectPresenceWebSocket, 2000);
-    };
-
-    presenceWs.onerror = function (error) {
-      console.error("Presence WebSocket error:", error);
-    };
-  }
-
-  // Connect to presence WebSocket when page loads
-  connectPresenceWebSocket();
-
-  // Function to update contact status in UI
-  function updateContactStatus(userId, status) {
-    const contactElement = document.querySelector(
-      `.contact-item[data-contact-id="${userId}"]`
-    );
-    if (contactElement) {
-      const statusIndicator = contactElement.querySelector(".status-indicator");
-      if (statusIndicator) {
-        statusIndicator.classList.remove("online", "offline");
-        statusIndicator.classList.add(status);
-      }
-
-      // If this is the currently selected contact, update the chat header
-      if (currentContactId == userId) {
-        chatContactStatus.textContent =
-          status === "online" ? "Online" : "Offline";
+    // Mobile back button
+    if (backButton) {
+        backButton.addEventListener('click', function() {
+            if (sidebar) {
+                sidebar.classList.add('active');
+            }
+            if (chatContent) {
+                chatContent.style.display = 'none';
+            }
+            if (welcomeContainer) {
+                welcomeContainer.style.display = 'flex';
+            }
+        });
+    }
+    
+    // Load rooms list (both direct chats and groups)
+    function loadContacts() {
+        console.log("Loading contacts...");
+        fetch('/api/rooms')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load rooms');
+                }
+                return response.json();
+            })
+            .then(rooms => {
+                console.log("Loaded rooms:", rooms.length);
+                contactsList.innerHTML = '';
+                rooms.forEach(function(room) {
+                    addRoomToList(room);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading rooms:', error);
+            });
+    }
+    
+    // Refresh rooms list without clearing existing chats - used after adding a new room
+    function refreshRoomsList() {
+        fetch('/api/rooms')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load rooms');
+                }
+                return response.json();
+            })
+            .then(rooms => {
+                const existingRoomIds = Array.from(
+                    document.querySelectorAll('.contact-item')
+                ).map(el => el.getAttribute('data-room-id'));
+                
+                rooms.forEach(function(room) {
+                    if (!existingRoomIds.includes(room.id.toString())) {
+                        addRoomToList(room);
+                    }
+                });
+            })
+            .catch(error => {
+                console.error('Error refreshing rooms:', error);
+            });
+    }
+    
+    // Add a single room to the list (direct chat or group)
+    function addRoomToList(roomData) {
+        const contactElement = document.createElement('div');
+        contactElement.className = 'contact-item';
+        contactElement.setAttribute('data-room-id', roomData.id);
         
-        // Update status indicator in chat header
-        if (chatContactStatusIndicator) {
-          chatContactStatusIndicator.classList.remove("online", "offline");
-          chatContactStatusIndicator.classList.add(status);
+        if (roomData.is_group) {
+            contactElement.setAttribute('data-is-group', 'true');
+        } else {
+            contactElement.setAttribute('data-user-id', roomData.user_id);
         }
-
-        // Also update contact info popup if open
-        if (contactInfoStatus && contactInfoPopup.classList.contains("open")) {
-          contactInfoStatus.textContent =
-            status === "online" ? "Online" : "Offline";
-        }
-      }
+        
+        const statusClass = roomData.status || 'offline';
+        
+        contactElement.innerHTML = `
+            <div class="contact-avatar">
+                <img src="${roomData.avatar || '/static/images/shrek.jpg'}" alt="${roomData.name} Avatar">
+                ${!roomData.is_group ? `<span class="status-indicator ${statusClass}"></span>` : ''}
+            </div>
+            <div class="contact-info">
+                <div class="contact-name-time">
+                    <h4>${roomData.name || roomData.username || roomData.full_name}</h4>
+                    <span class="message-time">${roomData.last_message_time || 'Now'}</span>
+                </div>
+                <p class="last-message">${roomData.last_message || 'Click to start chatting!'}</p>
+            </div>
+            ${roomData.unread_count > 0 ? `<div class="unread-count">${roomData.unread_count}</div>` : ''}
+        `;
+        
+        contactElement.addEventListener('click', function() {
+            console.log("Contact clicked:", roomData.id, roomData.name);
+            openChat(roomData);
+        });
+        
+        contactsList.appendChild(contactElement);
     }
-  }
-
-  // Open contact info popup when clicking on chat header
-  if (chatContactInfo) {
-    chatContactInfo.addEventListener("click", function () {
-      openContactInfoPopup();
-    });
-  }
-
-  // Also open contact info from dropdown menu
-  if (viewContactInfo) {
-    viewContactInfo.addEventListener("click", function () {
-      openContactInfoPopup();
-
-      // Close dropdown menu
-      if (dropdownMenu) {
-        dropdownMenu.classList.remove("active");
-      }
-    });
-  }
-
-  // Function to open contact info popup
-  function openContactInfoPopup() {
-    if (contactInfoPopup && currentContactId) {
-      contactInfoPopup.classList.add("open");
-      overlay.classList.add("active");
-
-      // Set contact info in popup
-      contactInfoAvatar.src = chatContactAvatar.src;
-      contactInfoName.textContent = chatContactName.textContent;
-      contactInfoStatus.textContent = chatContactStatus.textContent;
-      contactInfoUsername.textContent = currentContactUsername || "";
-      contactInfoEmail.textContent = currentContactEmail || "";
-    }
-  }
-
-  // Close contact info popup
-  if (closeContactInfoPopup) {
-    closeContactInfoPopup.addEventListener("click", function () {
-      contactInfoPopup.classList.remove("open");
-      overlay.classList.remove("active");
-    });
-  }
-
-  if (closeInfoButton) {
-    closeInfoButton.addEventListener("click", function () {
-      contactInfoPopup.classList.remove("open");
-      overlay.classList.remove("active");
-    });
-  }
-
-  // Toggle profile sidebar - open from left side
-  if (profileButton && profileSidebar) {
-    profileButton.addEventListener("click", function () {
-      profileSidebar.classList.add("active");
-      overlay.classList.add("active");
-    });
-  }
-
-  // Close profile sidebar
-  if (closeProfileSidebar) {
-    closeProfileSidebar.addEventListener("click", function () {
-      profileSidebar.classList.remove("active");
-      overlay.classList.remove("active");
-    });
-  }
-
-  // Handle profile sidebar menu item clicks
-  // Toggle edit profile popup
-  if (editProfileMenuItem) {
-    editProfileMenuItem.addEventListener("click", function () {
-      profileSidebar.classList.remove("active");
-      if (editProfilePopup) {
-        // Fetch user profile data
-        fetch("/api/profile")
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.success) {
-              // Populate form fields
-              document.getElementById("profileNickname").value = data.data.username;
-              document.getElementById("profileEmail").value = data.data.email;
-              document.getElementById("profilePhone").value = data.data.phone_number;
-              document.getElementById("profileCountry").value = data.data.country;
-              
-              // Show popup
-              editProfilePopup.classList.add("open");
-              overlay.classList.add("active");
-            } else {
-              console.error("Failed to fetch profile:", data.message);
-            }
-          })
-          .catch((error) => {
-            console.error("Error fetching profile:", error);
-          });
-      }
-    });
-  }
-
-  // Handle profile form submission
-  const editProfileForm = document.getElementById("editProfileForm");
-  if (editProfileForm) {
-    editProfileForm.addEventListener("submit", function (e) {
-      e.preventDefault();
-      
-      // Get form data
-      const formData = {
-        username: document.getElementById("profileNickname").value,
-        email: document.getElementById("profileEmail").value,
-        phone_number: document.getElementById("profilePhone").value,
-        country: document.getElementById("profileCountry").value
-      };
-      
-      // Get the current username for comparison
-      const currentUsername = document.querySelector(".profile-name")
-        ? document.querySelector(".profile-name").textContent.trim()
-        : "";
-      
-      // Check if username is being changed
-      const isUsernameChanged = formData.username !== currentUsername;
-      
-      // Send data to server
-      fetch("/api/profile/update", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      })
-        .then((response) => response.json())
-        .then((data) => {
-          if (data.success) {
-            // Show success message
-            alert("Profile updated successfully!");
+    
+    // Open a chat room (direct or group)
+    function openChat(roomData) {
+        console.log("openChat called with:", roomData);
+        
+        try {
+            document.querySelectorAll('.contact-item').forEach(contact => {
+                contact.classList.remove('active');
+            });
             
-            if (isUsernameChanged) {
-              // If username was changed, we should reload the page to update all references
-              // This ensures the session is properly updated
-              window.location.reload();
+            const contactElement = document.querySelector(`.contact-item[data-room-id="${roomData.id}"]`);
+            if (contactElement) {
+                contactElement.classList.add('active');
+                const unreadCount = contactElement.querySelector('.unread-count');
+                if (unreadCount) {
+                    unreadCount.remove();
+                }
+            }
+            
+            // Update chat header
+            updateChatHeader(roomData);
+            
+            // Set the current chat area data attributes
+            if (chatContent) {
+                chatContent.setAttribute('data-current-room-id', roomData.id);
+                if (!roomData.is_group) {
+                    chatContent.setAttribute('data-current-user-id', roomData.user_id);
+                } else {
+                    chatContent.removeAttribute('data-current-user-id');
+                }
+            }
+            
+            // Store room info in WebSocket module
+            if (window.shrekChatWebSocket) {
+                window.shrekChatWebSocket.setCurrentRoom(
+                    roomData.id, 
+                    roomData.is_group, 
+                    !roomData.is_group ? roomData.user_id : null
+                );
+            }
+            
+            // Clear messages and show chat area
+            chatMessages.innerHTML = '';
+            if (welcomeContainer) welcomeContainer.style.display = 'none';
+            if (chatContent) chatContent.style.display = 'flex';
+            
+            if (sidebar) {
+                sidebar.classList.remove('active');
+            }
+            
+            // Connect WebSocket and load messages
+            // Use the new callback parameter to ensure WebSocket is connected before sending read receipts
+            if (window.shrekChatWebSocket) {
+                window.shrekChatWebSocket.connectChatWebSocket(roomData.id, function() {
+                    // Load messages after WebSocket is connected
+                    loadMessages(roomData.id);
+                });
             } else {
-              // Just update the UI for other changes without reload
-              const profileName = document.querySelector(".profile-name");
-              if (profileName) {
-                profileName.textContent = formData.username;
-              }
-              
-              // Close the popup
-              editProfilePopup.classList.remove("open");
-              overlay.classList.remove("active");
+                // Fallback if WebSocket module is not available
+                loadMessages(roomData.id);
             }
-          } else {
-            alert("Failed to update profile: " + data.message);
-          }
-        })
-        .catch((error) => {
-          console.error("Error updating profile:", error);
-          alert("An error occurred while updating your profile");
-        });
-    });
-  }
-
-  if (logoutMenuItem) {
-    logoutMenuItem.addEventListener("click", function () {
-      // Perform logout action
-      fetch("/logout", {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-        .then((response) => {
-          if (response.ok) {
-            window.location.href = "/login"; // Redirect to login page
-          } else {
-            console.error("Logout failed:", response.statusText);
-          }
-        })
-        .catch((error) => {
-          console.error("Error during logout:", error);
-        });
-    });
-  }
-
-  // Toggle add friend popup
-  if (addContactMenuItem) {
-    addContactMenuItem.addEventListener("click", function () {
-      profileSidebar.classList.remove("active");
-      if (addFriendPopup) {
-        addFriendPopup.classList.add("open");
-        overlay.classList.add("active");
-
-        // Focus on input
-        const addFriendInput = document.getElementById("addFriendInput");
-        if (addFriendInput) {
-          addFriendInput.focus();
+            
+            setupContactInfoHandler(roomData);
+            
+        } catch (error) {
+            console.error("Error in openChat function:", error);
         }
-      }
-    });
-  }
-
-  // Handle theme toggle in profile sidebar
-  if (themeToggle) {
-    themeToggle.addEventListener("change", function () {
-      document.body.classList.toggle("dark-theme", this.checked);
-      localStorage.setItem("darkTheme", this.checked ? "enabled" : "disabled");
-    });
-
-    // Set initial theme state
-    const savedTheme = localStorage.getItem("darkTheme");
-    if (savedTheme === "enabled") {
-      themeToggle.checked = true;
-      document.body.classList.add("dark-theme");
     }
-  }
-
-  // Close edit profile popup
-  if (closeEditProfilePopup) {
-    closeEditProfilePopup.addEventListener("click", function () {
-      editProfilePopup.classList.remove("open");
-      overlay.classList.remove("active");
-    });
-  }
-
-  // Close add friend popup
-  if (closeAddFriendPopup) {
-    closeAddFriendPopup.addEventListener("click", function () {
-      addFriendPopup.classList.remove("open");
-      overlay.classList.remove("active");
-    });
-  }
-
-  // Toggle mobile sidebar
-  if (backBtn) {
-    backBtn.addEventListener("click", function () {
-      sidebar.classList.add("active");
-    });
-  }
-
-  if (dropdownToggle && dropdownMenu) {
-    dropdownToggle.addEventListener("click", function (e) {
-      e.stopPropagation();
-      dropdownMenu.classList.toggle("active");
-    });
-
-    document.addEventListener("click", function () {
-      dropdownMenu.classList.remove("active");
-    });
-  }
-
-  // Search contacts functionality
-  if (searchInput) {
-    searchInput.addEventListener("input", function () {
-      const query = this.value.toLowerCase().trim();
-      const contactItems = document.querySelectorAll(".contact-item");
-
-      contactItems.forEach((contact) => {
-        const name = contact
-          .querySelector(".contact-name-time h4")
-          .textContent.toLowerCase();
-        const message = contact
-          .querySelector(".last-message")
-          .textContent.toLowerCase();
-
-        if (name.includes(query) || message.includes(query)) {
-          contact.style.display = "flex";
+    
+    // Update chat header with contact info
+    function updateChatHeader(roomData) {
+        const chatContactNameElement = document.getElementById('chatContactName');
+        const chatContactStatusElement = document.getElementById('chatContactPresence');
+        const chatContactAvatarElement = document.getElementById('chatContactAvatar');
+        
+        if (!chatContactNameElement || !chatContactStatusElement || !chatContactAvatarElement) {
+            console.error("Critical DOM elements missing for chat header update");
+            return;
+        }
+        
+        chatContactNameElement.textContent = roomData.name || roomData.username || roomData.full_name || 'Chat';
+        
+        if (roomData.is_group) {
+            chatContactStatusElement.textContent = 'Group';
+            const existingIndicator = chatContactStatusElement.querySelector('.status-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
         } else {
-          contact.style.display = "none";
+            const statusText = roomData.status === 'online' ? 'Online' : 'Offline';
+            chatContactStatusElement.innerHTML = statusText;
+            const existingIndicator = chatContactStatusElement.querySelector('.status-indicator');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            const statusIndicator = document.createElement('span');
+            statusIndicator.className = `status-indicator ${roomData.status || 'offline'}`;
+            chatContactStatusElement.prepend(statusIndicator);
         }
-      });
-    });
-  }
-
-  // Contact selection
-  contactItems.forEach((item) => {
-    item.addEventListener("click", function () {
-      // Remove active class from all contacts
-      contactItems.forEach((contact) => contact.classList.remove("active"));
-
-      // Add active class to selected contact
-      this.classList.add("active");
-
-      // Get contact id
-      const contactId = this.getAttribute("data-contact-id");
-      currentContactId = contactId;
-      currentContactUsername = this.querySelector(
-        ".contact-name-time h4"
-      ).textContent;
-
-      // Update chat header with contact info
-      const contactName = this.querySelector(
-        ".contact-name-time h4"
-      ).textContent;
-      const isOnline = this.querySelector(
-        ".status-indicator"
-      ).classList.contains("online");
-      const contactStatus = isOnline ? "Online" : "Offline";
-      const contactAvatar =
-        this.querySelector(".contact-info img") ||
-        this.querySelector(".contact-avatar img");
-      const avatarSrc = contactAvatar
-        ? contactAvatar.src
-        : "/static/images/shrek.jpg";
-
-      chatContactName.textContent = contactName;
-      chatContactStatus.textContent = contactStatus;
-      chatContactAvatar.src = avatarSrc;
-      
-      // Update status indicator in chat header
-      if (chatContactStatusIndicator) {
-        chatContactStatusIndicator.classList.remove("online", "offline");
-        chatContactStatusIndicator.classList.add(isOnline ? "online" : "offline");
-      }
-
-      // Show mobile chat area
-      sidebar.classList.remove("active");
-
-      // Show chat content, hide welcome container - FIXED DISPLAY TOGGLE
-      console.log("Showing chat content for contact:", contactId);
-      if (welcomeContainer && chatContent) {
-        welcomeContainer.style.display = "none";
-        chatContent.style.display = "flex";
-      }
-
-      // Clear any unread counter for this contact
-      const unreadCounter = this.querySelector(".unread-count");
-      if (unreadCounter) {
-        unreadCounter.remove();
-      }
-
-      // Get contact email and other details for info popup
-      fetch(`/api/contacts`)
-        .then((response) => response.json())
-        .then((contacts) => {
-          const contact = contacts.find((c) => c.id == contactId);
-          if (contact) {
-            currentContactEmail = contact.email;
-          }
-        })
-        .catch((error) => {
-          console.error("Error fetching contact details:", error);
-        });
-
-      // Clear previous chat messages and show loading indicator
-      chatMessages.innerHTML =
-        '<div class="loading-messages">Loading messages...</div>';
-
-      // Load chat messages
-      loadMessages(contactId);
-
-      // Close previous WebSocket if open
-      if (ws) {
-        ws.close();
-      }
-
-      // Open new WebSocket connection with username as query parameter
-      const wsUrl = `${ socket_protocol +
-        window.location.host
-      }/ws/chat/${contactId}?username=${encodeURIComponent(currentUsername)}`;
-      ws = new WebSocket(wsUrl);
-
-      // WebSocket event handlers
-      ws.onopen = function (event) {
-        console.log("WebSocket connection established");
-      };
-
-      ws.onmessage = function (event) {
-        const data = JSON.parse(event.data);
-
-        // Handle different message types
-        if (data.type === "read_receipt") {
-          // Handle read receipt
-          updateMessageStatus(data.message_id, "read");
-        } else if (data.type === "delivered_receipt") {
-          // Handle delivered receipt
-          updateMessageStatus(data.message_id, "delivered");
-        } else if (data.type === "status_update") {
-          // Handle status update
-          updateContactStatus(data.user_id, data.status);
+        
+        chatContactAvatarElement.src = roomData.avatar || '/static/images/shrek.jpg';
+    }
+    
+    // Setup handler for contact info button
+    function setupContactInfoHandler(roomData) {
+        const viewContactInfo = document.getElementById('viewContactInfo');
+        if (viewContactInfo) {
+            viewContactInfo.textContent = roomData.is_group ? 'Group info' : 'Contact info';
+            const newViewContactInfo = viewContactInfo.cloneNode(true);
+            viewContactInfo.parentNode.replaceChild(newViewContactInfo, viewContactInfo);
+            newViewContactInfo.addEventListener('click', function() {
+                if (roomData.is_group) {
+                    const groupManagementPopup = document.getElementById('groupManagementPopup');
+                    if (groupManagementPopup) {
+                        groupManagementPopup.classList.add('open');
+                        overlay.classList.add('active');
+                        if (window.loadGroupDetails) {
+                            window.loadGroupDetails(roomData.id);
+                        }
+                    }
+                } else {
+                    showContactInfo(roomData);
+                }
+                const dropdownMenu = document.querySelector('.dropdown-menu.active');
+                if (dropdownMenu) {
+                    dropdownMenu.classList.remove('active');
+                }
+            });
+        }
+        
+        const chatContactInfo = document.querySelector('.chat-contact-info');
+        if (chatContactInfo) {
+            const newChatContactInfo = chatContactInfo.cloneNode(true);
+            chatContactInfo.parentNode.replaceChild(newChatContactInfo, chatContactInfo);
+            newChatContactInfo.addEventListener('click', function() {
+                if (roomData.is_group) {
+                    const groupManagementPopup = document.getElementById('groupManagementPopup');
+                    if (groupManagementPopup) {
+                        groupManagementPopup.classList.add('open');
+                        overlay.classList.add('active');
+                        if (window.loadGroupDetails) {
+                            window.loadGroupDetails(roomData.id);
+                        }
+                    }
+                } else {
+                    showContactInfo(roomData);
+                }
+            });
+        }
+    }
+    
+    // Display contact info popup
+    function showContactInfo(userData) {
+        contactInfoName.textContent = userData.full_name || userData.username;
+        contactInfoUsername.textContent = userData.username;
+        contactInfoEmail.textContent = userData.email || 'No email provided';
+        contactInfoAvatar.src = userData.avatar || '/static/images/shrek.jpg';
+        contactInfoStatus.textContent = userData.status === 'online' ? 'Online' : 'Offline';
+        contactInfoStatus.className = `status-text ${userData.status || 'offline'}`;
+        contactInfoPopup.classList.add('open');
+        overlay.classList.add('active');
+    }
+    
+    // Load messages for a room
+    function loadMessages(roomId) {
+        console.log("Loading messages for room:", roomId);
+        chatMessages.innerHTML = '<div class="loading-messages">Loading messages...</div>';
+        
+        fetch(`/api/messages/${roomId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load messages');
+                }
+                return response.json();
+            })
+            .then(messages => {
+                chatMessages.innerHTML = '';
+                
+                if (messages.length === 0) {
+                    chatMessages.innerHTML = '<div class="no-messages">No messages yet. Be the first to say hello!</div>';
+                } else {
+                    messages.forEach(message => {
+                        displayMessage(message);
+                    });
+                }
+                
+                // Send read receipts for all unread messages that aren't from current user
+                const unreadMessageIds = messages
+                    .filter(msg => msg.sender !== 'user' && !msg.read)
+                    .map(msg => msg.id);
+                
+                if (unreadMessageIds.length > 0 && window.shrekChatWebSocket) {
+                    console.log("Sending read receipts for messages:", unreadMessageIds);
+                    window.shrekChatWebSocket.sendReadReceipts(roomId, unreadMessageIds);
+                    
+                    // Also mark these as read in the UI
+                    unreadMessageIds.forEach(id => {
+                        if (window.shrekChatUtils) {
+                            window.shrekChatUtils.updateMessageStatus(id, "read");
+                        }
+                    });
+                }
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            })
+            .catch(error => {
+                console.error('Error loading messages:', error);
+                chatMessages.innerHTML = '<div class="error-messages">Failed to load messages. Please try again.</div>';
+            });
+    }
+    
+    // Display a message in the chat
+    function displayMessage(message) {
+        console.log("displayMessage called with:", message);
+        
+        // More robust duplicate message checking
+        if (message.id && document.querySelector(`.message[data-message-id="${message.id}"]`)) {
+            console.log("Skipping duplicate message:", message.id);
+            return;
+        }
+        
+        // Handle temp messages separately to avoid duplicates
+        if (message.temp_id && document.querySelector(`.message[data-message-id="${message.temp_id}"]`)) {
+            console.log("This is a temp message we've already displayed:", message.temp_id);
+            return;
+        }
+        
+        const isRoomGroup = window.shrekChatWebSocket ? 
+                           window.shrekChatWebSocket.getCurrentRoomIsGroup() : 
+                           message.is_group || false;
+        
+        const templateToUse = isRoomGroup ? 
+            document.getElementById('groupMessageTemplate') : 
+            messageTemplate;
+        
+        if (!templateToUse) {
+            console.error("Message template not found for", isRoomGroup ? "group" : "direct", "message");
+            return;
+        }
+        
+        try {
+            const messageElement = templateToUse.content.cloneNode(true);
+            const messageDiv = messageElement.querySelector('.message');
+            const messageContent = messageElement.querySelector('.message-content');
+            const messageTime = messageElement.querySelector('.message-time');
+            
+            // Apply message content safely
+            messageContent.textContent = message.content;
+            messageTime.textContent = message.time || (window.shrekChatUtils ? 
+                                     window.shrekChatUtils.formatTime(new Date()) : 
+                                     new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+            
+            // Set message ID for future reference
+            if (message.id) {
+                messageDiv.setAttribute('data-message-id', message.id);
+            } else if (message.temp_id) {
+                messageDiv.setAttribute('data-message-id', message.temp_id);
+                // Mark it as temporary for later updating
+                messageDiv.setAttribute('data-temp-message', 'true');
+            }
+            
+            // Determine if this message is from the current user - FIXED LOGIC
+            let isCurrentUser = false;
+            
+            // Get current username from the profile sidebar
+            const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+            
+            // Case 1: For our own messages with temp_id or marked as optimistic
+            if (message._isOptimistic === true) {
+                isCurrentUser = true;
+            } 
+            // Case 2: For messages with special "user" marker from the server
+            else if (message.sender === 'user') {
+                isCurrentUser = true;
+            }
+            // Case 3: For regular messages, check sender against current username
+            else if (currentUsername) {
+                isCurrentUser = message.sender === currentUsername;
+            }
+            
+            console.log(`Message from ${message.sender}, currentUsername: ${currentUsername}, isCurrentUser: ${isCurrentUser}`);
+            
+            // For group messages, show sender name
+            if (isRoomGroup) {
+                const messageSender = messageElement.querySelector('.message-sender');
+                if (messageSender) {
+                    messageSender.textContent = isCurrentUser ? "You" : (message.sender_name || message.sender);
+                }
+            }
+            
+            // Style and add status indicators for outgoing messages
+            if (isCurrentUser) {                
+                messageDiv.classList.add('outgoing');
+                
+                if (!isRoomGroup) {
+                    const messageStatusSingle = messageElement.querySelector('.message-status-single');
+                    const messageStatusDouble = messageElement.querySelector('.message-status-double');
+                    
+                    if (messageStatusSingle && messageStatusDouble) {
+                        const messageStatus = message.status || 
+                                             (message.delivered ? (message.read ? 'read' : 'delivered') : 'sent');
+                        
+                        if (messageStatus === 'sent' || !message.delivered) {
+                            messageStatusSingle.style.display = 'inline';
+                            messageStatusDouble.style.display = 'none';
+                        } else if (messageStatus === 'delivered' || (message.delivered && !message.read)) {
+                            messageStatusDouble.style.display = 'inline';
+                            messageStatusDouble.classList.remove('read');
+                            messageStatusSingle.style.display = 'none';
+                        } else if (messageStatus === 'read' || message.read) {
+                            messageStatusDouble.style.display = 'inline';
+                            messageStatusDouble.classList.add('read');
+                            messageStatusSingle.style.display = 'none';
+                        }
+                    }
+                }
+            } else {
+                messageDiv.classList.add('incoming');
+                // Remove any status indicators for incoming messages
+                const statusIndicators = messageElement.querySelectorAll('.message-status');
+                statusIndicators.forEach(indicator => indicator.remove());
+            }
+            
+            // Append the message to the chat
+            chatMessages.appendChild(messageElement);
+            
+            // Ensure new messages are visible - using requestAnimationFrame for better scrolling
+            requestAnimationFrame(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+            
+        } catch (error) {
+            console.error("Error displaying message:", error, message);
+        }
+    }
+    
+    // Send message function
+    function sendMessage() {
+        const message = messageInput.value.trim();
+        
+        if (!message) {
+            return; // Don't send empty messages
+        }
+        
+        const currentRoomId = chatContent.getAttribute('data-current-room-id');
+        if (!currentRoomId) {
+            console.log("Please select a contact or group first.");
+            return;
+        }
+        
+        // Clear input field before sending
+        messageInput.value = '';
+        
+        // Check if WebSocket is available
+        if (!window.shrekChatWebSocket) {
+            console.error("WebSocket module not available");
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'system-message error';
+            errorMsg.textContent = "Failed to send message. Please try again.";
+            chatMessages.appendChild(errorMsg);
+            return;
+        }
+        
+        // Send via WebSocket
+        const result = window.shrekChatWebSocket.sendChatMessage(message, currentRoomId);
+        
+        if (result && result.success) {
+            // Create optimistic message to show immediately
+            const isRoomGroup = window.shrekChatWebSocket.getCurrentRoomIsGroup();
+            const optimisticMessage = {
+                temp_id: result.tempId,
+                content: message,
+                sender: 'user',
+                sender_name: currentUsername,
+                time: result.timeStr,
+                delivered: false,
+                read: false,
+                is_group: isRoomGroup,
+                _isOptimistic: true
+            };
+            
+            // Show message in UI immediately
+            displayMessage(optimisticMessage);
+            
+            // Update last message in the sidebar
+            if (window.shrekChatUtils) {
+                window.shrekChatUtils.updateLastMessage(currentRoomId, message, result.timeStr);
+            }
+            
+            // Scroll to see the new message
+            requestAnimationFrame(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            });
+            
+            // Set a timeout to check for confirmation
+            setTimeout(() => {
+                const tempMessage = document.querySelector(`.message[data-message-id="${result.tempId}"][data-temp-message="true"]`);
+                if (tempMessage) {
+                    console.log("No confirmation received for message:", result.tempId, "- may need to resend");
+                    // Add a visual indicator that message might not have sent
+                    const statusIndicator = tempMessage.querySelector('.message-status-single');
+                    if (statusIndicator) {
+                        statusIndicator.classList.add('warning');
+                    }
+                }
+            }, 5000);
         } else {
-          // Handle regular message
-          const messageElement = document
-            .getElementById("messageTemplate")
-            .content.cloneNode(true);
-          const messageDiv = messageElement.querySelector(".message");
-          const messageContent =
-            messageElement.querySelector(".message-content");
-          const messageTime = messageElement.querySelector(".message-time");
-          const statusSingle = messageElement.querySelector(
-            ".message-status-single"
-          );
-          const statusDouble = messageElement.querySelector(
-            ".message-status-double"
-          );
-
-          // Set message content and time
-          messageContent.textContent = data.content;
-          messageTime.textContent = data.time;
-
-          // Store the message ID in the element for future reference
-          if (data.id) {
-            messageDiv.dataset.messageId = data.id;
-          }
-
-          // Determine if this is an incoming or outgoing message
-          if (
-            data.sender === currentContactUsername ||
-            data.sender === chatContactName.textContent
-          ) {
-            messageDiv.classList.add("incoming");
-
-            // For incoming messages, send read receipt
-            if (data.id && ws && ws.readyState === WebSocket.OPEN) {
-              ws.send(
-                JSON.stringify({
-                  type: "read_receipt",
-                  message_id: data.id,
-                })
-              );
-            }
-          } else {
-            messageDiv.classList.add("outgoing");
-
-            // Set status for outgoing message
-            if (data.status) {
-              if (data.status === "sent") {
-                statusSingle.classList.add("sent");
-              } else if (data.status === "delivered") {
-                statusDouble.classList.add("delivered");
-              } else if (data.status === "read") {
-                statusDouble.classList.add("read");
-              }
-            }
-
-            // Save message ID for status updates
-            if (data.id) {
-              messageMap.set(data.id, messageDiv);
-            }
-          }
-
-          chatMessages.appendChild(messageElement);
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-
-          // Update last message in contact list
-          updateContactLastMessage(contactId, data.content, data.time);
+            // Show error to user
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'system-message error';
+            errorMsg.textContent = "Failed to send message. Please try again.";
+            chatMessages.appendChild(errorMsg);
         }
-      };
-
-      ws.onerror = function (error) {
-        console.error("WebSocket error:", error);
-        alert("Error connecting to chat service. Please try again later.");
-      };
-
-      ws.onclose = function (event) {
-        if (event.code !== 1000) {
-          console.log(
-            "WebSocket connection closed unexpectedly:",
-            event.code,
-            event.reason
-          );
-        }
-      };
-    });
-  });
-
-  // Function to update message status indicators
-  function updateMessageStatus(messageId, status) {
-    const messageElement =
-      messageMap.get(messageId) ||
-      document.querySelector(`.message[data-message-id="${messageId}"]`);
-
-    if (messageElement) {
-      const statusSingle = messageElement.querySelector(
-        ".message-status-single"
-      );
-      const statusDouble = messageElement.querySelector(
-        ".message-status-double"
-      );
-
-      if (status === "delivered") {
-        // Remove sent status
-        if (statusSingle) statusSingle.classList.remove("sent");
-        // Show delivered status
-        if (statusDouble) {
-          statusDouble.classList.add("delivered");
-          statusDouble.classList.remove("read");
-        }
-      } else if (status === "read") {
-        // Remove sent status
-        if (statusSingle) statusSingle.classList.remove("sent");
-        // Show read status
-        if (statusDouble) {
-          statusDouble.classList.remove("delivered");
-          statusDouble.classList.add("read");
-        }
-      }
     }
-  }
-  // Close any sidebar or popup when overlay is clicked
-  if (overlay) {
-    overlay.addEventListener("click", function () {
-      const activeSidebars = document.querySelectorAll(
-        ".profile-sidebar.active"
-      );
-      activeSidebars.forEach((sidebar) => sidebar.classList.remove("active"));
-
-      const openPopups = document.querySelectorAll(".popup.open");
-      openPopups.forEach((popup) => popup.classList.remove("open"));
-
-      overlay.classList.remove("active");
-    });
-  }
-
-  // Send message
-  if (sendMessageBtn && messageInput) {
-    sendMessageBtn.addEventListener("click", sendMessage);
-    messageInput.addEventListener("keypress", function (e) {
-      if (e.key === "Enter") {
-        sendMessage();
-      }
-    });
-  }
-
-  // Load messages from API
-  function loadMessages(contactId) {
-    fetch(`/api/messages/${contactId}`)
-      .then((response) => response.json())
-      .then((data) => {
-        displayMessages(data);
-      })
-      .catch((error) => {
-        console.error("Error loading messages:", error);
-      });
-  }
-
-  // Display messages in chat
-  function displayMessages(messages) {
-    // Clear previous messages
-    chatMessages.innerHTML = "";
-    messageMap.clear();
-
-    const messageTemplate = document.getElementById("messageTemplate");
-
-    messages.forEach((msg) => {
-      const messageElement = messageTemplate.content.cloneNode(true);
-      const messageDiv = messageElement.querySelector(".message");
-      const messageContent = messageElement.querySelector(".message-content");
-      const messageTime = messageElement.querySelector(".message-time");
-      const statusSingle = messageElement.querySelector(
-        ".message-status-single"
-      );
-      const statusDouble = messageElement.querySelector(
-        ".message-status-double"
-      );
-
-      // Set message content and time
-      messageContent.textContent = msg.content;
-      messageTime.textContent = msg.time;
-
-      // Store message ID in dataset
-      if (msg.id) {
-        messageDiv.dataset.messageId = msg.id;
-      }
-
-      // Add appropriate class based on sender
-      if (msg.sender === "user") {
-        messageDiv.classList.add("outgoing");
-
-        // Set message status
-        if (msg.status) {
-          if (msg.status === "sent") {
-            statusSingle.classList.add("sent");
-          } else if (msg.status === "delivered") {
-            statusDouble.classList.add("delivered");
-          } else if (msg.status === "read") {
-            statusDouble.classList.add("read");
-          }
-        }
-
-        // Store message element for future status updates
-        if (msg.id) {
-          messageMap.set(msg.id, messageDiv);
-        }
-      } else {
-        messageDiv.classList.add("incoming");
-      }
-
-      // Add message to chat
-      chatMessages.appendChild(messageElement);
-    });
-
-    // Scroll to bottom
-    chatMessages.scrollTop = chatMessages.scrollHeight;
-  }
-
-  // Send message function
-  function sendMessage() {
-    const message = messageInput.value.trim();
-
-    if (message && currentContactId && ws && ws.readyState === WebSocket.OPEN) {
-      const now = new Date();
-      const msgData = {
-        type: "message",
-        content: message,
-        time: now.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        recipient: currentContactUsername || chatContactName.textContent,
-      };
-
-      try {
-        ws.send(JSON.stringify(msgData));
-        messageInput.value = "";
-      } catch (error) {
-        console.error("Error sending message:", error);
-        alert("Failed to send message. Please try again.");
-      }
-    } else if (message) {
-      if (!ws || ws.readyState !== WebSocket.OPEN) {
-        console.error("WebSocket is not connected");
-        alert(
-          "Chat connection is not available. Please refresh the page and try again."
-        );
-      }
+    
+    // Event listeners
+    if (sendMessageBtn) {
+        sendMessageBtn.addEventListener('click', sendMessage);
     }
-  }
-
-  // Update the last message and time for a contact in the sidebar
-  function updateContactLastMessage(contactId, message, time) {
-    const contactElement = document.querySelector(
-      `.contact-item[data-contact-id="${contactId}"]`
-    );
-    if (contactElement) {
-      const lastMessageElement = contactElement.querySelector(".last-message");
-      const messageTimeElement = contactElement.querySelector(".message-time");
-
-      if (lastMessageElement) {
-        // Truncate message if too long
-        const displayMessage =
-          message.length > 30 ? message.substring(0, 27) + "..." : message;
-        lastMessageElement.textContent = displayMessage;
-      }
-
-      if (messageTimeElement) {
-        messageTimeElement.textContent = time;
-      }
-
-      // Move this contact to the top of the list
-      const parentElement = contactElement.parentElement;
-      if (parentElement) {
-        parentElement.insertBefore(contactElement, parentElement.firstChild);
-      }
+    
+    if (messageInput) {
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
     }
-  }
+    
+    if (closeContactInfoPopup) {
+        closeContactInfoPopup.addEventListener('click', function() {
+            contactInfoPopup.classList.remove('open');
+            overlay.classList.remove('active');
+        });
+    }
+    
+    if (closeInfoButton) {
+        closeInfoButton.addEventListener('click', function() {
+            contactInfoPopup.classList.remove('open');
+            overlay.classList.remove('active');
+        });
+    }
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const contacts = document.querySelectorAll('.contact-item');
+            
+            contacts.forEach(function(contact) {
+                const name = contact.querySelector('h4').textContent.toLowerCase();
+                const lastMessage = contact.querySelector('.last-message').textContent.toLowerCase();
+                
+                if (name.includes(searchTerm) || lastMessage.includes(searchTerm)) {
+                    contact.style.display = 'flex';
+                } else {
+                    contact.style.display = 'none';
+                }
+            });
+        });
+    }
 
-  // Select the first contact by default
-  if (contactItems.length > 0) {
-    contactItems[0].click();
-  }
+    // Handle dropdowns
+    document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
+        toggle.addEventListener('click', function(e) {
+            e.stopPropagation();
+            
+            const menu = this.nextElementSibling;
+            menu.classList.toggle('active');
+            
+            document.querySelectorAll('.dropdown-menu.active').forEach(function(otherMenu) {
+                if (otherMenu !== menu) {
+                    otherMenu.classList.remove('active');
+                }
+            });
+            
+            document.addEventListener('click', function closeDropdown() {
+                menu.classList.remove('active');
+                document.removeEventListener('click', closeDropdown);
+            });
+        });
+    });
+    
+    // Initialize chat
+    console.log("Initializing chat...");
+    loadContacts();
+    
+    // Initialize WebSockets if the module is available
+    if (window.shrekChatWebSocket) {
+        window.shrekChatWebSocket.initializeWebSockets();
+    } else {
+        console.error("WebSocket module not loaded!");
+    }
+    
+    // Expose functions for other modules to use
+    window.refreshRoomsList = refreshRoomsList;
+    window.addRoomToList = addRoomToList;
+    window.openChat = openChat;
+    window.displayMessage = displayMessage;
+    
+    console.log("Chat initialization complete");
 });

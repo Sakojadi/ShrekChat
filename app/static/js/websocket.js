@@ -1,0 +1,465 @@
+/**
+ * WebSocket handling for ShrekChat
+ */
+
+// WebSocket connections
+let chatWebSocket = null;
+let presenceWebSocket = null;
+let currentRoomId = null;
+let currentRoomIsGroup = false;
+let currentUserId = null;
+
+// Debug mode - set to true for verbose logging
+const WEBSOCKET_DEBUG = true;
+
+// Logger function for WebSocket operations
+function wsLog(message, data = null) {
+    if (WEBSOCKET_DEBUG) {
+        if (data) {
+            console.log(`[WebSocket] ${message}`, data);
+        } else {
+            console.log(`[WebSocket] ${message}`);
+        }
+    }
+}
+
+// Initialize WebSocket - Should be called on page load
+function initializeWebSockets() {
+    wsLog("Initializing WebSockets...");
+    
+    // Connect to presence WebSocket - this one stays connected all the time
+    connectPresenceWebSocket();
+    
+    // Check if we have a lastOpenedRoomId in localStorage to reconnect
+    const lastOpenedRoomId = localStorage.getItem('lastOpenedRoomId');
+    if (lastOpenedRoomId) {
+        wsLog(`Attempting to reconnect to last opened room: ${lastOpenedRoomId}`);
+        // Get the room data to reopen the chat
+        fetch(`/api/rooms/${lastOpenedRoomId}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to load room');
+                }
+                return response.json();
+            })
+            .then(roomData => {
+                if (roomData) {
+                    wsLog(`Reopening last active chat: ${roomData.name}`);
+                    // If we have openChat function exposed, use it
+                    if (window.openChat) {
+                        window.openChat(roomData);
+                    }
+                    // Highlight this contact in the sidebar
+                    const contactElement = document.querySelector(`.contact-item[data-room-id="${roomData.id}"]`);
+                    if (contactElement) {
+                        contactElement.classList.add('active');
+                    }
+                }
+            })
+            .catch(error => {
+                console.error("Error reconnecting to room:", error);
+            });
+    }
+}
+
+// Connect to presence WebSocket
+function connectPresenceWebSocket() {
+    // Get username from the DOM
+    const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+    
+    // Only connect if we have a username
+    if (!currentUsername) {
+        console.error("Cannot connect to presence WebSocket: No username available");
+        return;
+    }
+    
+    const socket_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${socket_protocol}//${window.location.host}/ws/presence?username=${encodeURIComponent(currentUsername)}`;
+    
+    wsLog(`Connecting to presence WebSocket: ${wsUrl}`);
+    try {
+        presenceWebSocket = new WebSocket(wsUrl);
+        
+        presenceWebSocket.onopen = function() {
+            wsLog("Presence WebSocket connection established successfully");
+            
+            // Send periodic pings to keep the connection alive
+            setInterval(function() {
+                if (presenceWebSocket && presenceWebSocket.readyState === WebSocket.OPEN) {
+                    presenceWebSocket.send("ping");
+                    wsLog("Sent ping to presence WebSocket");
+                }
+            }, 30000);
+        };
+        
+        presenceWebSocket.onmessage = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                wsLog("Received presence message:", data);
+                
+                if (data.type === "status") {
+                    // Use the utility function to update status
+                    if (window.shrekChatUtils) {
+                        window.shrekChatUtils.updateContactStatus(data.user_id, data.status);
+                    }
+                }
+            } catch (error) {
+                console.error("Error parsing presence message:", error, event.data);
+            }
+        };
+        
+        presenceWebSocket.onerror = function(event) {
+            console.error("Presence WebSocket error:", event);
+        };
+        
+        presenceWebSocket.onclose = function(event) {
+            wsLog(`Presence WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+            if (event.code !== 1000) {
+                wsLog("Presence WebSocket connection closed unexpectedly - trying to reconnect in 5 seconds");
+                // Try to reconnect after delay
+                setTimeout(connectPresenceWebSocket, 5000);
+            }
+        };
+    } catch (error) {
+        console.error("Error creating presence WebSocket:", error);
+    }
+}
+
+// Connect to chat WebSocket for a specific room
+function connectChatWebSocket(roomId, onConnectCallback) {
+    wsLog(`Connecting chat WebSocket for room: ${roomId}`);
+    
+    // Store current room ID
+    currentRoomId = roomId;
+    
+    // Close previous WebSocket if open
+    if (chatWebSocket) {
+        wsLog("Closing existing chat WebSocket");
+        try {
+            chatWebSocket.close();
+        } catch (e) {
+            console.error("Error closing existing WebSocket:", e);
+        }
+        chatWebSocket = null;
+    }
+    
+    // Check if we have a valid room ID
+    if (!roomId) {
+        console.error("Cannot connect WebSocket: No room ID provided");
+        return;
+    }
+    
+    // Get token for this chat session
+    wsLog("Fetching chat token...");
+    fetch(`/api/token/chat?roomId=${roomId}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to get chat token. Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const token = data.token;
+            if (!token) {
+                throw new Error('No token received from server');
+            }
+            
+            wsLog("Chat token received successfully");
+            
+            const socket_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${socket_protocol}//${window.location.host}/ws/chat/${encodeURIComponent(token)}`;
+            
+            wsLog(`Creating chat WebSocket connection: ${wsUrl}`);
+            try {
+                chatWebSocket = new WebSocket(wsUrl);
+                
+                chatWebSocket.onopen = function(event) {
+                    wsLog(`Chat WebSocket connection established for room ${roomId}`);
+                    // Send a ping to verify connection is working
+                    chatWebSocket.send(JSON.stringify({type: "ping"}));
+                    
+                    // Set up a heartbeat to keep the connection alive
+                    const heartbeatInterval = setInterval(function() {
+                        if (chatWebSocket && chatWebSocket.readyState === WebSocket.OPEN) {
+                            try {
+                                chatWebSocket.send(JSON.stringify({type: "ping"}));
+                                wsLog("Sent heartbeat ping");
+                            } catch (e) {
+                                console.error("Error sending heartbeat:", e);
+                                clearInterval(heartbeatInterval);
+                            }
+                        } else {
+                            wsLog("Clearing heartbeat interval - WebSocket not open");
+                            clearInterval(heartbeatInterval);
+                        }
+                    }, 30000);
+                    
+                    // Clear the interval when the socket closes
+                    chatWebSocket.addEventListener('close', function() {
+                        wsLog("Clearing heartbeat interval - WebSocket closed");
+                        clearInterval(heartbeatInterval);
+                    });
+                    
+                    // Call the callback if provided
+                    if (typeof onConnectCallback === 'function') {
+                        onConnectCallback();
+                    }
+                };
+                
+                chatWebSocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        wsLog("ChatSocket message received:", data);
+                        
+                        if (data.type === "message") {
+                            handleChatMessage(data);
+                        } else if (data.type === "message_read") {
+                            handleMessageRead(data);
+                        } else if (data.type === "typing") {
+                            handleTypingIndicator(data);
+                        } else if (data.type === "status") {
+                            if (window.shrekChatUtils) {
+                                window.shrekChatUtils.updateContactStatus(data.user_id, data.status);
+                            }
+                        } else if (data.type === "pong") {
+                            // Heartbeat response - nothing to do
+                            wsLog("Received pong response");
+                        } else if (data.type === "error") {
+                            console.error("WebSocket error from server:", data.error);
+                        }
+                    } catch (error) {
+                        console.error("Error processing WebSocket message:", error, event.data);
+                    }
+                };
+                
+                chatWebSocket.onerror = function(event) {
+                    console.error("Chat WebSocket error:", event);
+                };
+                
+                chatWebSocket.onclose = function(event) {
+                    wsLog(`Chat WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+                    if (event.code !== 1000) {
+                        wsLog("Chat WebSocket connection closed unexpectedly - attempting to reconnect");
+                        // Try to reconnect if this is still the current room
+                        if (currentRoomId === roomId) {
+                            setTimeout(() => {
+                                wsLog("Attempting to reconnect chat WebSocket...");
+                                connectChatWebSocket(roomId, onConnectCallback);
+                            }, 3000);
+                        }
+                    }
+                };
+            } catch (error) {
+                console.error("Error creating chat WebSocket:", error);
+            }
+        })
+        .catch(error => {
+            console.error('Error getting chat token:', error);
+            // Try again after a delay
+            wsLog("Will try to reconnect after delay");
+            setTimeout(() => connectChatWebSocket(roomId, onConnectCallback), 5000);
+        });
+}
+
+// Handle incoming chat message
+function handleChatMessage(data) {
+    const message = data.message;
+    const isConfirmation = message.sender === "user";
+    
+    wsLog("Handling chat message:", message);
+    
+    // Use utility function to update last message preview
+    if (window.shrekChatUtils) {
+        window.shrekChatUtils.updateLastMessage(message.room_id, message.content, message.time);
+    }
+    
+    // Check if this message belongs to the currently open room
+    if (parseInt(currentRoomId) === parseInt(message.room_id)) {
+        if (isConfirmation && message.temp_id) {
+            // This is a confirmation of a message we sent - update the temp message
+            wsLog(`Received confirmation for temp message: ${message.temp_id} -> ${message.id}`);
+            const tempMessage = document.querySelector(`.message[data-message-id="${message.temp_id}"]`);
+            if (tempMessage) {
+                tempMessage.setAttribute('data-message-id', message.id);
+                tempMessage.removeAttribute('data-temp-message');
+                const messageStatusSingle = tempMessage.querySelector('.message-status-single');
+                const messageStatusDouble = tempMessage.querySelector('.message-status-double');
+                if (messageStatusSingle && messageStatusDouble) {
+                    messageStatusSingle.style.display = 'none';
+                    messageStatusDouble.style.display = 'inline';
+                }
+            } else {
+                // If for some reason we can't find the temp message, just display it
+                wsLog("Temp message not found in DOM, displaying as new message");
+                if (window.displayMessage) {
+                    window.displayMessage(message);
+                }
+            }
+        } else {
+            // This is a new message from someone else - display it
+            // First check if it's already displayed to prevent duplicates
+            const existingMessage = message.id ? 
+                document.querySelector(`.message[data-message-id="${message.id}"]`) : 
+                null;
+                
+            if (!existingMessage && window.displayMessage) {
+                wsLog("Displaying new message");
+                window.displayMessage(message);
+                // Ensure we scroll to see the new message
+                setTimeout(() => {
+                    const chatMessages = document.getElementById('chatMessages');
+                    if (chatMessages) {
+                        chatMessages.scrollTop = chatMessages.scrollHeight;
+                    }
+                }, 50);
+            } else if (existingMessage) {
+                wsLog("Message already exists in DOM, skipping display");
+            }
+            
+            // Send read receipt for messages from others
+            if (!isConfirmation && chatWebSocket && chatWebSocket.readyState === WebSocket.OPEN) {
+                wsLog(`Sending read receipt for message: ${message.id}`);
+                const readData = {
+                    type: "seen",
+                    room_id: currentRoomId,
+                    message_ids: [message.id]
+                };
+                chatWebSocket.send(JSON.stringify(readData));
+            }
+        }
+    } else {
+        wsLog(`Message is for room ${message.room_id}, but current room is ${currentRoomId}`);
+        // Message is for a different room than the one currently open
+        if (!isConfirmation && window.shrekChatUtils) {
+            window.shrekChatUtils.incrementUnreadCount(message.room_id);
+        }
+    }
+}
+
+// Handle message read receipts
+function handleMessageRead(data) {
+    wsLog("Handling read receipt:", data);
+    
+    // Handle both single message_id and array of message_ids
+    if (window.shrekChatUtils) {
+        if (Array.isArray(data.message_ids)) {
+            data.message_ids.forEach(id => {
+                window.shrekChatUtils.updateMessageStatus(id, "read");
+                wsLog(`Updating message ${id} to 'read' status`);
+            });
+        } else if (data.message_id) {
+            window.shrekChatUtils.updateMessageStatus(data.message_id, "read");
+            wsLog(`Updating message ${data.message_id} to 'read' status`);
+        }
+    }
+}
+
+// Handle typing indicators
+function handleTypingIndicator(data) {
+    wsLog("Typing indicator:", data);
+    // Implementation would depend on how you want to show typing indicators in the UI
+}
+
+// Send a message through WebSocket
+function sendChatMessage(message, roomId) {
+    if (!message.trim() || !roomId) {
+        console.error("Cannot send message: Empty message or missing room ID");
+        return false;
+    }
+    
+    if (!chatWebSocket) {
+        console.error("Cannot send message: WebSocket is not initialized");
+        return false;
+    }
+    
+    if (chatWebSocket.readyState !== WebSocket.OPEN) {
+        console.error(`WebSocket is not connected. Current state: ${
+            chatWebSocket.readyState === WebSocket.CONNECTING ? 'CONNECTING' :
+            chatWebSocket.readyState === WebSocket.CLOSING ? 'CLOSING' : 
+            chatWebSocket.readyState === WebSocket.CLOSED ? 'CLOSED' : 'UNKNOWN'
+        }`);
+        return false;
+    }
+    
+    wsLog(`Sending message to room ${roomId}: ${message}`);
+    
+    const now = new Date();
+    const timeStr = window.shrekChatUtils ? 
+                   window.shrekChatUtils.formatTime(now) : 
+                   now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    const tempId = 'temp-' + Date.now();
+    
+    const msgData = {
+        type: "message",
+        content: message,
+        room_id: roomId,
+        time: timeStr,
+        temp_id: tempId
+    };
+    
+    try {
+        // Convert to JSON and send
+        const jsonStr = JSON.stringify(msgData);
+        wsLog(`Sending WebSocket message: ${jsonStr}`);
+        chatWebSocket.send(jsonStr);
+        return { success: true, tempId, timeStr };
+    } catch (error) {
+        console.error("Error sending message:", error);
+        return { success: false, error };
+    }
+}
+
+// Send read receipts for messages
+function sendReadReceipts(roomId, messageIds) {
+    if (!roomId || !messageIds || !messageIds.length || !chatWebSocket) {
+        console.error("Cannot send read receipts: Missing parameters");
+        return false;
+    }
+    
+    if (chatWebSocket.readyState !== WebSocket.OPEN) {
+        console.error("WebSocket is not connected");
+        return false;
+    }
+    
+    wsLog(`Sending read receipts for messages: ${messageIds.join(', ')}`);
+    
+    const readData = {
+        type: "seen",
+        room_id: roomId,
+        message_ids: messageIds
+    };
+    
+    try {
+        chatWebSocket.send(JSON.stringify(readData));
+        return true;
+    } catch (error) {
+        console.error("Error sending read receipts:", error);
+        return false;
+    }
+}
+
+// Set current room information
+function setCurrentRoom(roomId, isGroup, userId) {
+    wsLog(`Setting current room: id=${roomId}, isGroup=${isGroup}, userId=${userId}`);
+    currentRoomId = roomId;
+    currentRoomIsGroup = isGroup;
+    currentUserId = userId;
+    
+    // Store the current room ID in localStorage for session persistence
+    if (roomId) {
+        localStorage.setItem('lastOpenedRoomId', roomId);
+    }
+}
+
+// Export the WebSocket API
+window.shrekChatWebSocket = {
+    initializeWebSockets,
+    connectPresenceWebSocket,
+    connectChatWebSocket,
+    sendChatMessage,
+    sendReadReceipts,
+    setCurrentRoom,
+    getCurrentRoomId: () => currentRoomId,
+    getCurrentRoomIsGroup: () => currentRoomIsGroup,
+    getCurrentUserId: () => currentUserId
+};

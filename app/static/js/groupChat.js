@@ -3,8 +3,6 @@
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    let socket_protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-
     // DOM Elements - Group Creation
     const createGroupMenuItem = document.getElementById('createGroupMenuItem');
     const createGroupPopup = document.getElementById('createGroupPopup');
@@ -61,7 +59,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Templates
     const selectableContactTemplate = document.getElementById('selectableContactTemplate');
     const selectedMemberAvatarTemplate = document.getElementById('selectedMemberAvatarTemplate');
-    const groupContactItemTemplate = document.getElementById('groupContactItemTemplate');
     const groupMemberTemplate = document.getElementById('groupMemberTemplate');
     
     // Close Create Group popup
@@ -144,6 +141,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+    
     // Toggle create group popup
     if (createGroupMenuItem) {
         createGroupMenuItem.addEventListener('click', function() {
@@ -199,7 +197,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Create the group using API
-            fetch('/api/groups', {
+            fetch('/api/rooms/group', {
                 method: 'POST',
                 body: formData
             })
@@ -213,7 +211,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.log('Group created:', data);
                 
                 // Add the new group to the contacts list
-                addGroupToContactsList(data);
+                if (window.refreshRoomsList) {
+                    window.refreshRoomsList();
+                } else {
+                    // Use the room data to add a new room item to the list
+                    const roomData = {
+                        id: data.id,
+                        name: data.name,
+                        avatar: data.avatar || '/static/images/shrek-logo.png',
+                        is_group: true,
+                        last_message: 'Group created. Click to start chatting!',
+                        last_message_time: 'Now'
+                    };
+                    
+                    if (window.addRoomToList) {
+                        window.addRoomToList(roomData);
+                    }
+                }
                 
                 // Close popup
                 groupDetailsPopup.classList.remove('open');
@@ -283,7 +297,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Add members to group using API
                 const memberIds = selectedContactsForAdd.map(contact => contact.id);
                 
-                fetch(`/api/groups/${currentGroupId}/members`, {
+                fetch(`/api/rooms/${currentGroupId}/members`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -323,7 +337,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (currentGroupId) {
                 if (confirm('Are you sure you want to leave this group?')) {
                     // Leave group using API
-                    fetch(`/api/groups/${currentGroupId}/leave`, {
+                    fetch(`/api/rooms/${currentGroupId}/leave`, {
                         method: 'POST'
                     })
                     .then(response => {
@@ -336,7 +350,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         console.log('Left group:', data);
                         
                         // Remove group from contacts list
-                        const groupElement = document.querySelector(`.contact-item[data-contact-id="group-${currentGroupId}"]`);
+                        const groupElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
                         if (groupElement) {
                             groupElement.remove();
                         }
@@ -362,38 +376,227 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Edit Group
+    if (editGroupButton) {
+        editGroupButton.addEventListener('click', function() {
+            if (currentGroupId) {
+                // Create edit group popup on the fly if it doesn't exist
+                let editGroupPopup = document.getElementById('editGroupPopup');
+                if (!editGroupPopup) {
+                    // Create the popup element
+                    editGroupPopup = document.createElement('div');
+                    editGroupPopup.id = 'editGroupPopup';
+                    editGroupPopup.className = 'popup';
+                    
+                    // Create popup content
+                    editGroupPopup.innerHTML = `
+                        <div class="popup-header">
+                            <h3>Edit Group</h3>
+                            <button id="closeEditGroupPopup" class="popup-close">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div class="popup-content">
+                            <div class="group-avatar-container">
+                                <div class="group-avatar">
+                                    <img id="editGroupAvatarPreview" src="${groupManagementAvatar.src}" alt="Group Avatar">
+                                    <div class="avatar-upload-overlay">
+                                        <i class="fas fa-camera"></i>
+                                    </div>
+                                </div>
+                                <input type="file" id="editGroupAvatarInput" accept="image/*" style="display: none;">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editGroupNameInput">Group Name</label>
+                                <input type="text" id="editGroupNameInput" value="${groupManagementName.textContent}">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="editGroupDescriptionInput">Group Description</label>
+                                <textarea id="editGroupDescriptionInput">${groupManagementDescription.textContent}</textarea>
+                            </div>
+                            
+                            <div class="popup-actions">
+                                <button id="cancelEditGroup" class="btn-secondary">Cancel</button>
+                                <button id="saveGroupChanges" class="btn-primary">Save Changes</button>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Add to document
+                    document.body.appendChild(editGroupPopup);
+                    
+                    // Setup avatar upload functionality
+                    const editAvatarInput = document.getElementById('editGroupAvatarInput');
+                    const editAvatarPreview = document.getElementById('editGroupAvatarPreview');
+                    const avatarOverlay = editGroupPopup.querySelector('.avatar-upload-overlay');
+                    
+                    if (avatarOverlay && editAvatarInput) {
+                        avatarOverlay.addEventListener('click', function() {
+                            editAvatarInput.click();
+                        });
+                        
+                        editAvatarInput.addEventListener('change', function() {
+                            if (this.files && this.files[0]) {
+                                const file = this.files[0];
+                                const reader = new FileReader();
+                                
+                                reader.onload = function(e) {
+                                    editAvatarPreview.src = e.target.result;
+                                };
+                                
+                                reader.readAsDataURL(file);
+                            }
+                        });
+                    }
+                    
+                    // Setup close button
+                    const closeEditGroupBtn = document.getElementById('closeEditGroupPopup');
+                    if (closeEditGroupBtn) {
+                        closeEditGroupBtn.addEventListener('click', function() {
+                            editGroupPopup.classList.remove('open');
+                            overlay.classList.remove('active');
+                        });
+                    }
+                    
+                    // Setup cancel button
+                    const cancelEditGroupBtn = document.getElementById('cancelEditGroup');
+                    if (cancelEditGroupBtn) {
+                        cancelEditGroupBtn.addEventListener('click', function() {
+                            editGroupPopup.classList.remove('open');
+                            overlay.classList.remove('active');
+                            groupManagementPopup.classList.add('open');
+                        });
+                    }
+                    
+                    // Setup save button
+                    const saveGroupChangesBtn = document.getElementById('saveGroupChanges');
+                    if (saveGroupChangesBtn) {
+                        saveGroupChangesBtn.addEventListener('click', function() {
+                            const editGroupNameInput = document.getElementById('editGroupNameInput');
+                            const editGroupDescInput = document.getElementById('editGroupDescriptionInput');
+                            
+                            if (!editGroupNameInput.value.trim()) {
+                                alert('Group name cannot be empty');
+                                return;
+                            }
+                            
+                            // Create FormData to send updated info
+                            const formData = new FormData();
+                            formData.append('name', editGroupNameInput.value);
+                            formData.append('description', editGroupDescInput.value || '');
+                            
+                            // Add avatar if changed
+                            if (editAvatarInput.files && editAvatarInput.files[0]) {
+                                formData.append('avatar', editAvatarInput.files[0]);
+                            }
+                            
+                            // Send update request
+                            fetch(`/api/rooms/${currentGroupId}/update`, {
+                                method: 'POST',
+                                body: formData
+                            })
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to update group');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log('Group updated:', data);
+                                
+                                // Update group management screen with new data
+                                groupManagementName.textContent = data.name;
+                                groupManagementDescription.textContent = data.description || 'No description';
+                                if (data.avatar) {
+                                    groupManagementAvatar.src = data.avatar;
+                                }
+                                
+                                // Update the room in contacts list if it exists
+                                const roomElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
+                                if (roomElement) {
+                                    const roomNameEl = roomElement.querySelector('.contact-name-time h4');
+                                    const roomAvatarEl = roomElement.querySelector('.contact-avatar img');
+                                    if (roomNameEl) roomNameEl.textContent = data.name;
+                                    if (roomAvatarEl && data.avatar) roomAvatarEl.src = data.avatar;
+                                }
+                                
+                                // Also update the chat header if this group is currently open
+                                const chatContent = document.getElementById('chatContent');
+                                if (chatContent && chatContent.getAttribute('data-current-room-id') === currentGroupId.toString()) {
+                                    const chatContactName = document.getElementById('chatContactName');
+                                    const chatContactAvatar = document.getElementById('chatContactAvatar');
+                                    
+                                    if (chatContactName) chatContactName.textContent = data.name;
+                                    if (chatContactAvatar && data.avatar) chatContactAvatar.src = data.avatar;
+                                }
+                                
+                                // Close edit popup and show group management
+                                editGroupPopup.classList.remove('open');
+                                overlay.classList.add('active');
+                                groupManagementPopup.classList.add('open');
+                            })
+                            .catch(error => {
+                                console.error('Error updating group:', error);
+                                alert('Failed to update group. Please try again.');
+                            });
+                        });
+                    }
+                } else {
+                    // If popup already exists, update its contents
+                    const editAvatarPreview = document.getElementById('editGroupAvatarPreview');
+                    const editGroupNameInput = document.getElementById('editGroupNameInput');
+                    const editGroupDescInput = document.getElementById('editGroupDescriptionInput');
+                    
+                    if (editAvatarPreview) editAvatarPreview.src = groupManagementAvatar.src;
+                    if (editGroupNameInput) editGroupNameInput.value = groupManagementName.textContent;
+                    if (editGroupDescInput) editGroupDescInput.value = groupManagementDescription.textContent;
+                }
+                
+                // Hide group management popup and show edit popup
+                groupManagementPopup.classList.remove('open');
+                editGroupPopup.classList.add('open');
+                overlay.classList.add('active');
+            }
+        });
+    }
+    
     // Load contacts for selection
     function loadContactsForSelection() {
         if (selectableContacts) {
             selectableContacts.innerHTML = '<div class="loading">Loading contacts...</div>';
             
-            fetch('/api/contacts')
+            fetch('/api/rooms')
                 .then(response => {
                     if (!response.ok) {
-                        throw new Error('Failed to load contacts');
+                        throw new Error('Failed to load rooms');
                     }
                     return response.json();
                 })
-                .then(contacts => {
+                .then(rooms => {
                     selectableContacts.innerHTML = '';
                     
-                    if (contacts.length === 0) {
-                        selectableContacts.innerHTML = '<div class="no-contacts-message">No contacts found</div>';
+                    // Filter to get only direct chat rooms
+                    const directRooms = rooms.filter(room => !room.is_group);
+                    
+                    if (directRooms.length === 0) {
+                        selectableContacts.innerHTML = '<div class="no-contacts-message">No contacts found. Add friends first!</div>';
                         return;
                     }
                     
-                    contacts.forEach(function(contact) {
+                    directRooms.forEach(function(room) {
                         const contactElement = document.createElement('div');
                         contactElement.className = 'selectable-contact';
-                        contactElement.setAttribute('data-contact-id', contact.id);
+                        contactElement.setAttribute('data-contact-id', room.user_id);
                         
                         // Create contact HTML with visible checkbox
                         contactElement.innerHTML = `
-                            <input type="checkbox" id="contact_${contact.id}" class="contact-select">
+                            <input type="checkbox" id="contact_${room.user_id}" class="contact-select">
                             <div class="contact-avatar">
-                                <img src="${contact.avatar || '/static/images/shrek.jpg'}" alt="${contact.name}">
+                                <img src="${room.avatar || '/static/images/shrek.jpg'}" alt="${room.name}">
                             </div>
-                            <div class="contact-name">${contact.name}</div>
+                            <div class="contact-name">${room.name}</div>
                         `;
                         
                         const contactSelect = contactElement.querySelector('.contact-select');
@@ -402,16 +605,16 @@ document.addEventListener('DOMContentLoaded', function() {
                         contactSelect.addEventListener('change', function() {
                             if (this.checked) {
                                 selectedContacts.push({
-                                    id: contact.id,
-                                    name: contact.name,
-                                    avatar: contact.avatar || '/static/images/shrek.jpg'
+                                    id: room.user_id,
+                                    name: room.name,
+                                    avatar: room.avatar || '/static/images/shrek.jpg'
                                 });
                             } else {
-                                selectedContacts = selectedContacts.filter(c => c.id !== contact.id);
+                                selectedContacts = selectedContacts.filter(c => c.id !== room.user_id);
                             }
                             
-                            // Enable/disable next button - require at least 2 members
-                            proceedToGroupDetails.disabled = selectedContacts.length < 2;
+                            // Enable/disable next button - require at least one member
+                            proceedToGroupDetails.disabled = selectedContacts.length === 0;
                         });
                         
                         // Handle clicking on the contact row
@@ -429,7 +632,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 })
                 .catch(error => {
-                    console.error('Error loading contacts:', error);
+                    console.error('Error loading rooms:', error);
                     selectableContacts.innerHTML = '<div class="error">Failed to load contacts. Please try again.</div>';
                 });
         }
@@ -441,7 +644,7 @@ document.addEventListener('DOMContentLoaded', function() {
             addMemberContacts.innerHTML = '<div class="loading">Loading contacts...</div>';
             
             // Get group members
-            fetch(`/api/groups/${currentGroupId}/members`)
+            fetch(`/api/rooms/${currentGroupId}/members`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to load group members');
@@ -449,18 +652,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     return response.json();
                 })
                 .then(groupMembers => {
-                    // Get all contacts
-                    return fetch('/api/contacts')
+                    // Get all rooms/contacts
+                    return fetch('/api/rooms')
                         .then(response => {
                             if (!response.ok) {
-                                throw new Error('Failed to load contacts');
+                                throw new Error('Failed to load rooms');
                             }
                             return response.json();
                         })
-                        .then(contacts => {
-                            // Filter out contacts already in the group
+                        .then(rooms => {
+                            // Filter out group chats and contacts already in the group
                             const groupMemberIds = groupMembers.map(member => member.id);
-                            return contacts.filter(contact => !groupMemberIds.includes(contact.id));
+                            return rooms.filter(room => 
+                                !room.is_group && !groupMemberIds.includes(room.user_id)
+                            );
                         });
                 })
                 .then(availableContacts => {
@@ -471,7 +676,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         return;
                     }
                     
-                    availableContacts.forEach(function(contact) {
+                    availableContacts.forEach(function(room) {
                         const contactElement = selectableContactTemplate.content.cloneNode(true);
                         const contactDiv = contactElement.querySelector('.selectable-contact');
                         const contactAvatar = contactElement.querySelector('img');
@@ -479,20 +684,20 @@ document.addEventListener('DOMContentLoaded', function() {
                         const contactSelect = contactElement.querySelector('.contact-select');
                         
                         // Set contact data
-                        contactAvatar.src = contact.avatar || '/static/images/shrek.jpg';
-                        contactName.textContent = contact.name;
-                        contactDiv.setAttribute('data-contact-id', contact.id);
+                        contactAvatar.src = room.avatar || '/static/images/shrek.jpg';
+                        contactName.textContent = room.name;
+                        contactDiv.setAttribute('data-contact-id', room.user_id);
                         
                         // Handle checkbox click
                         contactSelect.addEventListener('change', function() {
                             if (this.checked) {
                                 selectedContactsForAdd.push({
-                                    id: contact.id,
-                                    name: contact.name,
-                                    avatar: contact.avatar || '/static/images/shrek.jpg'
+                                    id: room.user_id,
+                                    name: room.name,
+                                    avatar: room.avatar || '/static/images/shrek.jpg'
                                 });
                             } else {
-                                selectedContactsForAdd = selectedContactsForAdd.filter(c => c.id !== contact.id);
+                                selectedContactsForAdd = selectedContactsForAdd.filter(c => c.id !== room.user_id);
                             }
                             
                             // Enable/disable add button
@@ -521,26 +726,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Load group details
-    function loadGroupDetails(groupId) {
-        if (groupManagementPopup && groupId) {
-            currentGroupId = groupId;
+    function loadGroupDetails(roomId) {
+        if (groupManagementPopup && roomId) {
+            currentGroupId = roomId;
             
             // Get group details
-            fetch(`/api/groups/${groupId}`)
+            fetch(`/api/rooms/${roomId}`)
                 .then(response => {
                     if (!response.ok) {
                         throw new Error('Failed to load group details');
                     }
                     return response.json();
                 })
-                .then(group => {
+                .then(room => {
                     // Update group management popup
-                    groupManagementAvatar.src = group.avatar || '/static/images/shrek.jpg';
-                    groupManagementName.textContent = group.name;
-                    groupManagementDescription.textContent = group.description || 'No description';
+                    groupManagementAvatar.src = room.avatar || '/static/images/shrek-logo.png';
+                    groupManagementName.textContent = room.name;
+                    groupManagementDescription.textContent = room.description || 'No description';
                     
                     // Load group members
-                    return fetch(`/api/groups/${groupId}/members`)
+                    return fetch(`/api/rooms/${roomId}/members`)
                         .then(response => {
                             if (!response.ok) {
                                 throw new Error('Failed to load group members');
@@ -554,6 +759,16 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Clear and populate members list
                             groupMembersList.innerHTML = '';
                             
+                            // Check if current user is an admin
+                            const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+                            const currentUser = members.find(member => member.username === currentUsername);
+                            const isCurrentUserAdmin = currentUser?.is_admin || false;
+                            
+                            // Show or hide admin-specific UI elements
+                            if (addGroupMemberLink) {
+                                addGroupMemberLink.style.display = isCurrentUserAdmin ? 'flex' : 'none';
+                            }
+                            
                             members.forEach(function(member) {
                                 const memberElement = groupMemberTemplate.content.cloneNode(true);
                                 const memberAvatar = memberElement.querySelector('.member-avatar img');
@@ -566,7 +781,14 @@ document.addEventListener('DOMContentLoaded', function() {
                                 // Set member data
                                 memberAvatar.src = member.avatar || '/static/images/shrek.jpg';
                                 memberName.textContent = member.name;
-                                memberRole.textContent = member.role || 'Participant';
+                                memberRole.textContent = member.is_admin ? 'Admin' : 'Participant';
+                                
+                                // Hide action toggle button for non-admins or when current user is viewing themselves
+                                const isSelf = member.username === currentUsername;
+                                if (memberActionsToggle) {
+                                    // Only show actions toggle if user is admin AND not looking at themselves
+                                    memberActionsToggle.style.display = (isCurrentUserAdmin && !isSelf) ? 'block' : 'none';
+                                }
                                 
                                 // Handle member actions toggle
                                 if (memberActionsToggle) {
@@ -590,12 +812,17 @@ document.addEventListener('DOMContentLoaded', function() {
                                     });
                                 }
                                 
-                                // Handle make admin action
+                                // Handle make admin action - only shown to admins, and only for non-admin members
                                 if (makeAdminAction) {
+                                    // Hide make admin option for existing admins
+                                    if (member.is_admin) {
+                                        makeAdminAction.style.display = 'none';
+                                    }
+                                    
                                     makeAdminAction.addEventListener('click', function() {
                                         if (confirm(`Make ${member.name} an admin of this group?`)) {
                                             // Make admin using API
-                                            fetch(`/api/groups/${groupId}/members/${member.id}/make-admin`, {
+                                            fetch(`/api/rooms/${roomId}/members/${member.id}/make-admin`, {
                                                 method: 'POST'
                                             })
                                             .then(response => {
@@ -609,6 +836,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 
                                                 // Update member role
                                                 memberRole.textContent = 'Admin';
+                                                makeAdminAction.style.display = 'none'; // Hide make admin option
                                             })
                                             .catch(error => {
                                                 console.error('Error making admin:', error);
@@ -618,12 +846,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                     });
                                 }
                                 
-                                // Handle remove member action
+                                // Handle remove member action - only shown to admins
                                 if (removeMemberAction) {
                                     removeMemberAction.addEventListener('click', function() {
                                         if (confirm(`Remove ${member.name} from this group?`)) {
                                             // Remove member using API
-                                            fetch(`/api/groups/${groupId}/members/${member.id}`, {
+                                            fetch(`/api/rooms/${roomId}/members/${member.id}`, {
                                                 method: 'DELETE'
                                             })
                                             .then(response => {
@@ -659,307 +887,6 @@ document.addEventListener('DOMContentLoaded', function() {
                     console.error('Error loading group details:', error);
                     alert('Failed to load group details. Please try again.');
                 });
-        }
-    }
-    
-    // Add group to contacts list
-    function addGroupToContactsList(group) {
-        if (contactsList && groupContactItemTemplate) {
-            const groupElement = groupContactItemTemplate.content.cloneNode(true);
-            const contactItem = groupElement.querySelector('.contact-item');
-            const contactAvatar = groupElement.querySelector('.contact-avatar img');
-            const contactName = groupElement.querySelector('.contact-name-time h4');
-            const lastMessage = groupElement.querySelector('.last-message');
-            
-            // Set group data
-            contactAvatar.src = group.avatar || '/static/images/shrek.jpg';
-            contactName.textContent = group.name;
-            lastMessage.textContent = 'Group created. Click to start chatting!';
-            contactItem.setAttribute('data-contact-id', `group-${group.id}`);
-            contactItem.setAttribute('data-is-group', 'true');
-            
-            // Handle click to open group chat
-            contactItem.addEventListener('click', function() {
-                // Remove active class from all contacts
-                document.querySelectorAll('.contact-item').forEach(contact => {
-                    contact.classList.remove('active');
-                });
-                
-                // Add active class to selected contact
-                this.classList.add('active');
-                
-                // Update chat header with group info
-                const chatContactName = document.getElementById('chatContactName');
-                const chatContactStatus = document.getElementById('chatContactPresence');
-                const chatContactAvatar = document.getElementById('chatContactAvatar');
-                
-                if (chatContactName) chatContactName.textContent = group.name;
-                if (chatContactStatus) chatContactStatus.textContent = 'Group';
-                if (chatContactAvatar) chatContactAvatar.src = group.avatar || '/static/images/shrek.jpg';
-                
-                // Show chat content, hide welcome container
-                const welcomeContainer = document.getElementById('welcomeContainer');
-                const chatContent = document.getElementById('chatContent');
-                if (welcomeContainer && chatContent) {
-                    welcomeContainer.style.display = 'none';
-                    chatContent.style.display = 'flex';
-                }
-                
-                // Show mobile chat area
-                const sidebar = document.querySelector('.sidebar');
-                if (sidebar) {
-                    sidebar.classList.remove('active');
-                }
-                
-                // Update contact info popup handler (chat header click)
-                const chatContactInfo = document.querySelector('.chat-contact-info');
-                if (chatContactInfo) {
-                    // Remove existing event listeners (we need to use cloneNode trick)
-                    const newChatContactInfo = chatContactInfo.cloneNode(true);
-                    chatContactInfo.parentNode.replaceChild(newChatContactInfo, chatContactInfo);
-                    
-                    // Add new event listener for group chat
-                    newChatContactInfo.addEventListener('click', function() {
-                        groupManagementPopup.classList.add('open');
-                        overlay.classList.add('active');
-                        
-                        // Load group details
-                        loadGroupDetails(group.id);
-                    });
-                }
-                
-                // Update view contact info dropdown option
-                const viewContactInfo = document.getElementById('viewContactInfo');
-                if (viewContactInfo) {
-                    viewContactInfo.textContent = 'Group info';
-                    
-                    // Remove existing event listeners
-                    const newViewContactInfo = viewContactInfo.cloneNode(true);
-                    viewContactInfo.parentNode.replaceChild(newViewContactInfo, viewContactInfo);
-                    
-                    // Add new event listener
-                    newViewContactInfo.addEventListener('click', function() {
-                        groupManagementPopup.classList.add('open');
-                        overlay.classList.add('active');
-                        
-                        // Load group details
-                        loadGroupDetails(group.id);
-                        
-                        // Close dropdown menu
-                        const dropdownMenu = document.querySelector('.dropdown-menu.active');
-                        if (dropdownMenu) {
-                            dropdownMenu.classList.remove('active');
-                        }
-                    });
-                }
-                
-                // Load group messages
-                loadGroupMessages(group.id);
-                
-                // Connect to group chat WebSocket
-                connectToGroupChat(group.id);
-            });
-            
-            // Insert at the top of the contacts list
-            contactsList.insertBefore(groupElement, contactsList.firstChild);
-        }
-    }
-    
-    // Load group messages
-    function loadGroupMessages(groupId) {
-        const chatMessages = document.getElementById('chatMessages');
-        
-        if (chatMessages) {
-            chatMessages.innerHTML = '<div class="loading-messages">Loading messages...</div>';
-            
-            fetch(`/api/groups/${groupId}/messages`)
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Failed to load messages');
-                    }
-                    return response.json();
-                })
-                .then(messages => {
-                    chatMessages.innerHTML = '';
-                    
-                    if (messages.length === 0) {
-                        chatMessages.innerHTML = '<div class="no-messages">No messages yet. Be the first to say hello!</div>';
-                        return;
-                    }
-                    
-                    messages.forEach(function(message) {
-                        displayGroupMessage(message);
-                    });
-                    
-                    // Scroll to bottom
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                })
-                .catch(error => {
-                    console.error('Error loading group messages:', error);
-                    chatMessages.innerHTML = '<div class="error">Failed to load messages. Please try again.</div>';
-                });
-        }
-    }
-    
-    // Display group message
-    function displayGroupMessage(message) {
-        const chatMessages = document.getElementById('chatMessages');
-        const messageTemplate = document.getElementById('groupMessageTemplate');
-        
-        if (chatMessages && messageTemplate) {
-            const messageElement = messageTemplate.content.cloneNode(true);
-            const messageDiv = messageElement.querySelector('.message');
-            const messageSender = messageElement.querySelector('.message-sender');
-            const messageContent = messageElement.querySelector('.message-content');
-            const messageTime = messageElement.querySelector('.message-time');
-            
-            // Get current username
-            const currentUsername = document.querySelector('.profile-name') ? 
-                                   document.querySelector('.profile-name').textContent.trim() : '';
-            
-            // Set message content and time
-            messageContent.textContent = message.content;
-            messageTime.textContent = message.time;
-            
-            // Determine if this is an incoming or outgoing message
-            if (message.sender === "user" || message.sender === currentUsername) {
-                messageDiv.classList.add('outgoing');
-                messageDiv.classList.add('group-message');
-                messageSender.textContent = "You";
-            } else {
-                messageDiv.classList.add('incoming');
-                messageDiv.classList.add('group-message');
-                messageSender.textContent = message.sender_name || message.sender;
-            }
-            
-            chatMessages.appendChild(messageElement);
-        }
-    }
-    
-    // Connect to group chat WebSocket
-    function connectToGroupChat(groupId) {
-        // Close previous WebSocket if open
-        if (window.groupChatWs) {
-            window.groupChatWs.close();
-        }
-        
-        // Get current username
-        const currentUsername = document.querySelector('.profile-name') ? 
-                               document.querySelector('.profile-name').textContent.trim() : '';
-
-        // Open new WebSocket connection
-        const wsUrl = `${socket_protocol + window.location.host}/ws/group/${groupId}?username=${encodeURIComponent(currentUsername)}`;
-        window.groupChatWs = new WebSocket(wsUrl);
-        
-        // WebSocket event handlers
-        window.groupChatWs.onopen = function(event) {
-            console.log("Group WebSocket connection established");
-        };
-        
-        window.groupChatWs.onmessage = function(event) {
-            const data = JSON.parse(event.data);
-            
-            if (data.type === "message") {
-                displayGroupMessage(data);
-                
-                // Scroll to bottom
-                const chatMessages = document.getElementById('chatMessages');
-                if (chatMessages) {
-                    chatMessages.scrollTop = chatMessages.scrollHeight;
-                }
-                
-                // Update last message in contact list
-                updateGroupLastMessage(groupId, data.content, data.time);
-            }
-        };
-        
-        window.groupChatWs.onerror = function(error) {
-            console.error("Group WebSocket error:", error);
-        };
-        
-        window.groupChatWs.onclose = function(event) {
-            if (event.code !== 1000) {
-                console.log("Group WebSocket connection closed unexpectedly:", event.code, event.reason);
-            }
-        };
-        
-        // Update send button to use group chat WebSocket
-        const sendMessageBtn = document.getElementById('sendMessageBtn');
-        const messageInput = document.getElementById('messageInput');
-        
-        if (sendMessageBtn && messageInput) {
-            // Remove existing event listeners
-            const newSendMessageBtn = sendMessageBtn.cloneNode(true);
-            sendMessageBtn.parentNode.replaceChild(newSendMessageBtn, sendMessageBtn);
-            
-            // Add new event listener for group chat
-            newSendMessageBtn.addEventListener('click', function() {
-                sendGroupMessage(groupId);
-            });
-            
-            // Update keypress event for message input
-            messageInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    sendGroupMessage(groupId);
-                }
-            });
-        }
-    }
-    
-    // Send group message
-    function sendGroupMessage(groupId) {
-        const messageInput = document.getElementById('messageInput');
-        
-        if (messageInput && window.groupChatWs && window.groupChatWs.readyState === WebSocket.OPEN) {
-            const message = messageInput.value.trim();
-            
-            if (message) {
-                const now = new Date();
-                const msgData = {
-                    type: "message",
-                    content: message,
-                    time: now.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})
-                };
-                
-                try {
-                    window.groupChatWs.send(JSON.stringify(msgData));
-                    messageInput.value = '';
-                } catch (error) {
-                    console.error("Error sending group message:", error);
-                    alert("Failed to send message. Please try again.");
-                }
-            }
-        } else if (messageInput && messageInput.value.trim()) {
-            if (!window.groupChatWs || window.groupChatWs.readyState !== WebSocket.OPEN) {
-                console.error("Group WebSocket is not connected");
-                alert("Chat connection is not available. Please refresh the page and try again.");
-            }
-        }
-    }
-    
-    // Update group's last message in contacts list
-    function updateGroupLastMessage(groupId, message, time) {
-        const contactElement = document.querySelector(`.contact-item[data-contact-id="group-${groupId}"]`);
-        
-        if (contactElement) {
-            const lastMessageElement = contactElement.querySelector('.last-message');
-            const messageTimeElement = contactElement.querySelector('.message-time');
-            
-            if (lastMessageElement) {
-                // Truncate message if too long
-                const displayMessage = message.length > 30 ? message.substring(0, 27) + '...' : message;
-                lastMessageElement.textContent = displayMessage;
-            }
-            
-            if (messageTimeElement) {
-                messageTimeElement.textContent = time;
-            }
-            
-            // Move this contact to the top of the list
-            const parentElement = contactElement.parentElement;
-            if (parentElement) {
-                parentElement.insertBefore(contactElement, parentElement.firstChild);
-            }
         }
     }
     
@@ -999,25 +926,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // Load existing groups on page load
-    function loadGroups() {
-        fetch('/api/groups')
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to load groups');
-                }
-                return response.json();
-            })
-            .then(groups => {
-                groups.forEach(function(group) {
-                    addGroupToContactsList(group);
-                });
-            })
-            .catch(error => {
-                console.error('Error loading groups:', error);
-            });
-    }
-    
-    // Load groups on page load
-    loadGroups();
+    // Expose loadGroupDetails globally to be accessed from chat.js
+    window.loadGroupDetails = loadGroupDetails;
 });
