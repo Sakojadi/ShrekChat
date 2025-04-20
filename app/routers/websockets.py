@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_
 from typing import Dict, List, Set, Optional
 from datetime import datetime
+import pytz
 import json
 
 # Import get_db and active_connections separately to avoid circular import issues
@@ -61,6 +62,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                     await handle_seen_notification(websocket, user, message_data, db)
                 elif message_data["type"] == "typing":
                     await handle_typing_notification(websocket, user, message_data, db)
+                elif message_data["type"] == "update_message":
+                    await handle_message_update(websocket, user, message_data, db)
+                elif message_data["type"] == "delete_message":
+                    await handle_message_delete(websocket, user, message_data, db)
                 else:
                     await websocket.send_json({"error": "Unknown message type"})
         
@@ -180,7 +185,7 @@ async def handle_chat_message(websocket: WebSocket, user: User, message_data: di
             content=content,
             sender_id=user.id,
             room_id=room_id,
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(pytz.timezone('Asia/Bishkek')),
             delivered=True,  # Delivered to server
             read=False       # Not read by recipient(s) yet
         )
@@ -388,6 +393,145 @@ async def handle_typing_notification(websocket: WebSocket, user: User, message_d
         print(f"Error handling typing notification: {e}")
         await websocket.send_json({"error": "Failed to process typing notification"})
 
+async def handle_message_update(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle message update"""
+    try:
+        message_id = message_data.get("message_id")
+        room_id = message_data.get("room_id")
+        content = message_data.get("content", "").strip()
+        
+        if not message_id or not room_id or not content:
+            await websocket.send_json({"error": "Invalid update data"})
+            return
+        
+        # Get the message
+        message = db.query(Message).filter(Message.id == message_id).first()
+        if not message:
+            await websocket.send_json({"error": "Message not found"})
+            return
+        
+        # Check if user is the sender of the message
+        if message.sender_id != user.id:
+            await websocket.send_json({"error": "You can only edit your own messages"})
+            return
+        
+        # Check if message is too old (older than 5 minutes)
+        time_diff = (datetime.utcnow() - message.timestamp).total_seconds() / 60
+        if time_diff > 5:
+            await websocket.send_json({"error": "Messages can only be edited within 5 minutes of sending"})
+            return
+        
+        # Update message
+        message.content = content
+        message.edited = True
+        message.edited_at = datetime.utcnow()
+        db.commit()
+        
+        # Send confirmation to sender
+        await websocket.send_json({
+            "type": "message_updated",
+            "message_id": message_id,
+            "content": content,
+            "edited_at": message.edited_at.isoformat(),
+            "room_id": room_id
+        })
+        
+        # Broadcast update to other users in room
+        members = db.query(User.id).join(
+            room_members, User.id == room_members.c.user_id
+        ).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                User.id != user.id  # Exclude sender
+            )
+        ).all()
+        
+        for member in members:
+            member_user = db.query(User).filter(User.id == member.id).first()
+            if member_user and member_user.username in active_connections:
+                for member_ws in active_connections[member_user.username]:
+                    await member_ws.send_json({
+                        "type": "message_updated",
+                        "message_id": message_id,
+                        "room_id": room_id,
+                        "content": content,
+                        "edited": True,
+                        "edited_at": message.edited_at.isoformat()
+                    })
+    except Exception as e:
+        print(f"Error handling message update: {e}")
+        await websocket.send_json({"error": "Failed to update message"})
+
+async def handle_message_delete(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle message delete"""
+    try:
+        message_id = message_data.get("message_id")
+        room_id = message_data.get("room_id")
+        
+        if not message_id or not room_id:
+            await websocket.send_json({"error": "Invalid delete data"})
+            return
+        
+        # Get the message
+        message = db.query(Message).filter(Message.id == message_id).first()
+        if not message:
+            await websocket.send_json({"error": "Message not found"})
+            return
+        
+        # Check if user is the sender of the message or an admin in a group chat
+        is_sender = message.sender_id == user.id
+        is_admin = False
+        
+        # Check if this is a group chat and if the user is an admin
+        room = db.query(Room).filter(Room.id == message.room_id).first()
+        if room and room.is_group:
+            is_admin = db.query(room_members).filter(
+                and_(
+                    room_members.c.room_id == message.room_id,
+                    room_members.c.user_id == user.id,
+                    room_members.c.is_admin == True
+                )
+            ).first() is not None
+        
+        if not (is_sender or is_admin):
+            await websocket.send_json({"error": "You can only delete your own messages or any message if you're a group admin"})
+            return
+        
+        # Delete the message
+        db.delete(message)
+        db.commit()
+        
+        # Send confirmation to the user who deleted the message
+        await websocket.send_json({
+            "type": "message_deleted",
+            "message_id": message_id,
+            "room_id": room_id
+        })
+        
+        # Broadcast deletion to other users in room
+        members = db.query(User.id).join(
+            room_members, User.id == room_members.c.user_id
+        ).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                User.id != user.id  # Exclude sender
+            )
+        ).all()
+        
+        for member in members:
+            member_user = db.query(User).filter(User.id == member.id).first()
+            if member_user and member_user.username in active_connections:
+                for member_ws in active_connections[member_user.username]:
+                    await member_ws.send_json({
+                        "type": "message_deleted",
+                        "message_id": message_id,
+                        "room_id": room_id,
+                        "deleted_by": user.username
+                    })
+    except Exception as e:
+        print(f"Error handling message delete: {e}")
+        await websocket.send_json({"error": "Failed to delete message"})
+
 async def broadcast_status(user: User, status: str, db: Session):
     """Broadcast user's online/offline status to contacts"""
     # Find all users who have direct chat rooms with this user
@@ -460,3 +604,37 @@ async def notify_new_room(room_id: int, target_user_id: int, current_user: User,
             "type": "new_room",
             "room": room_data
         })
+
+async def notify_new_group(room_id: int, target_user_ids: list, db: Session):
+    """Notify users about a new group chat they've been added to"""
+    # Get the room data to send to the users
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        return
+        
+    # Get group info
+    group_info = db.query(GroupChat).filter(GroupChat.id == room_id).first()
+    if not group_info:
+        return
+    
+    # Create room data for notification
+    room_data = {
+        "id": room.id,
+        "name": room.name,
+        "avatar": group_info.avatar or "/static/images/shrek-logo.png",
+        "is_group": True,
+        "last_message": "Group created. Click to start chatting!",
+        "last_message_time": "Now",
+        "unread_count": 0,
+        "description": group_info.description
+    }
+    
+    # Notify each online user
+    for user_id in target_user_ids:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.username in active_connections:
+            for ws in active_connections[user.username]:
+                await ws.send_json({
+                    "type": "new_room",
+                    "room": room_data
+                })

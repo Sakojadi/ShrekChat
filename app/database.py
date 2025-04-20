@@ -100,7 +100,7 @@ class GroupMember(Base):
     is_admin = Column(Boolean, default=False)
     added_at = Column(DateTime, default=datetime.utcnow)
     __table_args__ = (
-        # composite PK so each user appears once per group
+        # composite PK so    each user appears once per group
         PrimaryKeyConstraint('group_id', 'user_id'),
     )
 

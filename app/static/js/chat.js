@@ -252,9 +252,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (existingIndicator) {
                 existingIndicator.remove();
             }
-            // const statusIndicator = document.createElement('span');
-            // statusIndicator.className = `status-indicator ${roomData.status || 'offline'}`;
-            // chatContactStatusElement.prepend(statusIndicator);
         }
         
         chatContactAvatarElement.src = roomData.avatar || '/static/images/shrek.jpg';
@@ -280,6 +277,52 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                     showContactInfo(roomData);
                 }
+                const dropdownMenu = document.querySelector('.dropdown-menu.active');
+                if (dropdownMenu) {
+                    dropdownMenu.classList.remove('active');
+                }
+            });
+        }
+        
+        // Setup clear chat functionality
+        const clearChatItem = document.getElementById('clearChat');
+        if (clearChatItem) {
+            const newClearChatItem = clearChatItem.cloneNode(true);
+            clearChatItem.parentNode.replaceChild(newClearChatItem, clearChatItem);
+            newClearChatItem.addEventListener('click', function() {
+                if (confirm('Are you sure you want to clear all messages? This cannot be undone.')) {
+                    const currentRoomId = chatContent.getAttribute('data-current-room-id');
+                    if (!currentRoomId) {
+                        return;
+                    }
+                    
+                    // Clear chat using API
+                    fetch(`/api/rooms/${currentRoomId}/messages`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to clear chat');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Chat cleared:', data);
+                        
+                        // Clear messages from UI
+                        chatMessages.innerHTML = '';
+                        
+                        // Update last message in the sidebar
+                        if (window.shrekChatUtils) {
+                            window.shrekChatUtils.updateLastMessage(currentRoomId, 'Chat cleared', null);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error clearing chat:', error);
+                        alert('Failed to clear chat. Please try again.');
+                    });
+                }
+                
                 const dropdownMenu = document.querySelector('.dropdown-menu.active');
                 if (dropdownMenu) {
                     dropdownMenu.classList.remove('active');
@@ -409,7 +452,7 @@ document.addEventListener('DOMContentLoaded', function() {
             messageContent.textContent = message.content;
             messageTime.textContent = message.time || (window.shrekChatUtils ? 
                                      window.shrekChatUtils.formatTime(new Date()) : 
-                                     new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}));
+                                     new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false}));
             
             // Set message ID for future reference
             if (message.id) {

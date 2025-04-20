@@ -221,33 +221,10 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false)
                     }
                 };
                 
-                chatWebSocket.onmessage = function(event) {
-                    try {
-                        const data = JSON.parse(event.data);
-                        wsLog("ChatSocket message received:", data);
-                        
-                        if (data.type === "message") {
-                            handleChatMessage(data);
-                        } else if (data.type === "message_read") {
-                            handleMessageRead(data);
-                        } else if (data.type === "typing") {
-                            handleTypingIndicator(data);
-                        } else if (data.type === "status") {
-                            if (window.shrekChatUtils) {
-                                window.shrekChatUtils.updateContactStatus(data.user_id, data.status);
-                            }
-                        } else if (data.type === "new_room") {
-                            handleNewRoom(data);
-                        } else if (data.type === "pong") {
-                            // Heartbeat response - nothing to do
-                            wsLog("Received pong response");
-                        } else if (data.type === "error") {
-                            console.error("WebSocket error from server:", data.error);
-                        }
-                    } catch (error) {
-                        console.error("Error processing WebSocket message:", error, event.data);
-                    }
-                };
+                setupChatWebSocketEvents(chatWebSocket, () => {
+                    wsLog("Attempting to reconnect chat WebSocket...");
+                    connectChatWebSocket(roomId, onConnectCallback, suppressReload);
+                });
                 
                 chatWebSocket.onerror = function(event) {
                     console.error("Chat WebSocket error:", event);
@@ -276,6 +253,87 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false)
             wsLog("Will try to reconnect after delay");
             setTimeout(() => connectChatWebSocket(roomId, onConnectCallback, suppressReload), 5000);
         });
+}
+
+// Process WebSocket events
+function setupChatWebSocketEvents(webSocket, reconnectCallback) {
+    webSocket.onmessage = function(event) {
+        try {
+            const data = JSON.parse(event.data);
+            wsLog("ChatSocket message received:", data);
+            
+            if (data.type === "message") {
+                handleChatMessage(data);
+            } else if (data.type === "message_read") {
+                handleMessageRead(data);
+            } else if (data.type === "typing") {
+                handleTypingIndicator(data);
+            } else if (data.type === "status") {
+                if (window.shrekChatUtils) {
+                    window.shrekChatUtils.updateContactStatus(data.user_id, data.status);
+                }
+            } else if (data.type === "new_room") {
+                handleNewRoom(data);
+            } else if (data.type === "chat_cleared") {
+                handleChatCleared(data);
+            } else if (data.type === "pong") {
+                // Heartbeat response - nothing to do
+                wsLog("Received pong response");
+            } else if (data.type === "error") {
+                console.error("WebSocket error from server:", data.error || data.message);
+                // Display error to user in console
+                if (data.message_id) {
+                    console.error(`Error with message ID ${data.message_id}: ${data.error || data.message}`);
+                }
+            } else if (data.type === "message_updated") {
+                // Handle message update notification
+                handleMessageUpdated(data);
+            } else if (data.type === "message_deleted") {
+                // Handle message deletion notification
+                handleMessageDeleted(data);
+            }
+        } catch (error) {
+            console.error("Error processing WebSocket message:", error, event.data);
+        }
+    };
+}
+
+// Handle message update notification
+function handleMessageUpdated(data) {
+    wsLog("Message update notification received:", data);
+    
+    // Update the message in the UI if it's in the current chat
+    const currentRoomId = window.shrekChatWebSocket ? window.shrekChatWebSocket.getCurrentRoomId() : null;
+    
+    if (parseInt(currentRoomId) === parseInt(data.room_id)) {
+        // Dispatch custom event that our chatFunc.js can listen for
+        const updateEvent = new CustomEvent('message-updated', {
+            detail: {
+                messageId: data.message_id,
+                content: data.content
+            }
+        });
+        window.dispatchEvent(updateEvent);
+    }
+}
+
+// Handle message deletion notification
+function handleMessageDeleted(data) {
+    wsLog("Message deletion notification received:", data);
+    
+    // Remove the message from UI if it's in the current chat
+    const currentRoomId = window.shrekChatWebSocket ? window.shrekChatWebSocket.getCurrentRoomId() : null;
+    
+    if (parseInt(currentRoomId) === parseInt(data.room_id)) {
+        // Dispatch custom event that our chatFunc.js can listen for
+        const deleteEvent = new CustomEvent('message-deleted', {
+            detail: {
+                messageId: data.message_id,
+                deletedBy: data.deleted_by
+            }
+        });
+        window.dispatchEvent(deleteEvent);
+    }
 }
 
 // Handle incoming chat message
@@ -412,6 +470,35 @@ function handleNewRoom(data) {
     }
 }
 
+// Handle chat cleared notifications
+function handleChatCleared(data) {
+    wsLog("Handling chat cleared notification:", data);
+    
+    // Check if this notification is for the currently open chat
+    if (parseInt(data.room_id) === parseInt(currentRoomId)) {
+        // Clear the messages in the UI
+        const chatMessages = document.getElementById('chatMessages');
+        if (chatMessages) {
+            chatMessages.innerHTML = '';
+            
+            // Add a system message showing that the chat was cleared
+            const clearMessage = document.createElement('div');
+            clearMessage.className = 'system-message info';
+            clearMessage.textContent = `Chat was cleared by ${data.cleared_by}`;
+            chatMessages.appendChild(clearMessage);
+        }
+    }
+    
+    // Update the last message in the sidebar regardless of whether the chat is open
+    if (window.shrekChatUtils) {
+        window.shrekChatUtils.updateLastMessage(
+            data.room_id, 
+            'Chat cleared', 
+            new Date(data.cleared_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
+        );
+    }
+}
+
 // Send a message through WebSocket
 function sendChatMessage(message, roomId) {
     if (!message.trim() || !roomId) {
@@ -438,7 +525,7 @@ function sendChatMessage(message, roomId) {
     const now = new Date();
     const timeStr = window.shrekChatUtils ? 
                    window.shrekChatUtils.formatTime(now) : 
-                   now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+                   now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12:false});
     const tempId = 'temp-' + Date.now();
     
     const msgData = {
@@ -516,5 +603,116 @@ window.shrekChatWebSocket = {
     setCurrentRoom,
     getCurrentRoomId: () => currentRoomId,
     getCurrentRoomIsGroup: () => currentRoomIsGroup,
-    getCurrentUserId: () => currentUserId
+    getCurrentUserId: () => currentUserId,
+    
+    // Add update message function
+    updateMessage: function(roomId, messageId, content, callback) {
+        if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
+            console.error("WebSocket is not connected");
+            if (typeof callback === 'function') callback(false);
+            return false;
+        }
+        
+        wsLog(`Updating message ${messageId} in room ${roomId}`);
+        
+        const updateData = {
+            type: "update_message",
+            room_id: roomId,
+            message_id: messageId,
+            content: content
+        };
+        
+        try {
+            // Set up a one-time listener for the response
+            const messageHandler = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "message_updated" && data.message_id === messageId) {
+                        wsLog("Message update confirmed:", data);
+                        // Remove this one-time listener
+                        chatWebSocket.removeEventListener('message', messageHandler);
+                        if (typeof callback === 'function') callback(true);
+                    }
+                    else if (data.type === "error" && data.message_id === messageId) {
+                        wsLog("Message update failed:", data);
+                        chatWebSocket.removeEventListener('message', messageHandler);
+                        if (typeof callback === 'function') callback(false);
+                    }
+                } catch (error) {
+                    console.error("Error parsing message update response:", error);
+                }
+            };
+            
+            // Add the temporary message handler
+            chatWebSocket.addEventListener('message', messageHandler);
+            
+            // Set a timeout to clean up if we don't get a response
+            setTimeout(() => {
+                chatWebSocket.removeEventListener('message', messageHandler);
+                if (typeof callback === 'function') callback(false);
+            }, 5000);
+            
+            chatWebSocket.send(JSON.stringify(updateData));
+            return true;
+        } catch (error) {
+            console.error("Error sending message update:", error);
+            if (typeof callback === 'function') callback(false);
+            return false;
+        }
+    },
+    
+    // Add delete message function
+    deleteMessage: function(roomId, messageId, callback) {
+        if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
+            console.error("WebSocket is not connected");
+            if (typeof callback === 'function') callback(false);
+            return false;
+        }
+        
+        wsLog(`Deleting message ${messageId} in room ${roomId}`);
+        
+        const deleteData = {
+            type: "delete_message",
+            room_id: roomId,
+            message_id: messageId
+        };
+        
+        try {
+            // Set up a one-time listener for the response
+            const messageHandler = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === "message_deleted" && data.message_id === messageId) {
+                        wsLog("Message deletion confirmed:", data);
+                        // Remove this one-time listener
+                        chatWebSocket.removeEventListener('message', messageHandler);
+                        if (typeof callback === 'function') callback(true);
+                    }
+                    else if (data.type === "error" && data.message_id === messageId) {
+                        wsLog("Message deletion failed:", data);
+                        chatWebSocket.removeEventListener('message', messageHandler);
+                        if (typeof callback === 'function') callback(false);
+                    }
+                } catch (error) {
+                    console.error("Error parsing message deletion response:", error);
+                }
+            };
+            
+            // Add the temporary message handler
+            chatWebSocket.addEventListener('message', messageHandler);
+            
+            // Set a timeout to clean up if we don't get a response
+            setTimeout(() => {
+                chatWebSocket.removeEventListener('message', messageHandler);
+                if (typeof callback === 'function') callback(false);
+            }, 5000);
+            
+            chatWebSocket.send(JSON.stringify(deleteData));
+            return true;
+        } catch (error) {
+            console.error("Error sending message deletion:", error);
+            if (typeof callback === 'function') callback(false);
+            return false;
+        }
+    }
 };

@@ -4,7 +4,7 @@
 
 // Format a date into time string (HH:MM)
 function formatTime(date) {
-    return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+    return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false});
 }
 
 // Debounce function for search inputs

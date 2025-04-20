@@ -11,6 +11,7 @@ from pathlib import Path
 
 from app.routers.session import get_db, get_current_user
 from app.database import User, Room, Message, room_members, GroupChat
+from app.routers.websockets import notify_new_group
 
 router = APIRouter(prefix="/api")
 
@@ -165,8 +166,10 @@ async def create_group(
                 is_admin=is_admin
             )
         )
-    
     db.commit()
+    
+    # Notify members about the new group
+    await notify_new_group(new_room.id, member_id_list)
     
     return {
         "id": new_room.id,
@@ -303,8 +306,10 @@ async def add_group_members(
     
     db.commit()
     
-    # Return added members' info
+    # Notify new members about being added to the group
     if added_members:
+        await notify_new_group(room_id, added_members, db)
+        
         new_members = db.query(
             User.id,
             User.username,
@@ -534,6 +539,60 @@ async def leave_group(
         return {"status": "success", "message": "You left the group and it was deleted since it's empty"}
     
     return {"status": "success", "message": "You left the group"}
+
+# Delete a group (admin only)
+@router.delete("/rooms/{room_id}/delete")
+async def delete_group(
+    room_id: int,
+    username: str = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a group chat (admin only)"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if room exists and is a group
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if not room:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+    
+    if not room.is_group:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="This is not a group chat")
+    
+    # Check if user is an admin of the group
+    is_admin = db.query(room_members).filter(
+        and_(
+            room_members.c.room_id == room_id,
+            room_members.c.user_id == current_user.id,
+            room_members.c.is_admin == True
+        )
+    ).first() is not None
+    
+    if not is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can delete the group"
+        )
+    
+    # Delete all messages from this room
+    db.query(Message).filter(Message.room_id == room_id).delete()
+    
+    # Delete all room memberships
+    db.execute(
+        room_members.delete().where(
+            room_members.c.room_id == room_id
+        )
+    )
+    
+    # Delete group info and room
+    db.query(GroupChat).filter(GroupChat.id == room_id).delete()
+    db.query(Room).filter(Room.id == room_id).delete()
+    
+    db.commit()
+    
+    return {"status": "success", "message": "Group has been deleted"}
 
 # Make a user an admin of a group
 @router.post("/rooms/{room_id}/members/{user_id}/make-admin")

@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const backToGroupChat = document.getElementById('backToGroupChat');
     const editGroupButton = document.getElementById('editGroupButton');
     const leaveGroupButton = document.getElementById('leaveGroupButton');
+    const deleteGroupButton = document.getElementById('deleteGroupButton');
     
     // DOM Elements - Add Group Member
     const addGroupMemberPopup = document.getElementById('addGroupMemberPopup');
@@ -201,12 +202,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 method: 'POST',
                 body: formData
             })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to create group');
-                }
-                return response.json();
-            })
             .then(data => {
                 console.log('Group created:', data);
                 
@@ -370,6 +365,51 @@ document.addEventListener('DOMContentLoaded', function() {
                     .catch(error => {
                         console.error('Error leaving group:', error);
                         alert('Failed to leave group. Please try again.');
+                    });
+                }
+            }
+        });
+    }
+    
+    // Delete Group
+    if (deleteGroupButton) {
+        deleteGroupButton.addEventListener('click', function() {
+            if (currentGroupId) {
+                if (confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
+                    // Delete group using API
+                    fetch(`/api/rooms/${currentGroupId}/delete`, {
+                        method: 'DELETE'
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Failed to delete group');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Group deleted:', data);
+                        
+                        // Remove group from contacts list
+                        const groupElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
+                        if (groupElement) {
+                            groupElement.remove();
+                        }
+                        
+                        // Close popup
+                        groupManagementPopup.classList.remove('open');
+                        overlay.classList.remove('active');
+                        
+                        // Show welcome screen
+                        const welcomeContainer = document.getElementById('welcomeContainer');
+                        const chatContent = document.getElementById('chatContent');
+                        if (welcomeContainer && chatContent) {
+                            welcomeContainer.style.display = 'flex';
+                            chatContent.style.display = 'none';
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting group:', error);
+                        alert('Failed to delete group. Please try again.');
                     });
                 }
             }
@@ -767,6 +807,11 @@ document.addEventListener('DOMContentLoaded', function() {
                             // Show or hide admin-specific UI elements
                             if (addGroupMemberLink) {
                                 addGroupMemberLink.style.display = isCurrentUserAdmin ? 'flex' : 'none';
+                            }
+                            
+                            // Only show delete button for admins
+                            if (deleteGroupButton) {
+                                deleteGroupButton.style.display = isCurrentUserAdmin ? 'block' : 'none';
                             }
                             
                             members.forEach(function(member) {
