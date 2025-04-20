@@ -33,6 +33,21 @@ function initializeWebSockets() {
     // Check if we have a lastOpenedRoomId in localStorage to reconnect
     const lastOpenedRoomId = localStorage.getItem('lastOpenedRoomId');
     if (lastOpenedRoomId) {
+        // Check if we already have an active chat open (to prevent reloading when receiving notifications)
+        const chatContent = document.getElementById('chatContent');
+        
+        // If already in a chat, don't try to reconnect automatically
+        if (chatContent && chatContent.style.display === 'flex') {
+            wsLog("User is already in an active chat, skipping auto-reconnect");
+            
+            // Still connect the WebSocket to the current room but don't reload the UI
+            const currentRoomId = chatContent.getAttribute('data-current-room-id');
+            if (currentRoomId) {
+                connectChatWebSocket(currentRoomId, null, true); // true = suppressReload
+            }
+            return;
+        }
+        
         wsLog(`Attempting to reconnect to last opened room: ${lastOpenedRoomId}`);
         // Get the room data to reopen the chat
         fetch(`/api/rooms/${lastOpenedRoomId}`)
@@ -126,7 +141,7 @@ function connectPresenceWebSocket() {
 }
 
 // Connect to chat WebSocket for a specific room
-function connectChatWebSocket(roomId, onConnectCallback) {
+function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false) {
     wsLog(`Connecting chat WebSocket for room: ${roomId}`);
     
     // Store current room ID
@@ -246,7 +261,7 @@ function connectChatWebSocket(roomId, onConnectCallback) {
                         if (currentRoomId === roomId) {
                             setTimeout(() => {
                                 wsLog("Attempting to reconnect chat WebSocket...");
-                                connectChatWebSocket(roomId, onConnectCallback);
+                                connectChatWebSocket(roomId, onConnectCallback, suppressReload);
                             }, 3000);
                         }
                     }
@@ -259,7 +274,7 @@ function connectChatWebSocket(roomId, onConnectCallback) {
             console.error('Error getting chat token:', error);
             // Try again after a delay
             wsLog("Will try to reconnect after delay");
-            setTimeout(() => connectChatWebSocket(roomId, onConnectCallback), 5000);
+            setTimeout(() => connectChatWebSocket(roomId, onConnectCallback, suppressReload), 5000);
         });
 }
 
@@ -352,6 +367,13 @@ function handleMessageRead(data) {
         } else if (data.message_id) {
             window.shrekChatUtils.updateMessageStatus(data.message_id, "read");
             wsLog(`Updating message ${data.message_id} to 'read' status`);
+        }
+        
+        // After updating messages, update the chat interface
+        // This is needed specifically for the case where User B needs to see
+        // that User A has read their messages without a page reload
+        if (data.room_id && data.room_id === currentRoomId) {
+            wsLog("Updating read receipts in current chat view");
         }
     }
 }
@@ -475,8 +497,11 @@ function setCurrentRoom(roomId, isGroup, userId) {
     currentRoomIsGroup = isGroup;
     currentUserId = userId;
     
-    // Store the current room ID in localStorage for session persistence
-    if (roomId) {
+    // Only store the current room ID when explicitly changing rooms via UI actions
+    // Don't update localStorage for WebSocket events or notifications
+    // Check if this is a user-initiated action (not a WebSocket notification)
+    const isUserAction = document.getElementById('chatContent')?.style.display === 'flex';
+    if (roomId && isUserAction) {
         localStorage.setItem('lastOpenedRoomId', roomId);
     }
 }

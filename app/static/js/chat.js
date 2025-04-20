@@ -213,7 +213,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.shrekChatWebSocket.connectChatWebSocket(roomData.id, function() {
                     // Load messages after WebSocket is connected
                     loadMessages(roomData.id);
-                });
+                }, false); // false = don't suppress UI updates
             } else {
                 // Fallback if WebSocket module is not available
                 loadMessages(roomData.id);
@@ -252,9 +252,9 @@ document.addEventListener('DOMContentLoaded', function() {
             if (existingIndicator) {
                 existingIndicator.remove();
             }
-            const statusIndicator = document.createElement('span');
-            statusIndicator.className = `status-indicator ${roomData.status || 'offline'}`;
-            chatContactStatusElement.prepend(statusIndicator);
+            // const statusIndicator = document.createElement('span');
+            // statusIndicator.className = `status-indicator ${roomData.status || 'offline'}`;
+            // chatContactStatusElement.prepend(statusIndicator);
         }
         
         chatContactAvatarElement.src = roomData.avatar || '/static/images/shrek.jpg';
@@ -472,6 +472,26 @@ document.addEventListener('DOMContentLoaded', function() {
                             messageStatusDouble.style.display = 'inline';
                             messageStatusDouble.classList.add('read');
                             messageStatusSingle.style.display = 'none';
+                        }
+                        
+                        // Check if there's a pending status update for this message
+                        if (window.pendingMessageStatuses && message.id && window.pendingMessageStatuses[message.id]) {
+                            const pendingStatus = window.pendingMessageStatuses[message.id];
+                            console.log(`Applying pending status update for message ${message.id}: ${pendingStatus}`);
+                            
+                            // Apply the pending status
+                            if (pendingStatus === 'read') {
+                                messageStatusDouble.style.display = 'inline';
+                                messageStatusDouble.classList.add('read');
+                                messageStatusSingle.style.display = 'none';
+                            } else if (pendingStatus === 'delivered') {
+                                messageStatusDouble.style.display = 'inline';
+                                messageStatusDouble.classList.remove('read');
+                                messageStatusSingle.style.display = 'none';
+                            }
+                            
+                            // Remove the pending status now that it's been applied
+                            delete window.pendingMessageStatuses[message.id];
                         }
                     }
                 }

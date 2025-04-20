@@ -38,6 +38,14 @@ function updateMessageStatus(messageId, status) {
                 messageStatusSingle.style.display = 'none';
             }
         }
+    } else {
+        // Message element not found in DOM - might be an old message that's not currently visible
+        // Store this status update to apply when the message becomes visible
+        if (!window.pendingMessageStatuses) {
+            window.pendingMessageStatuses = {};
+        }
+        window.pendingMessageStatuses[messageId] = status;
+        console.log(`Stored pending status update for message ${messageId}: ${status}`);
     }
 }
 
