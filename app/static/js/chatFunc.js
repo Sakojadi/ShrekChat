@@ -610,3 +610,62 @@ window.addEventListener('message-updated', function(e) {
         }
     }
 });
+
+// Event listener for the message read custom event 
+window.addEventListener('message-read', function(e) {
+    const {messageId, status} = e.detail;
+    console.log(`Message read event received for message ${messageId} with status ${status}`);
+    
+    // Find all messages from the same sender and update their status
+    // This ensures that when one message is read, all previous messages are also marked as read
+    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    if (messageElement && messageElement.classList.contains('outgoing')) {
+        // Get all outgoing messages in this chat
+        const allOutgoingMessages = document.querySelectorAll('.message.outgoing');
+        const targetMessageTimestamp = Number(messageElement.getAttribute('data-timestamp') || 0);
+        
+        // Update the status of all messages sent before or at the same time as the read message
+        allOutgoingMessages.forEach(msg => {
+            const msgTimestamp = Number(msg.getAttribute('data-timestamp') || 0);
+            if (msgTimestamp <= targetMessageTimestamp) {
+                const statusSingle = msg.querySelector('.message-status-single');
+                const statusDouble = msg.querySelector('.message-status-double');
+                
+                if (statusSingle && statusDouble) {
+                    statusSingle.style.display = 'none';
+                    statusDouble.style.display = 'inline';
+                    statusDouble.classList.add('read');
+                    msg.classList.add('read');
+                }
+            }
+        });
+    }
+});
+
+// Custom event listener for room-messages-read
+window.addEventListener('room-messages-read', function(e) {
+    const { roomId, reader, messageIds } = e.detail;
+    console.log(`room-messages-read event for room ${roomId}:`, reader, messageIds);
+    
+    // Ensure unread badge hidden
+    const contactItem = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
+    if (contactItem) {
+        const badge = contactItem.querySelector('.unread-count');
+        if (badge) {
+            badge.style.display = 'none';
+        }
+    }
+    
+    // Update all outgoing messages in UI
+    const outgoingMessages = document.querySelectorAll(`.message.outgoing[data-room-id="${roomId}"]`);
+    outgoingMessages.forEach(msg => {
+        const single = msg.querySelector('.message-status-single');
+        const dbl = msg.querySelector('.message-status-double');
+        if (single && dbl) {
+            single.style.display = 'none';
+            dbl.style.display = 'inline';
+            dbl.classList.add('read');
+        }
+        msg.classList.add('read');
+    });
+});

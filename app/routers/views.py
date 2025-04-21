@@ -1,8 +1,10 @@
+from datetime import datetime
 from fastapi import APIRouter, Request, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
+import pytz
 
 # Updated imports to use the new location and updated models
 from app.routers.session import get_db, get_current_user, active_connections
@@ -56,6 +58,8 @@ async def chat_page(request: Request, username: str = Depends(get_current_user),
                     Message.sender_id != current_user.id,
                     Message.read == False
                 ).count()
+                
+                print(f"Unread count for room {room.id}: {unread_count}")
                 
                 room_data = {
                     "id": room.id,
@@ -115,3 +119,42 @@ async def chat_page(request: Request, username: str = Depends(get_current_user),
         "username": username,
         "rooms": rooms_list
     })
+
+@router.get("/room/{room_id}/mark-read", response_class=JSONResponse)
+async def mark_room_read(room_id: int, username: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Mark all unread messages in a room as read"""
+    # Get current user
+    current_user = db.query(User).filter(User.username == username).first()
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if user is a member of the room
+    is_member = db.query(room_members).filter(
+        and_(
+            room_members.c.room_id == room_id,
+            room_members.c.user_id == current_user.id
+        )
+    ).count() > 0
+
+    if not is_member:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room")
+    
+    # Mark all unread messages in this room as read (only those sent by others)
+    unread_messages = db.query(Message).filter(
+        Message.room_id == room_id,
+        Message.sender_id != current_user.id,
+        Message.read == False
+    ).all()
+    
+    marked_count = len(unread_messages)
+    
+    for message in unread_messages:
+        message.read = True
+        message.read_at = datetime.now(pytz.timezone('Asia/Bishkek'))
+    
+    # Commit the changes
+    db.commit()
+    
+    # No need to call reset_unread_count as we've already performed the same operation here
+    
+    return {"status": "success", "marked_read": marked_count}

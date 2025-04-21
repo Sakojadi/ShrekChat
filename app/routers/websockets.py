@@ -22,6 +22,9 @@ router = APIRouter()
 # Format: {room_id: {user_id: websocket}}
 room_connections: Dict[int, Dict[int, WebSocket]] = {}
 
+# Global notification WebSocket connections by username
+notification_connections: Dict[str, Set[WebSocket]] = {}
+
 @router.websocket("/ws/chat/{token}")
 async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
     """WebSocket endpoint for chat messaging"""
@@ -66,6 +69,12 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                     await handle_message_update(websocket, user, message_data, db)
                 elif message_data["type"] == "delete_message":
                     await handle_message_delete(websocket, user, message_data, db)
+                elif message_data["type"] == "call_offer":
+                    await handle_call_offer(websocket, user, message_data, db)
+                elif message_data["type"] == "call_response":
+                    await handle_call_response(websocket, user, message_data, db)
+                elif message_data["type"] == "ice_candidate":
+                    await handle_ice_candidate(websocket, user, message_data, db)
                 else:
                     await websocket.send_json({"error": "Unknown message type"})
         
@@ -113,7 +122,7 @@ async def presence_endpoint(websocket: WebSocket, username: str, db: Session = D
         
         # Set user online status in database
         user.is_online = True
-        user.last_seen = datetime.utcnow()
+        user.last_seen = datetime.now(pytz.timezone('Asia/Bishkek'))
         db.commit()
         
         # Broadcast user online status to all friends
@@ -135,7 +144,7 @@ async def presence_endpoint(websocket: WebSocket, username: str, db: Session = D
             
             # Update user status in database
             user.is_online = False
-            user.last_seen = datetime.utcnow()
+            user.last_seen = datetime.now(pytz.timezone('Asia/Bishkek'))
             db.commit()
             
             # Broadcast offline status
@@ -143,6 +152,47 @@ async def presence_endpoint(websocket: WebSocket, username: str, db: Session = D
     
     except Exception as e:
         print(f"Presence WebSocket error: {e}")
+        try:
+            await websocket.close(code=1011)  # Internal error
+        except:
+            pass
+
+@router.websocket("/ws/notifications/{token}")
+async def notifications_endpoint(websocket: WebSocket, token: str, db: Session = Depends(get_db)):
+    """WebSocket endpoint for global notifications that persist across chats"""
+    try:
+        # Authenticate user from token
+        user = await manager.get_user_from_token(token, db)
+        if not user:
+            await websocket.close(code=1008)  # Policy violation - invalid token
+            return
+        
+        # Accept connection
+        await websocket.accept()
+        
+        # Store connection in notification_connections
+        if user.username not in notification_connections:
+            notification_connections[user.username] = set()
+        notification_connections[user.username].add(websocket)
+        
+        print(f"User {user.username} connected to notifications WebSocket")
+        
+        try:
+            # Keep connection open, handling pings
+            while True:
+                data = await websocket.receive_text()
+                if data == "ping":
+                    await websocket.send_text("pong")
+        
+        except WebSocketDisconnect:
+            # Handle disconnect
+            if user.username in notification_connections:
+                notification_connections[user.username].discard(websocket)
+                if not notification_connections[user.username]:
+                    del notification_connections[user.username]
+    
+    except Exception as e:
+        print(f"Notifications WebSocket error: {e}")
         try:
             await websocket.close(code=1011)  # Internal error
         except:
@@ -291,14 +341,17 @@ async def handle_seen_notification(websocket: WebSocket, user: User, message_dat
         if not is_member:
             await websocket.send_json({"error": "You are not a member of this room"})
             return
+            
+        # Use the reset_unread_count function to mark all messages as read
+        from app.routers.utils import reset_unread_count
+        reset_unread_count(room_id, user.id, db)
         
-        # Mark messages as read
+        # Get messages that were specifically mentioned in the request
         messages = db.query(Message).filter(
             and_(
                 Message.id.in_(message_ids),
                 Message.room_id == room_id,
-                Message.sender_id != user.id,  # Don't mark own messages
-                Message.read == False
+                Message.sender_id != user.id  # Don't mark own messages
             )
         ).all()
         
@@ -306,12 +359,8 @@ async def handle_seen_notification(websocket: WebSocket, user: User, message_dat
         senders = set()
         
         for message in messages:
-            message.read = True
-            message.read_at = datetime.utcnow()
             read_message_ids.append(message.id)
             senders.add(message.sender_id)
-        
-        db.commit()
         
         # Send confirmation to current user
         await websocket.send_json({
@@ -320,18 +369,41 @@ async def handle_seen_notification(websocket: WebSocket, user: User, message_dat
             "message_ids": read_message_ids
         })
         
-        # Notify senders that their messages were read
+        # Get info about who's reading the messages
+        reader_info = {
+            "user_id": user.id,
+            "username": user.username,
+            "timestamp": datetime.now(pytz.timezone('Asia/Bishkek')).isoformat()
+        }
+        
+        # Notify senders that their messages were read with a more clear signal
         for sender_id in senders:
             sender = db.query(User).filter(User.id == sender_id).first()
-            if sender and sender.username in active_connections:
-                for sender_ws in active_connections[sender.username]:
-                    await sender_ws.send_json({
-                        "type": "message_read",
-                        "room_id": room_id,
-                        "reader_id": user.id,
-                        "reader": user.username,
-                        "message_ids": read_message_ids
-                    })
+            if sender:
+                notify_data1 = {
+                    "type": "message_read",
+                    "room_id": room_id,
+                    "reader_id": user.id,
+                    "reader": user.username,
+                    "message_ids": read_message_ids
+                }
+                notify_data2 = {
+                    "type": "room_messages_read",
+                    "room_id": room_id,
+                    "reader": reader_info,
+                    "message_ids": read_message_ids,
+                    "total_read": len(read_message_ids)
+                }
+                # send via chat socket
+                if sender.username in active_connections:
+                    for sender_ws in active_connections[sender.username]:
+                        await sender_ws.send_json(notify_data1)
+                        await sender_ws.send_json(notify_data2)
+                # send via global notification socket
+                if sender.username in notification_connections:
+                    for notify_ws in notification_connections[sender.username]:
+                        await notify_ws.send_json(notify_data1)
+                        await notify_ws.send_json(notify_data2)
     except Exception as e:
         print(f"Error handling seen notification: {e}")
         await websocket.send_json({"error": "Failed to process seen notification"})
@@ -416,7 +488,7 @@ async def handle_message_update(websocket: WebSocket, user: User, message_data: 
             return
         
         # Check if message is too old (older than 5 minutes)
-        time_diff = (datetime.utcnow() - message.timestamp).total_seconds() / 60
+        time_diff = (datetime.now(pytz.timezone('Asia/Bishkek')) - message.timestamp).total_seconds() / 60
         if time_diff > 5:
             await websocket.send_json({"error": "Messages can only be edited within 5 minutes of sending"})
             return
@@ -424,7 +496,7 @@ async def handle_message_update(websocket: WebSocket, user: User, message_data: 
         # Update message
         message.content = content
         message.edited = True
-        message.edited_at = datetime.utcnow()
+        message.edited_at = datetime.now(pytz.timezone('Asia/Bishkek'))
         db.commit()
         
         # Send confirmation to sender
@@ -531,6 +603,175 @@ async def handle_message_delete(websocket: WebSocket, user: User, message_data: 
     except Exception as e:
         print(f"Error handling message delete: {e}")
         await websocket.send_json({"error": "Failed to delete message"})
+
+async def handle_call_offer(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle call offer"""
+    try:
+        # Validate data
+        required_fields = ["room_id", "target_user_id", "sdp", "call_type"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"error": "Missing required fields"})
+            return
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        sdp = message_data["sdp"]
+        call_type = message_data.get("call_type", "audio")  # Default to audio call
+        
+        # Check if room exists
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            await websocket.send_json({"error": "Room not found"})
+            return
+        
+        # Check if user is a member of this room
+        is_member = db.query(room_members).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id == user.id
+            )
+        ).first() is not None
+        
+        if not is_member:
+            await websocket.send_json({"error": "You are not a member of this room"})
+            return
+        
+        # Check if target user exists and is a member of the room
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            await websocket.send_json({"error": "Target user not found"})
+            return
+        
+        is_target_member = db.query(room_members).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id == target_user_id
+            )
+        ).first() is not None
+        
+        if not is_target_member:
+            await websocket.send_json({"error": "Target user is not a member of this room"})
+            return
+        
+        # Send call offer to target user if they are online
+        if target_user.username in active_connections:
+            # Notify the target user about the call
+            call_offer = {
+                "type": "call_offer",
+                "room_id": room_id,
+                "caller_id": user.id,
+                "caller_name": user.username,
+                "caller_full_name": user.full_name or user.username,
+                "sdp": sdp,
+                "call_type": call_type
+            }
+            
+            for ws in active_connections[target_user.username]:
+                try:
+                    await ws.send_json(call_offer)
+                except Exception as e:
+                    print(f"Error sending call offer: {e}")
+            
+            await websocket.send_json({"type": "call_status", "status": "ringing"})
+        else:
+            # Target user is offline
+            await websocket.send_json({
+                "type": "call_status", 
+                "status": "failed",
+                "reason": "User is offline"
+            })
+            
+    except Exception as e:
+        print(f"Error handling call offer: {e}")
+        await websocket.send_json({"error": "Failed to process call offer"})
+
+async def handle_call_response(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle call response (accept/reject)"""
+    try:
+        # Validate data
+        required_fields = ["room_id", "target_user_id", "status"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"error": "Missing required fields"})
+            return
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        status = message_data["status"]
+        sdp = message_data.get("sdp")  # Only present for 'accepted' status
+        
+        # Check if target user exists
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            await websocket.send_json({"error": "Target user not found"})
+            return
+        
+        # Send call response to caller
+        if target_user.username in active_connections:
+            response_data = {
+                "type": "call_response",
+                "room_id": room_id,
+                "responder_id": user.id,
+                "responder_name": user.username,
+                "status": status
+            }
+            
+            # Include SDP answer if call was accepted
+            if status == "accepted" and sdp:
+                response_data["sdp"] = sdp
+            
+            for ws in active_connections[target_user.username]:
+                try:
+                    await ws.send_json(response_data)
+                except Exception as e:
+                    print(f"Error sending call response: {e}")
+            
+            await websocket.send_json({"type": "call_response_sent", "status": "success"})
+        else:
+            # Target user is offline (unlikely as they just sent the offer)
+            await websocket.send_json({
+                "type": "call_response_sent", 
+                "status": "failed",
+                "reason": "User is offline"
+            })
+            
+    except Exception as e:
+        print(f"Error handling call response: {e}")
+        await websocket.send_json({"error": "Failed to process call response"})
+
+async def handle_ice_candidate(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle ICE candidate exchange"""
+    try:
+        # Validate data
+        if "candidate" not in message_data or "target_user_id" not in message_data:
+            await websocket.send_json({"error": "Missing required fields"})
+            return
+        
+        target_user_id = message_data["target_user_id"]
+        candidate = message_data["candidate"]
+        
+        # Check if target user exists
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            await websocket.send_json({"error": "Target user not found"})
+            return
+        
+        # Forward the ICE candidate to the target user
+        if target_user.username in active_connections:
+            ice_data = {
+                "type": "ice_candidate",
+                "from_user_id": user.id,
+                "candidate": candidate
+            }
+            
+            for ws in active_connections[target_user.username]:
+                try:
+                    await ws.send_json(ice_data)
+                except Exception as e:
+                    print(f"Error sending ICE candidate: {e}")
+        
+    except Exception as e:
+        print(f"Error handling ICE candidate: {e}")
+        await websocket.send_json({"error": "Failed to process ICE candidate"})
 
 async def broadcast_status(user: User, status: str, db: Session):
     """Broadcast user's online/offline status to contacts"""

@@ -1,13 +1,14 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from app.database import GroupMember, User, Message, Contact
+from app.database import GroupMember, User, Message
 from typing import List
 from datetime import datetime
 from app.routers.session import active_connections, id_to_username
+import pytz
 
 def format_message_time(timestamp: datetime) -> str:
     """Format message timestamp for display"""
-    now = datetime.utcnow()
+    now = datetime.now(pytz.timezone('Asia/Bishkek'))
     
     if now.date() == timestamp.date():
         # Today, just show the time
@@ -56,22 +57,33 @@ async def broadcast_presence_update(user_id: int, status: str, db: Session) -> N
     if not username:
         return
     
-    # Get all contacts of this user
-    contacts = db.query(Contact, User).join(
-        User, Contact.user_id == User.id
-    ).filter(
-        Contact.contact_id == user_id
+    # Get all direct chat rooms (non-group) where this user is a member
+    from app.database import Room, room_members
+    from sqlalchemy import and_
+    
+    # Find all direct chat rooms where user_id is a member
+    direct_rooms = db.query(Room).filter(
+        and_(
+            Room.members.any(id=user_id),
+            Room.is_group == False
+        )
     ).all()
     
-    # Broadcast status to all online contacts
-    for contact, contact_user in contacts:
-        if contact_user.username in active_connections:
-            await active_connections[contact_user.username].send_json({
-                "type": "status_update",
-                "user_id": user_id,
-                "username": username,
-                "status": status
-            })
+    # For each direct room, find the other member and send status update
+    for room in direct_rooms:
+        for member in room.members:
+            # Skip self
+            if member.id == user_id:
+                continue
+                
+            # Send status update if other member is online
+            if member.username in active_connections:
+                await active_connections[member.username].send_json({
+                    "type": "status_update",
+                    "user_id": user_id,
+                    "username": username,
+                    "status": status
+                })
 
 async def send_read_receipts(sender_id: int, messages: List[Message]) -> None:
     """Send read receipts to message sender"""
@@ -83,5 +95,28 @@ async def send_read_receipts(sender_id: int, messages: List[Message]) -> None:
         await active_connections[sender_username].send_json({
             "type": "read_receipt",
             "message_id": msg.id,
-            "read_at": msg.read_at.isoformat() if msg.read_at else datetime.utcnow().isoformat()
+            "read_at": msg.read_at.isoformat() if msg.read_at else datetime.now(pytz.timezone('Asia/Bishkek')).isoformat()
         })
+
+def reset_unread_count(room_id: int, user_id: int, db: Session) -> None:
+    """Reset unread message count for a specific room and user"""
+    from sqlalchemy import and_
+    
+    # Mark all unread messages in this room as read (only those sent by others)
+    unread_messages = db.query(Message).filter(
+        and_(
+            Message.room_id == room_id,
+            Message.sender_id != user_id,
+            Message.read == False
+        )
+    ).all()
+    
+    # Update read status for all messages
+    for message in unread_messages:
+        message.read = True
+        message.read_at = datetime.now(pytz.timezone('Asia/Bishkek'))
+    
+    db.commit()
+    
+    # Return number of messages marked as read
+    return len(unread_messages)

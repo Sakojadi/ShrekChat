@@ -368,6 +368,31 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log("Loading messages for room:", roomId);
         chatMessages.innerHTML = '<div class="loading-messages">Loading messages...</div>';
         
+        // Mark all messages as read when opening the chat
+        fetch(`/room/${roomId}/mark-read`)
+            .then(response => {
+                console.log('response:', response);
+                if (!response.ok) {
+                    console.error('Failed to mark messages as read');
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`Marked ${data.marked_read} messages as read`);
+                
+                // Clear unread badge in the sidebar
+                const contactItem = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
+                if (contactItem) {
+                    const unreadBadge = contactItem.querySelector('.unread-count');
+                    if (unreadBadge) {
+                        unreadBadge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(error => {
+                console.error('Error marking messages as read:', error);
+            });
+        
         fetch(`/api/messages/${roomId}`)
             .then(response => {
                 if (!response.ok) {

@@ -11,7 +11,18 @@ from dotenv import load_dotenv
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shrekchat.db")
 
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Updated engine configuration with better connection pool settings
+engine = create_engine(
+    DATABASE_URL, 
+    connect_args={"check_same_thread": False},
+    # Explicitly configure the connection pool with larger timeouts
+    pool_size=10,          # Increased from default 5
+    max_overflow=20,       # Increased from default 10
+    pool_timeout=60,       # Increased from default 30
+    pool_recycle=1800,     # Recycle connections every 30 minutes
+    pool_pre_ping=True     # Check connection validity before using from pool
+)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

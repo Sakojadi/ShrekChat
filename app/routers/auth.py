@@ -8,6 +8,7 @@ from typing import Optional
 import bcrypt
 import jwt
 import os
+import pytz
 from app.database import SessionLocal, User
 from app.routers.session import manager
 
@@ -49,9 +50,9 @@ def get_password_hash(password: str):
 def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(pytz.timezone('Asia/Bishkek')) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=15)
+        expire = datetime.now(pytz.timezone('Asia/Bishkek')) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
@@ -105,7 +106,7 @@ async def login(request: Request, username: str = Form(...), password: str = For
         db_user = db.query(User).filter(User.username == user.username).first()
         if db_user:
             db_user.is_online = True
-            db_user.last_seen = datetime.utcnow()
+            db_user.last_seen = datetime.now(pytz.timezone('Asia/Bishkek'))
             db.commit()
     except:
         db.rollback()
@@ -164,7 +165,7 @@ async def logout(request: Request):
             user = db.query(User).filter(User.username == username).first()
             if user:
                 user.is_online = False
-                user.last_seen = datetime.utcnow()
+                user.last_seen = datetime.now(pytz.timezone('Asia/Bishkek'))
                 db.commit()
         except:
             db.rollback()

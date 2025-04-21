@@ -9,6 +9,11 @@ let currentRoomId = null;
 let currentRoomIsGroup = false;
 let currentUserId = null;
 
+// Global WebSocket for system-wide notifications that should persist even when changing chats
+let globalNotificationSocket = null;
+let reconnectAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
+
 // Debug mode - set to true for verbose logging
 const WEBSOCKET_DEBUG = true;
 
@@ -29,6 +34,9 @@ function initializeWebSockets() {
     
     // Connect to presence WebSocket - this one stays connected all the time
     connectPresenceWebSocket();
+    
+    // Connect to global notification WebSocket
+    connectGlobalNotificationSocket();
     
     // Check if we have a lastOpenedRoomId in localStorage to reconnect
     const lastOpenedRoomId = localStorage.getItem('lastOpenedRoomId');
@@ -112,14 +120,33 @@ function connectPresenceWebSocket() {
                 const data = JSON.parse(event.data);
                 wsLog("Received presence message:", data);
                 
+                // Handle read receipts via presence channel
+                if (data.type === 'message_read') {
+                    // Process read receipt on presence socket
+                    if (typeof handleMessageRead === 'function') {
+                        handleMessageRead(data, true);
+                    }
+                    return;
+                } else if (data.type === 'room_messages_read') {
+                    if (typeof handleRoomMessagesRead === 'function') {
+                        handleRoomMessagesRead(data, true);
+                    }
+                    return;
+                }
+                
+                // Existing status handling
                 if (data.type === "status") {
-                    // Use the utility function to update status
                     if (window.shrekChatUtils) {
                         window.shrekChatUtils.updateContactStatus(data.user_id, data.status);
                     }
                 }
             } catch (error) {
-                console.error("Error parsing presence message:", error, event.data);
+                // Fallback for non-JSON (ping/pong)
+                if (event.data === 'pong') {
+                    wsLog('Received pong on presence socket');
+                } else {
+                    console.error("Error parsing presence message:", error, event.data);
+                }
             }
         };
         
@@ -147,24 +174,7 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false)
     // Store current room ID
     currentRoomId = roomId;
     
-    // Close previous WebSocket if open
-    if (chatWebSocket) {
-        wsLog("Closing existing chat WebSocket");
-        try {
-            chatWebSocket.close();
-        } catch (e) {
-            console.error("Error closing existing WebSocket:", e);
-        }
-        chatWebSocket = null;
-    }
-    
-    // Check if we have a valid room ID
-    if (!roomId) {
-        console.error("Cannot connect WebSocket: No room ID provided");
-        return;
-    }
-    
-    // Get token for this chat session
+    // The rest of the connection logic remains unchanged
     wsLog("Fetching chat token...");
     fetch(`/api/token/chat?roomId=${roomId}`)
         .then(response => {
@@ -193,26 +203,9 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false)
                     // Send a ping to verify connection is working
                     chatWebSocket.send(JSON.stringify({type: "ping"}));
                     
-                    // Set up a heartbeat to keep the connection alive
-                    const heartbeatInterval = setInterval(function() {
-                        if (chatWebSocket && chatWebSocket.readyState === WebSocket.OPEN) {
-                            try {
-                                chatWebSocket.send(JSON.stringify({type: "ping"}));
-                                wsLog("Sent heartbeat ping");
-                            } catch (e) {
-                                console.error("Error sending heartbeat:", e);
-                                clearInterval(heartbeatInterval);
-                            }
-                        } else {
-                            wsLog("Clearing heartbeat interval - WebSocket not open");
-                            clearInterval(heartbeatInterval);
-                        }
-                    }, 30000);
-                    
                     // Clear the interval when the socket closes
                     chatWebSocket.addEventListener('close', function() {
                         wsLog("Clearing heartbeat interval - WebSocket closed");
-                        clearInterval(heartbeatInterval);
                     });
                     
                     // Call the callback if provided
@@ -236,10 +229,8 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false)
                         wsLog("Chat WebSocket connection closed unexpectedly - attempting to reconnect");
                         // Try to reconnect if this is still the current room
                         if (currentRoomId === roomId) {
-                            setTimeout(() => {
                                 wsLog("Attempting to reconnect chat WebSocket...");
                                 connectChatWebSocket(roomId, onConnectCallback, suppressReload);
-                            }, 3000);
                         }
                     }
                 };
@@ -265,7 +256,11 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
             if (data.type === "message") {
                 handleChatMessage(data);
             } else if (data.type === "message_read") {
+                console.log("Received message_read notification:", data); // Extra debugging
                 handleMessageRead(data);
+            } else if (data.type === "room_messages_read") {
+                console.log("Received room_messages_read notification:", data);
+                handleRoomMessagesRead(data);
             } else if (data.type === "typing") {
                 handleTypingIndicator(data);
             } else if (data.type === "status") {
@@ -294,6 +289,21 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
             } else if (data.type === "group_deleted") {
                 // Handle group deletion notification
                 handleGroupDeleted(data);
+            } else if (data.type === "call_offer") {
+                // Handle WebRTC call offer
+                if (window.shrekChatWebRTC) {
+                    window.shrekChatWebRTC.handleIncomingCall(data);
+                }
+            } else if (data.type === "call_response") {
+                // Handle WebRTC call response (accept/reject/busy)
+                if (window.shrekChatWebRTC) {
+                    window.shrekChatWebRTC.handleCallResponse(data);
+                }
+            } else if (data.type === "ice_candidate") {
+                // Handle WebRTC ICE candidate
+                if (window.shrekChatWebRTC) {
+                    window.shrekChatWebRTC.handleIceCandidate(data);
+                }
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error, event.data);
@@ -415,7 +425,7 @@ function handleChatMessage(data) {
 }
 
 // Handle message read receipts
-function handleMessageRead(data) {
+function handleMessageRead(data, forceUpdate = false) {
     wsLog("Handling read receipt:", data);
     
     // Handle both single message_id and array of message_ids
@@ -433,8 +443,87 @@ function handleMessageRead(data) {
         // After updating messages, update the chat interface
         // This is needed specifically for the case where User B needs to see
         // that User A has read their messages without a page reload
-        if (data.room_id && data.room_id === currentRoomId) {
-            wsLog("Updating read receipts in current chat view");
+        if (data.room_id) {
+            wsLog(`Updating read receipts in UI for room ${data.room_id}`);
+            
+            // Update message status indicators in the UI for the given message IDs
+            const messageIds = data.message_ids || (data.message_id ? [data.message_id] : []);
+            
+            messageIds.forEach(id => {
+                // Find the message in the DOM
+                const messageElement = document.querySelector(`.message[data-message-id="${id}"]`);
+                if (messageElement) {
+                    // Find the message status indicators
+                    const messageStatusSingle = messageElement.querySelector('.message-status-single');
+                    const messageStatusDouble = messageElement.querySelector('.message-status-double');
+                    
+                    // Update the status indicators
+                    if (messageStatusSingle && messageStatusDouble) {
+                        messageStatusSingle.style.display = 'none';
+                        messageStatusDouble.style.display = 'inline';
+                    }
+                    
+                    // Add a "read" class to the message for additional styling if needed
+                    messageElement.classList.add('read');
+                }
+            });
+            
+            // Also update unread count in the sidebar for this room if it's not the current room
+            if (data.room_id !== currentRoomId || forceUpdate) {
+                const contactItem = document.querySelector(`.contact-item[data-room-id="${data.room_id}"]`);
+                if (contactItem) {
+                    const unreadBadge = contactItem.querySelector('.unread-count');
+                    if (unreadBadge) {
+                        unreadBadge.textContent = '0';
+                        unreadBadge.style.display = 'none';
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Handle room messages read notification
+function handleRoomMessagesRead(data, forceUpdate = false) {
+    wsLog("Handling room messages read notification:", data);
+    
+    // Get all outgoing messages in the current view
+    const outgoingMessages = document.querySelectorAll('.message.outgoing');
+    if (outgoingMessages.length > 0) {
+        wsLog(`Updating read status for ${outgoingMessages.length} outgoing messages`);
+        
+        outgoingMessages.forEach(messageElement => {
+            // Update message status indicators to "read"
+            const messageStatusSingle = messageElement.querySelector('.message-status-single');
+            const messageStatusDouble = messageElement.querySelector('.message-status-double');
+            
+            if (messageStatusSingle && messageStatusDouble) {
+                messageStatusSingle.style.display = 'none';
+                messageStatusDouble.style.display = 'inline';
+                messageStatusDouble.classList.add('read');
+            }
+            
+            // Add a "read" class to the message for additional styling
+            messageElement.classList.add('read');
+        });
+        
+        // Dispatch a custom event for the whole room being read
+        const readEvent = new CustomEvent('room-messages-read', {
+            detail: {
+                roomId: data.room_id,
+                reader: data.reader,
+                messageIds: data.message_ids || []
+            }
+        });
+        window.dispatchEvent(readEvent);
+    }
+    
+    // Also update unread count in the sidebar for this room
+    const contactItem = document.querySelector(`.contact-item[data-room-id="${data.room_id}"]`);
+    if (contactItem) {
+        const unreadCount = contactItem.querySelector('.unread-count');
+        if (unreadCount) {
+            unreadCount.style.display = 'none';
         }
     }
 }
@@ -612,6 +701,24 @@ function sendReadReceipts(roomId, messageIds) {
     }
 }
 
+// Send call signaling data through WebSocket
+function sendCallSignal(signalData) {
+    if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
+        console.error("WebSocket is not connected");
+        return false;
+    }
+    
+    wsLog(`Sending call signal: ${signalData.type}`);
+    
+    try {
+        chatWebSocket.send(JSON.stringify(signalData));
+        return true;
+    } catch (error) {
+        console.error("Error sending call signal:", error);
+        return false;
+    }
+}
+
 // Set current room information
 function setCurrentRoom(roomId, isGroup, userId) {
     wsLog(`Setting current room: id=${roomId}, isGroup=${isGroup}, userId=${userId}`);
@@ -628,6 +735,135 @@ function setCurrentRoom(roomId, isGroup, userId) {
     }
 }
 
+// Connect to a global notification WebSocket 
+function connectGlobalNotificationSocket() {
+    // Get current user from DOM - needed for authentication
+    const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+    
+    // Only connect if we have a username
+    if (!currentUsername) {
+        console.error("Cannot connect to notification WebSocket: No username available");
+        return;
+    }
+    
+    // If already connected, don't reconnect
+    if (globalNotificationSocket && globalNotificationSocket.readyState === WebSocket.OPEN) {
+        wsLog("Global notification WebSocket already connected");
+        return;
+    }
+    
+    // Get new token for notification socket
+    wsLog("Fetching notification token...");
+    fetch(`/api/token/notifications`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`Failed to get notification token. Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            const token = data.token;
+            if (!token) {
+                throw new Error('No token received from server');
+            }
+            
+            wsLog("Notification token received successfully");
+            
+            const socket_protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${socket_protocol}//${window.location.host}/ws/notifications/${encodeURIComponent(token)}`;
+            
+            wsLog(`Creating global notification WebSocket: ${wsUrl}`);
+            try {
+                globalNotificationSocket = new WebSocket(wsUrl);
+                
+                globalNotificationSocket.onopen = function() {
+                    wsLog("Global notification WebSocket connected");
+                    reconnectAttempts = 0; // Reset reconnect counter on successful connection
+                };
+                
+                globalNotificationSocket.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        wsLog("Global notification received:", data);
+                        
+                        // Handle various notification types that should persist across chats
+                        if (data.type === "message_read" || data.type === "room_messages_read") {
+                            // Process read receipts even if not in the current chat
+                            if (data.type === "message_read") {
+                                handleMessageRead(data, true); // true = force update regardless of current chat
+                            } else {
+                                handleRoomMessagesRead(data, true); // true = force update regardless of current chat
+                            }
+                            
+                            // Store read status in localStorage for persistence 
+                            storeReadReceiptInStorage(data);
+                        }
+                    } catch (error) {
+                        console.error("Error processing global notification:", error, event.data);
+                    }
+                };
+                
+                globalNotificationSocket.onclose = function(event) {
+                    wsLog(`Global notification WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
+                    // Only try to reconnect if this wasn't a normal closure
+                    if (event.code !== 1000 && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                        reconnectAttempts++;
+                        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff
+                        wsLog(`Will attempt to reconnect global notification socket in ${delay/1000} seconds`);
+                        setTimeout(connectGlobalNotificationSocket, delay);
+                    }
+                };
+                
+                globalNotificationSocket.onerror = function(error) {
+                    console.error("Global notification WebSocket error:", error);
+                };
+                
+            } catch (error) {
+                console.error("Error creating global notification WebSocket:", error);
+            }
+        })
+        .catch(error => {
+            console.error("Error getting notification token:", error);
+            if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Exponential backoff
+                wsLog(`Will attempt to reconnect global notification socket in ${delay/1000} seconds`);
+                setTimeout(connectGlobalNotificationSocket, delay);
+            }
+        });
+}
+
+// Store read receipts in localStorage for persistence between page loads
+function storeReadReceiptInStorage(data) {
+    try {
+        const roomId = data.room_id;
+        const messageIds = data.message_ids || (data.message_id ? [data.message_id] : []);
+        
+        if (!roomId || !messageIds.length) return;
+        
+        // Get existing read receipts from storage
+        const storedReadReceipts = JSON.parse(localStorage.getItem('shrekChatReadReceipts') || '{}');
+        
+        // Update with new read receipts
+        if (!storedReadReceipts[roomId]) {
+            storedReadReceipts[roomId] = [];
+        }
+        
+        // Add new message IDs, avoiding duplicates
+        messageIds.forEach(id => {
+            if (!storedReadReceipts[roomId].includes(id)) {
+                storedReadReceipts[roomId].push(id);
+            }
+        });
+        
+        // Store back in localStorage
+        localStorage.setItem('shrekChatReadReceipts', JSON.stringify(storedReadReceipts));
+        wsLog(`Stored read receipts in localStorage for room ${roomId}, messages: ${messageIds.join(',')}`);
+    } catch (error) {
+        console.error("Error storing read receipts in localStorage:", error);
+    }
+}
+
 // Export the WebSocket API
 window.shrekChatWebSocket = {
     initializeWebSockets,
@@ -635,6 +871,7 @@ window.shrekChatWebSocket = {
     connectChatWebSocket,
     sendChatMessage,
     sendReadReceipts,
+    sendCallSignal,
     setCurrentRoom,
     getCurrentRoomId: () => currentRoomId,
     getCurrentRoomIsGroup: () => currentRoomIsGroup,

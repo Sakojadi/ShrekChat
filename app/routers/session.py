@@ -5,6 +5,7 @@ from typing import Dict, Any, Set, Optional
 from app.database import SessionLocal, User, room_members
 import jwt
 import os
+import pytz
 from datetime import datetime, timedelta
 
 # WebSocket connections - map username to set of websockets
@@ -48,7 +49,7 @@ class ConnectionManager:
     
     def create_token(self, username: str, user_id: int, room_id: int = None) -> str:
         """Create JWT token for WebSocket authentication"""
-        expires = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        expires = datetime.now(pytz.timezone('Asia/Bishkek')) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         to_encode = {"sub": username, "id": user_id, "exp": expires}
         if room_id:
             to_encode["room_id"] = room_id

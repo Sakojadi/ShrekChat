@@ -36,6 +36,16 @@ function updateMessageStatus(messageId, status) {
                 messageStatusDouble.style.display = 'inline';
                 messageStatusDouble.classList.add('read');
                 messageStatusSingle.style.display = 'none';
+                
+                // Dispatch a custom event to notify all parts of the app that a message was read
+                // This helps ensure the read status is reflected everywhere
+                const readEvent = new CustomEvent('message-read', {
+                    detail: {
+                        messageId: messageId,
+                        status: status
+                    }
+                });
+                window.dispatchEvent(readEvent);
             }
         }
     } else {
@@ -46,6 +56,18 @@ function updateMessageStatus(messageId, status) {
         }
         window.pendingMessageStatuses[messageId] = status;
         console.log(`Stored pending status update for message ${messageId}: ${status}`);
+        
+        // Even if the message isn't in the DOM, still dispatch the event
+        // so other components can react to the message being read
+        if (status === 'read') {
+            const readEvent = new CustomEvent('message-read', {
+                detail: {
+                    messageId: messageId,
+                    status: status
+                }
+            });
+            window.dispatchEvent(readEvent);
+        }
     }
 }
 
@@ -104,18 +126,25 @@ function updateLastMessage(roomId, message, time) {
 
 // Increment the unread message count badge for a room
 function incrementUnreadCount(roomId) {
+    console.log(`Incrementing unread count for room ${roomId}`);
+    
     const contactElement = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
     
     if (contactElement) {
         let unreadCount = contactElement.querySelector('.unread-count');
+        console.log(`Found unread count element: ${unreadCount}`);
         
         if (unreadCount) {
-            const count = parseInt(unreadCount.textContent) + 1;
-            unreadCount.textContent = count;
+            // Increment existing unread count badge
+            const currentCount = parseInt(unreadCount.textContent) || 0;
+            unreadCount.textContent = currentCount + 1;
+            unreadCount.style.display = 'flex';
         } else {
+            // Create new unread count badge
             unreadCount = document.createElement('div');
             unreadCount.className = 'unread-count';
             unreadCount.textContent = '1';
+            unreadCount.style.display = 'flex';
             contactElement.appendChild(unreadCount);
         }
         
@@ -131,6 +160,12 @@ function incrementUnreadCount(roomId) {
             notificationSound.play().catch(e => console.log('Failed to play notification sound'));
         } catch (soundError) {
             console.log('Failed to play notification sound', soundError);
+        }
+    } else {
+        // If the contact element doesn't exist yet, refresh the rooms list
+        console.log("Contact element not found, refreshing rooms list");
+        if (typeof window.refreshRoomsList === 'function') {
+            window.refreshRoomsList();
         }
     }
 }

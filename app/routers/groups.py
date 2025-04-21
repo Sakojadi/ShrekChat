@@ -7,6 +7,7 @@ from typing import List, Optional
 import os
 from datetime import datetime
 import shutil
+import pytz
 from pathlib import Path
 
 from app.routers.session import get_db, get_current_user
@@ -125,7 +126,7 @@ async def create_group(
     new_room = Room(
         name=name,
         is_group=True,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(pytz.timezone('Asia/Bishkek'))
     )
     db.add(new_room)
     db.flush()  # Flush to get the room ID
@@ -162,7 +163,7 @@ async def create_group(
             insert(room_members).values(
                 room_id=new_room.id,
                 user_id=user_id,
-                joined_at=datetime.utcnow(),
+                joined_at=datetime.now(pytz.timezone('Asia/Bishkek')),
                 is_admin=is_admin
             )
         )
@@ -298,7 +299,7 @@ async def add_group_members(
                 insert(room_members).values(
                     room_id=room_id,
                     user_id=user_id,
-                    joined_at=datetime.utcnow(),
+                    joined_at=datetime.now(pytz.timezone('Asia/Bishkek')),
                     is_admin=False
                 )
             )
@@ -739,7 +740,7 @@ async def update_group(
         
         # Save the file with a unique name
         file_extension = os.path.splitext(avatar.filename)[1]
-        avatar_filename = f"group_{room_id}_{int(datetime.utcnow().timestamp())}{file_extension}"
+        avatar_filename = f"group_{room_id}_{int(datetime.now(pytz.timezone('Asia/Bishkek')).timestamp())}{file_extension}"
         avatar_path = f"/static/uploads/group_avatars/{avatar_filename}"
         
         with open(f"app/{avatar_path}", "wb") as buffer:

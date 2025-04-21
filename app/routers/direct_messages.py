@@ -6,6 +6,7 @@ from sqlalchemy.sql import text
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
+import pytz
 
 from app.routers.session import get_db, get_current_user
 from app.database import User, Room, Message, room_members, GroupChat
@@ -172,7 +173,7 @@ async def create_direct_room_by_username(
     new_room = Room(
         name=f"DM: {current_user.username} - {target_user.username}",  # Internal name
         is_group=False,
-        created_at=datetime.utcnow()
+        created_at=datetime.now(pytz.timezone('Asia/Bishkek'))
     )
     db.add(new_room)
     db.flush()  # Get ID of new room
@@ -183,14 +184,14 @@ async def create_direct_room_by_username(
         insert(room_members).values(
             room_id=new_room.id,
             user_id=current_user.id,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.now(pytz.timezone('Asia/Bishkek'))
         )
     )
     db.execute(
         insert(room_members).values(
             room_id=new_room.id,
             user_id=target_user.id,
-            joined_at=datetime.utcnow()
+            joined_at=datetime.now(pytz.timezone('Asia/Bishkek'))
         )
     )
     
@@ -217,71 +218,89 @@ async def get_room_messages(
     db: Session = Depends(get_db)
 ):
     """Get messages from a specific room with pagination"""
-    # Get current user
-    current_user = db.query(User).filter(User.username == username).first()
-    if not current_user:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
-    # Check if room exists
-    room = db.query(Room).filter(Room.id == room_id).first()
-    if not room:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
-    
-    # Check if user is a member of this room
-    is_member = db.query(room_members).filter(
-        and_(
-            room_members.c.room_id == room_id,
-            room_members.c.user_id == current_user.id
-        )
-    ).first() is not None
-    
-    if not is_member:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have access to this room"
-        )
-    
-    # Get messages with pagination
-    query = db.query(Message).filter(Message.room_id == room_id)
-    
-    if before_id:
-        query = query.filter(Message.id < before_id)
-    
-    messages = query.order_by(desc(Message.timestamp)).limit(limit).all()
-    
-    # Format messages
-    result = []
-    for message in reversed(messages):  # Reverse to get chronological order
-        sender = db.query(User).filter(User.id == message.sender_id).first()
+    try:
+        # Get current user - we'll include this in a single query along with room access check
+        # to reduce the number of separate database queries
+        current_user = db.query(User).filter(User.username == username).first()
+        if not current_user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
         
-        result.append({
-            "id": message.id,
-            "content": message.content,
-            "sender_id": message.sender_id,
-            "sender": "user" if message.sender_id == current_user.id else sender.username if sender else "unknown",
-            "sender_name": sender.full_name or sender.username if sender else "Unknown",
-            "timestamp": message.timestamp.isoformat(),
-            "time": message.timestamp.strftime("%H:%M"),
-            "delivered": message.delivered,
-            "read": message.read
-        })
-    
-    # Mark unread messages as read
-    unread_messages = db.query(Message).filter(
-        and_(
-            Message.room_id == room_id,
-            Message.sender_id != current_user.id,
-            Message.read == False
+        # Check if user is a member of this room and if room exists in a single query
+        room_membership = db.query(Room).join(
+            room_members, 
+            and_(
+                Room.id == room_members.c.room_id,
+                room_members.c.user_id == current_user.id,
+                Room.id == room_id
+            )
+        ).first()
+        
+        if not room_membership:
+            # Either room doesn't exist or user is not a member
+            # Check which one to provide appropriate error
+            room_exists = db.query(Room).filter(Room.id == room_id).first()
+            if not room_exists:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Room not found")
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="You don't have access to this room"
+                )
+        
+        # Get messages with pagination
+        query = db.query(Message).filter(Message.room_id == room_id)
+        
+        if before_id:
+            query = query.filter(Message.id < before_id)
+        
+        messages = query.order_by(desc(Message.timestamp)).limit(limit).all()
+        
+        # Collect all sender IDs from messages to fetch in a single query
+        sender_ids = {message.sender_id for message in messages if message.sender_id != current_user.id}
+        
+        # Get all senders in a single query
+        senders = {}
+        if sender_ids:
+            sender_users = db.query(User).filter(User.id.in_(sender_ids)).all()
+            for user in sender_users:
+                senders[user.id] = user
+        
+        # Format messages
+        result = []
+        for message in reversed(messages):  # Reverse to get chronological order
+            # Use current_user or cached sender info to avoid additional queries
+            if message.sender_id == current_user.id:
+                sender_name = current_user.full_name or current_user.username
+                sender_username = "user"  # Special case for current user
+            else:
+                sender = senders.get(message.sender_id)
+                sender_name = (sender.full_name or sender.username) if sender else "Unknown"
+                sender_username = sender.username if sender else "unknown"
+            
+            result.append({
+                "id": message.id,
+                "content": message.content,
+                "sender_id": message.sender_id,
+                "sender": sender_username,
+                "sender_name": sender_name,
+                "timestamp": message.timestamp.isoformat(),
+                "time": message.timestamp.strftime("%H:%M"),
+                "delivered": message.delivered,
+                "read": message.read
+            })
+        
+        return result
+        
+    except Exception as e:
+        # Log the error
+        print(f"Error in get_room_messages: {str(e)}")
+        # Make sure to close the database session in case of error
+        db.close()
+        # Re-raise as HTTP exception
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error retrieving messages: {str(e)}"
         )
-    ).all()
-    
-    for msg in unread_messages:
-        msg.read = True
-        msg.read_at = datetime.utcnow()
-    
-    db.commit()
-    
-    return result
 
 # Edit a message
 @router.post("/messages/{message_id}/edit")
@@ -310,7 +329,7 @@ async def update_message(
         )
     
     # Check if message is too old (older than 5 minutes)
-    time_diff = (datetime.utcnow() - message.timestamp).total_seconds() / 60
+    time_diff = (datetime.now(pytz.timezone('Asia/Bishkek')) - message.timestamp).total_seconds() / 60
     if time_diff > 5:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -331,7 +350,7 @@ async def update_message(
     # Update message
     message.content = new_content
     message.edited = True
-    message.edited_at = datetime.utcnow()
+    message.edited_at = datetime.now(pytz.timezone('Asia/Bishkek'))
     db.commit()
     
     # Broadcast the edit to other users in the room
@@ -517,7 +536,7 @@ async def clear_chat(
                         "type": "chat_cleared",
                         "room_id": room_id,
                         "cleared_by": current_user.username,
-                        "cleared_at": datetime.utcnow().isoformat()
+                        "cleared_at": datetime.now(pytz.timezone('Asia/Bishkek')).isoformat()
                     })
                 except Exception as e:
                     print(f"Error sending chat_cleared notification: {e}")
@@ -579,3 +598,30 @@ async def search_users(
         })
     
     return result
+
+@router.get("/token/notifications")
+async def get_notifications_token(username: str = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get a token for the global notification WebSocket"""
+    user = db.query(User).filter(User.username == username).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    import jwt
+    import time
+    from fastapi import Request
+    import os
+    
+    # Get secret key from environment or use a default for development
+    SECRET_KEY = os.getenv("SECRET_KEY", "development_secret_key")
+    
+    # Create a token that expires in 24 hours
+    token_data = {
+        "sub": user.username,
+        "user_id": user.id,
+        "exp": time.time() + 24 * 60 * 60  # 24 hours expiry
+    }
+    
+    # Generate the token
+    token = jwt.encode(token_data, SECRET_KEY, algorithm="HS256")
+    
+    return {"token": token}
