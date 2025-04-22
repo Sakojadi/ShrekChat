@@ -360,7 +360,6 @@ function handleChatMessage(data) {
     // Check if this message belongs to the currently open room
     if (parseInt(currentRoomId) === parseInt(message.room_id)) {
         if (isConfirmation && message.temp_id) {
-            // This is a confirmation of a message we sent - update the temp message
             wsLog(`Received confirmation for temp message: ${message.temp_id} -> ${message.id}`);
             const tempMessage = document.querySelector(`.message[data-message-id="${message.temp_id}"]`);
             if (tempMessage) {
@@ -373,51 +372,36 @@ function handleChatMessage(data) {
                     messageStatusDouble.style.display = 'inline';
                 }
             } else {
-                // If for some reason we can't find the temp message, just display it
                 wsLog("Temp message not found in DOM, displaying as new message");
                 if (window.displayMessage) {
                     window.displayMessage(message);
                 }
             }
-        } else if (message.read) {
-            // Update the message to show double check marks if read
-            const readMessage = document.querySelector(`.message[data-message-id="${message.id}"]`);
-            if (readMessage) {
-                const messageStatusDouble = readMessage.querySelector('.message-status-double');
-                if (messageStatusDouble) {
-                    messageStatusDouble.classList.add('read');
-                }
-            }
         } else {
-            // This is a new message from someone else - display it
-            // First check if it's already displayed to prevent duplicates
-            const existingMessage = message.id ? 
-                document.querySelector(`.message[data-message-id="${message.id}"]`) : 
-                null;
-                
-            if (!existingMessage && window.displayMessage) {
-                wsLog("Displaying new message");
+            if (window.displayMessage) {
                 window.displayMessage(message);
-                // Ensure we scroll to see the new message
-                setTimeout(() => {
-                    const chatMessages = document.getElementById('chatMessages');
-                    if (chatMessages) {
-                        chatMessages.scrollTop = chatMessages.scrollHeight;
-                    }
-                }, 50);
-            } else if (existingMessage) {
-                wsLog("Message already exists in DOM, skipping display");
             }
-            
-            // Send read receipt for messages from others
-            if (!isConfirmation && chatWebSocket && chatWebSocket.readyState === WebSocket.OPEN) {
-                wsLog(`Sending read receipt for message: ${message.id}`);
-                const readData = {
-                    type: "seen",
-                    room_id: currentRoomId,
-                    message_ids: [message.id]
-                };
-                chatWebSocket.send(JSON.stringify(readData));
+
+            const messageElement = document.querySelector(`.message[data-message-id="${message.id}"]`);
+            if (messageElement) {
+                const messageStatusSingle = messageElement.querySelector('.message-status-single');
+                const messageStatusDouble = messageElement.querySelector('.message-status-double');
+                if (message.read) {
+                    if (messageStatusDouble) {
+                        messageStatusDouble.classList.add('read');
+                        messageStatusDouble.style.display = 'inline';
+                    }
+                    if (messageStatusSingle) {
+                        messageStatusSingle.style.display = 'none';
+                    }
+                } else {
+                    if (messageStatusSingle) {
+                        messageStatusSingle.style.display = 'inline';
+                    }
+                    if (messageStatusDouble) {
+                        messageStatusDouble.style.display = 'none';
+                    }
+                }
             }
         }
     } else {
