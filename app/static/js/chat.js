@@ -239,19 +239,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         chatContactNameElement.textContent = roomData.name || roomData.username || roomData.full_name || 'Chat';
         
-        if (roomData.is_group) {
-            chatContactStatusElement.textContent = 'Group';
-            const existingIndicator = chatContactStatusElement.querySelector('.status-indicator');
-            if (existingIndicator) {
-                existingIndicator.remove();
-            }
-        } else {
+        if (!roomData.is_group) {
             const statusText = roomData.status === 'online' ? 'Online' : 'Offline';
-            chatContactStatusElement.innerHTML = statusText;
-            const existingIndicator = chatContactStatusElement.querySelector('.status-indicator');
-            if (existingIndicator) {
-                existingIndicator.remove();
-            }
+            chatContactStatusElement.textContent = statusText;
+            chatContactStatusElement.className = `status-text ${roomData.status || 'offline'}`;
+        } else {
+            chatContactStatusElement.textContent = 'Group';
+            chatContactStatusElement.className = 'status-text group';
         }
         
         chatContactAvatarElement.src = roomData.avatar || '/static/images/shrek.jpg';
