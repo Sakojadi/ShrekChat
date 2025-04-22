@@ -379,6 +379,15 @@ function handleChatMessage(data) {
                     window.displayMessage(message);
                 }
             }
+        } else if (message.read) {
+            // Update the message to show double check marks if read
+            const readMessage = document.querySelector(`.message[data-message-id="${message.id}"]`);
+            if (readMessage) {
+                const messageStatusDouble = readMessage.querySelector('.message-status-double');
+                if (messageStatusDouble) {
+                    messageStatusDouble.classList.add('read');
+                }
+            }
         } else {
             // This is a new message from someone else - display it
             // First check if it's already displayed to prevent duplicates
