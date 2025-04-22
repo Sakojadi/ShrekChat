@@ -142,7 +142,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     overlay.classList.remove('active');
                     
                     // Show success notification
-                    alert('Profile updated successfully');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Profile Updated',
+                        text: 'Your profile has been updated successfully!',
+                        confirmButtonText: 'OK'
+                    });
                     
                     // Reload page if username was changed
                     if (formData.username) {
@@ -151,12 +156,22 @@ document.addEventListener('DOMContentLoaded', function() {
                         }, 1000);
                     }
                 } else {
-                    alert('Failed to update profile: ' + data.message);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Update Failed',
+                        text: 'Failed to update profile: ' + data.message,
+                        confirmButtonText: 'OK'
+                    });
                 }
             })
             .catch(error => {
                 console.error('Error updating profile:', error);
-                alert('An error occurred while updating your profile');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'An error occurred while updating your profile',
+                    confirmButtonText: 'OK'
+                });
             });
         });
     }

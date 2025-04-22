@@ -330,7 +330,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 const updatedContent = textarea.value.trim();
                 
                 if (!updatedContent) {
-                    alert('Message cannot be empty');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Oops...',
+                        text: 'Message cannot be empty!'
+                    });
                     return;
                 }
                 
@@ -388,7 +392,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     })
                     .catch(error => {
                         console.error('Error updating message:', error);
-                        alert('Failed to update message. Please try again.');
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Oops...',
+                            text: 'Failed to update message. Please try again.'
+                        });
                     });
                 }
             });
@@ -430,41 +438,51 @@ document.addEventListener('DOMContentLoaded', function() {
             // Hide context menu
             document.getElementById('messageContextMenu').style.display = 'none';
             
-            // Ask for confirmation
-            if (confirm('Are you sure you want to delete this message?')) {
-                // Send delete request to server
-                if (window.shrekChatWebSocket) {
-                    window.shrekChatWebSocket.deleteMessage(
-                        currentRoomId,
-                        currentMessageId,
-                        function(success) {
-                            if (success) {
-                                // Remove message from UI
-                                currentMessageElement.remove();
-                                showToast('Message deleted');
+            // SweetAlert confirmation for delete
+            Swal.fire({
+                title: 'Are you sure?',
+                text: 'You won\'t be able to revert this!',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#3085d6',
+                cancelButtonColor: '#d33',
+                confirmButtonText: 'Yes, delete it!'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    // Send delete request to server
+                    if (window.shrekChatWebSocket) {
+                        window.shrekChatWebSocket.deleteMessage(
+                            currentRoomId,
+                            currentMessageId,
+                            function(success) {
+                                if (success) {
+                                    // Remove message from UI
+                                    currentMessageElement.remove();
+                                    Swal.fire('Deleted!', 'Your message has been deleted.', 'success');
+                                }
                             }
-                        }
-                    );
-                } else {
-                    // Fallback to REST API
-                    fetch(`/api/messages/${currentMessageId}`, {
-                        method: 'DELETE'
-                    })
-                    .then(response => {
-                        if (!response.ok) throw new Error('Failed to delete message');
-                        return response.json();
-                    })
-                    .then(data => {
-                        // Remove message from UI
-                        currentMessageElement.remove();
-                        showToast('Message deleted');
-                    })
-                    .catch(error => {
-                        console.error('Error deleting message:', error);
-                        alert('Failed to delete message. Please try again.');
-                    });
+                        );
+                    } else {
+                        // Fallback to REST API
+                        fetch(`/api/messages/${currentMessageId}`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => {
+                            if (!response.ok) throw new Error('Failed to delete message');
+                            return response.json();
+                        })
+                        .then(data => {
+                            // Remove message from UI
+                            currentMessageElement.remove();
+                            Swal.fire('Deleted!', 'Your message has been deleted.', 'success');
+                        })
+                        .catch(error => {
+                            console.error('Error deleting message:', error);
+                            Swal.fire('Error!', 'Failed to delete message. Please try again.', 'error');
+                        });
+                    }
                 }
-            }
+            });
         });
     }
     

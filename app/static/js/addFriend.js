@@ -1,3 +1,7 @@
+console.log("addFriend.js loaded successfully");
+
+import { showAlertPopup } from './alertPopups.js';
+
 document.addEventListener('DOMContentLoaded', function() {
     // Get DOM elements
     const addFriendButton = document.getElementById('addFriendButton');
@@ -7,8 +11,15 @@ document.addEventListener('DOMContentLoaded', function() {
     const overlay = document.getElementById('overlay');
     const closeAddFriendPopup = document.getElementById('closeAddFriendPopup');
     const addFriendMenuItem = document.getElementById('addContactMenuItem');
+    const contactsList = document.getElementById('contactsList');
     
     let selectedUsername = null;
+
+    // Define currentUsername from the DOM
+    const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
+    if (!currentUsername) {
+        console.error('currentUsername is not defined. Ensure the profile name is available in the DOM.');
+    }
 
     // Show add friend popup
     function showAddFriendPopup() {
@@ -131,16 +142,36 @@ document.addEventListener('DOMContentLoaded', function() {
         }, 300));
     }
 
-    // Add contact/friend
+    // Ensure dialog windows appear for all relevant messages
     if (addFriendButton) {
         addFriendButton.addEventListener('click', function() {
+            console.log('Add Friend button clicked');
             const username = selectedUsername || addFriendInput.value.trim();
+            console.log('Username entered:', username);
+
             if (!username) {
-                alert('Please enter or select a username');
+                showAlertPopup('Error', 'Please enter or select a username', 'error');
                 return;
             }
-            
-            // Send request to create direct message room
+
+            if (username === currentUsername) {
+                console.log('Attempted to add yourself as a friend');
+                showAlertPopup('Error', 'You cannot add yourself as a friend.', 'error');
+                return;
+            }
+
+            const existingFriend = Array.from(contactsList.children).find(contact => {
+                const contactUsername = contact.querySelector('.contact-info h4')?.textContent;
+                return contactUsername === username;
+            });
+
+            if (existingFriend) {
+                console.log('User is already a friend:', username);
+                showAlertPopup('Info', 'This user is already your friend.', 'info');
+                return;
+            }
+
+            console.log('Sending request to add friend:', username);
             fetch('/api/rooms/direct', {
                 method: 'POST',
                 headers: {
@@ -153,28 +184,28 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => {
                 if (!response.ok) {
                     return response.json().then(data => {
+                        console.error('Error response from server:', data);
                         throw new Error(data.detail || 'Failed to add contact');
                     });
                 }
                 return response.json();
             })
             .then(data => {
-                // Add room to the current user's sidebar
+                console.log('Friend added successfully:', data);
                 if (window.addRoomToList) {
                     window.addRoomToList(data);
                 }
-                
-                // Make sure WebSocket connection is established
+
                 if (window.shrekChatWebSocket && window.shrekChatWebSocket.connectPresenceWebSocket) {
                     window.shrekChatWebSocket.connectPresenceWebSocket();
                 }
-                
-                alert('Contact added successfully!');
+
+                showAlertPopup('Success', 'Contact added successfully!', 'info');
                 closePopup();
             })
             .catch(error => {
                 console.error('Error adding contact:', error);
-                alert(error.message);
+                showAlertPopup('Error', error.message, 'error');
             });
         });
     }

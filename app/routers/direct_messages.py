@@ -127,26 +127,31 @@ async def create_direct_room_by_username(
     db: Session = Depends(get_db)
 ):
     """Create a direct message room with another user by username"""
+    print("[DEBUG] Received request to add friend with username:", request_data.username_to_add)
+
     # Get current user
     current_user = db.query(User).filter(User.username == username).first()
     if not current_user:
+        print("[ERROR] Current user not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
+
     username_to_add = request_data.username_to_add
     if not username_to_add:
+        print("[ERROR] Username to add is missing")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Username to add is required")
-    
+
     # Get target user
     target_user = db.query(User).filter(User.username == username_to_add).first()
     if not target_user:
+        print("[ERROR] Target user not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    
+
     # Can't add self
     if current_user.id == target_user.id:
+        print("[ERROR] Cannot create chat with yourself")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot create chat with yourself")
-    
+
     # Check if a direct room already exists between these users
-    # Fixed join syntax for correct query
     existing_room = db.query(Room).filter(Room.is_group == False).filter(
         Room.id.in_(
             db.query(room_members.c.room_id).filter(
@@ -158,8 +163,9 @@ async def create_direct_room_by_username(
             )
         )
     ).first()
-        
+
     if existing_room:
+        print("[DEBUG] Existing room found:", existing_room.id)
         return {
             "id": existing_room.id,
             "name": target_user.full_name or target_user.username,
@@ -167,8 +173,9 @@ async def create_direct_room_by_username(
             "avatar": target_user.avatar,
             "is_group": False
         }
-    
+
     # Create new direct message room
+    print("[DEBUG] Creating new direct message room")
     new_room = Room(
         name=f"DM: {current_user.username} - {target_user.username}",  # Internal name
         is_group=False,
@@ -176,7 +183,7 @@ async def create_direct_room_by_username(
     )
     db.add(new_room)
     db.flush()  # Get ID of new room
-    
+
     # Add both users to the room
     from sqlalchemy import insert
     db.execute(
@@ -193,12 +200,14 @@ async def create_direct_room_by_username(
             joined_at=datetime.utcnow()
         )
     )
-    
+
     db.commit()
-    
+
     # Notify the target user about the new room
+    print("[DEBUG] Notifying target user about the new room")
     await notify_new_room(new_room.id, target_user.id, current_user, db)
-    
+
+    print("[DEBUG] Direct message room created successfully")
     return {
         "id": new_room.id,
         "name": target_user.full_name or target_user.username,

@@ -715,3 +715,133 @@ body.dark-theme .form-group input:focus {
     border-color: #4CAF50;
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.3);
 }
+
+/* Alert Popups Styles */
+.alert-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: #fff;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    z-index: 1000;
+    width: 90%;
+    max-width: 400px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.alert-popup.info {
+    border-left: 5px solid #4CAF50;
+}
+
+.alert-popup.error {
+    border-left: 5px solid #f44336;
+}
+
+.alert-popup.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.alert-popup .alert-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.alert-popup .alert-header h3 {
+    margin: 0;
+    font-size: 1.5rem;
+    color: #333;
+}
+
+.alert-popup .alert-header .alert-close {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #666;
+    cursor: pointer;
+}
+
+.alert-popup .alert-body {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.alert-popup .alert-body p {
+    margin: 0;
+    font-size: 1rem;
+    color: #666;
+}
+
+.alert-popup .alert-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.alert-popup .alert-confirm {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1rem;
+}
+
+.alert-popup .alert-confirm:hover {
+    background-color: #45a049;
+}
+
+.alert-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.alert-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Custom styles for SweetAlert popups */
+.swal2-popup {
+    background-color: #e8f5e9; /* Light green background */
+    color: #2e7d32; /* Dark green text */
+}
+
+.swal2-title {
+    color: #1b5e20; /* Darker green for title */
+}
+
+.swal2-confirm {
+    background-color: #4caf50; /* Green button */
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.swal2-confirm:hover {
+    background-color: #388e3c; /* Darker green on hover */
+}

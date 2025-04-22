@@ -290,38 +290,59 @@ document.addEventListener('DOMContentLoaded', function() {
             const newClearChatItem = clearChatItem.cloneNode(true);
             clearChatItem.parentNode.replaceChild(newClearChatItem, clearChatItem);
             newClearChatItem.addEventListener('click', function() {
-                if (confirm('Are you sure you want to clear all messages? This cannot be undone.')) {
-                    const currentRoomId = chatContent.getAttribute('data-current-room-id');
-                    if (!currentRoomId) {
-                        return;
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Are you sure?',
+                    text: 'This cannot be undone.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, clear it!',
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        const currentRoomId = chatContent.getAttribute('data-current-room-id');
+                        if (!currentRoomId) {
+                            return;
+                        }
+
+                        // Clear chat using API
+                        fetch(`/api/rooms/${currentRoomId}/messages`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to clear chat');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Chat cleared:', data);
+
+                            // Clear messages from UI
+                            chatMessages.innerHTML = '';
+
+                            // Update last message in the sidebar
+                            if (window.shrekChatUtils) {
+                                window.shrekChatUtils.updateLastMessage(currentRoomId, 'Chat cleared', null);
+                            }
+
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Chat Cleared',
+                                text: 'All messages have been successfully cleared.',
+                                confirmButtonText: 'OK'
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error clearing chat:', error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Failed to clear chat. Please try again.',
+                                confirmButtonText: 'OK'
+                            });
+                        });
                     }
-                    
-                    // Clear chat using API
-                    fetch(`/api/rooms/${currentRoomId}/messages`, {
-                        method: 'DELETE'
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Failed to clear chat');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('Chat cleared:', data);
-                        
-                        // Clear messages from UI
-                        chatMessages.innerHTML = '';
-                        
-                        // Update last message in the sidebar
-                        if (window.shrekChatUtils) {
-                            window.shrekChatUtils.updateLastMessage(currentRoomId, 'Chat cleared', null);
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error clearing chat:', error);
-                        alert('Failed to clear chat. Please try again.');
-                    });
-                }
+                });
                 
                 const dropdownMenu = document.querySelector('.dropdown-menu.active');
                 if (dropdownMenu) {
@@ -637,6 +658,36 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
+    // Add debugging logs for Add Friend functionality
+    function addFriend(usernameToAdd) {
+        console.log("Attempting to add friend:", usernameToAdd);
+
+        fetch('/api/rooms/direct', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ username_to_add: usernameToAdd })
+        })
+        .then(response => {
+            console.log("Add Friend API response status:", response.status);
+            if (!response.ok) {
+                throw new Error(`Failed to add friend. Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log("Friend added successfully:", data);
+            // Optionally refresh the rooms list
+            if (window.refreshRoomsList) {
+                window.refreshRoomsList();
+            }
+        })
+        .catch(error => {
+            console.error("Error adding friend:", error);
+        });
+    }
+
     // Event listeners
     if (sendMessageBtn) {
         sendMessageBtn.addEventListener('click', sendMessage);

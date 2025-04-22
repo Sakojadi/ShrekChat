@@ -174,12 +174,22 @@ document.addEventListener('DOMContentLoaded', function() {
             const groupDescription = groupDescriptionInput.value.trim();
             
             if (!groupName) {
-                alert('Please enter a group name');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Missing Group Name',
+                    text: 'Please enter a group name.',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
             
             if (selectedContacts.length === 0) {
-                alert('Please select at least one contact');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Please select at least one contact.',
+                    confirmButtonText: 'OK'
+                });
                 return;
             }
             
@@ -233,7 +243,12 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .catch(error => {
                 console.error('Error creating group:', error);
-                alert('Failed to create group. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Failed to Create Group',
+                    text: 'An error occurred while creating the group. Please try again.',
+                    confirmButtonText: 'OK'
+                });
             });
         });
     }
@@ -320,7 +335,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Error adding members:', error);
-                    alert('Failed to add members. Please try again.');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to add members. Please try again.',
+                        confirmButtonText: 'OK'
+                    });
                 });
             }
         });
@@ -330,43 +350,57 @@ document.addEventListener('DOMContentLoaded', function() {
     if (leaveGroupButton) {
         leaveGroupButton.addEventListener('click', function() {
             if (currentGroupId) {
-                if (confirm('Are you sure you want to leave this group?')) {
-                    // Leave group using API
-                    fetch(`/api/rooms/${currentGroupId}/leave`, {
-                        method: 'POST'
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Failed to leave group');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('Left group:', data);
-                        
-                        // Remove group from contacts list
-                        const groupElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
-                        if (groupElement) {
-                            groupElement.remove();
-                        }
-                        
-                        // Close popup
-                        groupManagementPopup.classList.remove('open');
-                        overlay.classList.remove('active');
-                        
-                        // Show welcome screen
-                        const welcomeContainer = document.getElementById('welcomeContainer');
-                        const chatContent = document.getElementById('chatContent');
-                        if (welcomeContainer && chatContent) {
-                            welcomeContainer.style.display = 'flex';
-                            chatContent.style.display = 'none';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error leaving group:', error);
-                        alert('Failed to leave group. Please try again.');
-                    });
-                }
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Are you sure?',
+                    text: 'You will leave this group and lose access to its messages.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, leave it!',
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Proceed with leaving the group
+                        fetch(`/api/rooms/${currentGroupId}/leave`, {
+                            method: 'POST'
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to leave group');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Left group:', data);
+                            
+                            // Remove group from contacts list
+                            const groupElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
+                            if (groupElement) {
+                                groupElement.remove();
+                            }
+                            
+                            // Close popup
+                            groupManagementPopup.classList.remove('open');
+                            overlay.classList.remove('active');
+                            
+                            // Show welcome screen
+                            const welcomeContainer = document.getElementById('welcomeContainer');
+                            const chatContent = document.getElementById('chatContent');
+                            if (welcomeContainer && chatContent) {
+                                welcomeContainer.style.display = 'flex';
+                                chatContent.style.display = 'none';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error leaving group:', error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Failed to leave group. Please try again.',
+                                confirmButtonText: 'OK'
+                            });
+                        });
+                    }
+                });
             }
         });
     }
@@ -375,43 +409,57 @@ document.addEventListener('DOMContentLoaded', function() {
     if (deleteGroupButton) {
         deleteGroupButton.addEventListener('click', function() {
             if (currentGroupId) {
-                if (confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
-                    // Delete group using API
-                    fetch(`/api/rooms/${currentGroupId}/delete`, {
-                        method: 'DELETE'
-                    })
-                    .then(response => {
-                        if (!response.ok) {
-                            throw new Error('Failed to delete group');
-                        }
-                        return response.json();
-                    })
-                    .then(data => {
-                        console.log('Group deleted:', data);
-                        
-                        // Remove group from contacts list
-                        const groupElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
-                        if (groupElement) {
-                            groupElement.remove();
-                        }
-                        
-                        // Close popup
-                        groupManagementPopup.classList.remove('open');
-                        overlay.classList.remove('active');
-                        
-                        // Show welcome screen
-                        const welcomeContainer = document.getElementById('welcomeContainer');
-                        const chatContent = document.getElementById('chatContent');
-                        if (welcomeContainer && chatContent) {
-                            welcomeContainer.style.display = 'flex';
-                            chatContent.style.display = 'none';
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Error deleting group:', error);
-                        alert('Failed to delete group. Please try again.');
-                    });
-                }
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Are you sure?',
+                    text: 'This action cannot be undone.',
+                    showCancelButton: true,
+                    confirmButtonText: 'Yes, delete it!',
+                    cancelButtonText: 'Cancel'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        // Proceed with group deletion
+                        fetch(`/api/rooms/${currentGroupId}/delete`, {
+                            method: 'DELETE'
+                        })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error('Failed to delete group');
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            console.log('Group deleted:', data);
+                            
+                            // Remove group from contacts list
+                            const groupElement = document.querySelector(`.contact-item[data-room-id="${currentGroupId}"]`);
+                            if (groupElement) {
+                                groupElement.remove();
+                            }
+                            
+                            // Close popup
+                            groupManagementPopup.classList.remove('open');
+                            overlay.classList.remove('active');
+                            
+                            // Show welcome screen
+                            const welcomeContainer = document.getElementById('welcomeContainer');
+                            const chatContent = document.getElementById('chatContent');
+                            if (welcomeContainer && chatContent) {
+                                welcomeContainer.style.display = 'flex';
+                                chatContent.style.display = 'none';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error deleting group:', error);
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Error',
+                                text: 'Failed to delete group. Please try again.',
+                                confirmButtonText: 'OK'
+                            });
+                        });
+                    }
+                });
             }
         });
     }
@@ -518,7 +566,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             const editGroupDescInput = document.getElementById('editGroupDescriptionInput');
                             
                             if (!editGroupNameInput.value.trim()) {
-                                alert('Group name cannot be empty');
+                                Swal.fire({
+                                    icon: 'warning',
+                                    title: 'Validation Error',
+                                    text: 'Group name cannot be empty.',
+                                    confirmButtonText: 'OK'
+                                });
                                 return;
                             }
                             
@@ -579,7 +632,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             })
                             .catch(error => {
                                 console.error('Error updating group:', error);
-                                alert('Failed to update group. Please try again.');
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: 'Failed to update group. Please try again.',
+                                    confirmButtonText: 'OK'
+                                });
                             });
                         });
                     }
@@ -885,7 +943,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                             })
                                             .catch(error => {
                                                 console.error('Error making admin:', error);
-                                                alert('Failed to make admin. Please try again.');
+                                                Swal.fire({
+                                                    icon: 'error',
+                                                    title: 'Error',
+                                                    text: 'Failed to make admin. Please try again.',
+                                                    confirmButtonText: 'OK'
+                                                });
                                             });
                                         }
                                     });
@@ -918,7 +981,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                             })
                                             .catch(error => {
                                                 console.error('Error removing member:', error);
-                                                alert('Failed to remove member. Please try again.');
+                                                Swal.fire({
+                                                    icon: 'error',
+                                                    title: 'Error',
+                                                    text: 'Failed to remove member. Please try again.',
+                                                    confirmButtonText: 'OK'
+                                                });
                                             });
                                         }
                                     });
@@ -930,7 +998,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 })
                 .catch(error => {
                     console.error('Error loading group details:', error);
-                    alert('Failed to load group details. Please try again.');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to load group details. Please try again.',
+                        confirmButtonText: 'OK'
+                    });
                 });
         }
     }

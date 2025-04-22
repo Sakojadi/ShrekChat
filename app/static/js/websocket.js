@@ -109,9 +109,15 @@ function connectPresenceWebSocket() {
         
         presenceWebSocket.onmessage = function(event) {
             try {
+                // Check if the message is "pong" and skip JSON parsing
+                if (event.data === "pong") {
+                    wsLog("Received pong response");
+                    return;
+                }
+
                 const data = JSON.parse(event.data);
                 wsLog("Received presence message:", data);
-                
+
                 if (data.type === "status") {
                     // Use the utility function to update status
                     if (window.shrekChatUtils) {

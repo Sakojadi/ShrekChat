@@ -21,7 +21,26 @@
 <body {% block body_class %}{% endblock %}>
     {% block content %}{% endblock %}
     
+    <!-- Alert Popup Structure -->
+    <div id="alertOverlay" class="alert-overlay"></div>
+    <div id="alertPopup" class="alert-popup">
+        <div class="alert-header">
+            <h3 id="alertTitle">Alert</h3>
+            <button id="alertClose" class="alert-close">&times;</button>
+        </div>
+        <div class="alert-body">
+            <p id="alertMessage">This is an alert message.</p>
+        </div>
+        <div class="alert-actions">
+            <button id="alertConfirm" class="alert-confirm">OK</button>
+        </div>
+    </div>
+    <!-- End of Alert Popup Structure -->
+    
     {% block scripts %}
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <!-- End of SweetAlert2 CDN -->
     <script src="/static/js/theme.js"></script>
     {% endblock %}
 </body>

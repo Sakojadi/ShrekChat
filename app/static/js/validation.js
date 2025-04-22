@@ -22,7 +22,12 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (username === '' || password === '') {
                 e.preventDefault();
-                errorMessage.textContent = 'Пожалуйста, заполните все поля';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Please fill out all required fields.',
+                    confirmButtonText: 'OK'
+                });
                 return false;
             }
             
@@ -44,27 +49,54 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (username === '' || email === '' || password === '' || confirmPassword === '') {
                 e.preventDefault();
-                errorMessage.textContent = 'Пожалуйста, заполните все поля';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Please fill out all required fields.',
+                    confirmButtonText: 'OK'
+                });
                 return false;
             }
             
             if (!validateEmail(email)) {
                 e.preventDefault();
-                errorMessage.textContent = 'Пожалуйста, введите корректный адрес электронной почты';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Please enter a valid email address.',
+                    confirmButtonText: 'OK'
+                });
                 return false;
             }
             
             if (password !== confirmPassword) {
                 e.preventDefault();
-                errorMessage.textContent = 'Пароли не совпадают';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Passwords do not match.',
+                    confirmButtonText: 'OK'
+                });
                 return false;
             }
             
             if (password.length < 6) {
                 e.preventDefault();
-                errorMessage.textContent = 'Пароль должен содержать не менее 6 символов';
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error',
+                    text: 'Password must be at least 6 characters long.',
+                    confirmButtonText: 'OK'
+                });
                 return false;
             }
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Registration Successful',
+                text: 'Your account has been created successfully. You can now log in.',
+                confirmButtonText: 'OK'
+            });
             
             return true;
         });
