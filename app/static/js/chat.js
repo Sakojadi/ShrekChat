@@ -6,58 +6,70 @@ console.log("Script execution started");
 
 // Utility functions for chat operations
 window.shrekChatUtils = {
-    updateContactStatus: function(userId, status) {
-        console.log(`Updating status for user ${userId} to ${status}`);
-        
-        // Update contact in sidebar
-        const contactElement = document.querySelector(`.contact-item[data-user-id="${userId}"]`);
-        if (contactElement) {
-            const statusIndicator = contactElement.querySelector('.status-indicator');
-            if (statusIndicator) {
-                statusIndicator.classList.remove('online', 'offline');
-                statusIndicator.classList.add(status || 'offline');
-            } else {
-                console.warn(`Status indicator not found for user ${userId} in sidebar`);
-            }
-        } else {
-            console.warn(`Contact element not found for user ${userId} in sidebar`);
-        }
-        
-        // Update chat header if this user is currently open
-        const chatContent = document.getElementById('chatContent');
-        const currentUserId = chatContent?.getAttribute('data-current-user-id');
-        if (currentUserId && parseInt(currentUserId) === parseInt(userId)) {
-            const chatContactStatus = document.getElementById('chatContactPresence');
-            if (chatContactStatus) {
-                chatContactStatus.textContent = status === 'online' ? 'Online' : 'Offline';
-                chatContactStatus.className = `status-text ${status || 'offline'}`;
-            } else {
-                console.warn(`Chat contact status element not found for user ${userId}`);
-            }
-        }
-        
-        // Update contact info popup if open
-        const contactInfoPopup = document.getElementById('contactInfoPopup');
-        if (contactInfoPopup.classList.contains('open')) {
-            const contactInfoUserId = contactInfoPopup.getAttribute('data-user-id');
-            if (contactInfoUserId && parseInt(contactInfoUserId) === parseInt(userId)) {
-                const contactInfoStatus = document.getElementById('contactInfoStatus');
-                if (contactInfoStatus) {
-                    contactInfoStatus.textContent = status === 'online' ? 'Online' : 'Offline';
-                    contactInfoStatus.className = `status-text ${status || 'offline'}`;
+    // Cache for storing latest user statuses
+    statusCache: {},
+
+    updateContactStatus: function(userId, status, source = 'unknown') {
+        // Validate status
+        const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] Updating status for user ${userId} to ${validStatus} (source: ${source})`);
+
+        // Update cache
+        this.statusCache[userId] = { status: validStatus, updatedAt: timestamp };
+
+        // Batch DOM updates for performance
+        requestAnimationFrame(() => {
+            // Update contact in sidebar
+            const contactElement = document.querySelector(`.contact-item[data-user-id="${userId}"]`);
+            if (contactElement) {
+                const statusIndicator = contactElement.querySelector('.status-indicator');
+                if (statusIndicator) {
+                    statusIndicator.classList.remove('online', 'offline');
+                    statusIndicator.classList.add(validStatus);
                 } else {
-                    console.warn(`Contact info status element not found for user ${userId}`);
+                    console.warn(`[${timestamp}] Status indicator not found for user ${userId} in sidebar`);
+                }
+            } else {
+                console.warn(`[${timestamp}] Contact element not found for user ${userId} in sidebar`);
+            }
+
+            // Update chat header if this user is currently open
+            const chatContent = document.getElementById('chatContent');
+            const currentUserId = chatContent?.getAttribute('data-current-user-id');
+            if (currentUserId && parseInt(currentUserId) === parseInt(userId)) {
+                const chatContactStatus = document.getElementById('chatContactPresence');
+                if (chatContactStatus) {
+                    chatContactStatus.textContent = validStatus === 'online' ? 'Online' : 'Offline';
+                    chatContactStatus.className = `status-text ${validStatus}`;
+                } else {
+                    console.warn(`[${timestamp}] Chat contact status element not found for user ${userId}`);
                 }
             }
-        }
-        
+
+            // Update contact info popup if open
+            const contactInfoPopup = document.getElementById('contactInfoPopup');
+            if (contactInfoPopup && contactInfoPopup.classList.contains('open')) {
+                const contactInfoUserId = contactInfoPopup.getAttribute('data-user-id');
+                if (contactInfoUserId && parseInt(contactInfoUserId) === parseInt(userId)) {
+                    const contactInfoStatus = document.getElementById('contactInfoStatus');
+                    if (contactInfoStatus) {
+                        contactInfoStatus.textContent = validStatus === 'online' ? 'Online' : 'Offline';
+                        contactInfoStatus.className = `status-text ${validStatus}`;
+                    } else {
+                        console.warn(`[${timestamp}] Contact info status element not found for user ${userId}`);
+                    }
+                }
+            }
+        });
+
         // Dispatch custom event for other modules
         const statusEvent = new CustomEvent('status-update', {
-            detail: { userId, status }
+            detail: { userId, status: validStatus, source }
         });
         window.dispatchEvent(statusEvent);
     },
-    
+
     updateLastMessage: function(roomId, content, time) {
         const contactElement = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
         if (contactElement) {
@@ -71,7 +83,7 @@ window.shrekChatUtils = {
             }
         }
     },
-    
+
     incrementUnreadCount: function(roomId) {
         const contactElement = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
         if (contactElement) {
@@ -85,7 +97,7 @@ window.shrekChatUtils = {
             unreadCountElement.textContent = currentCount + 1;
         }
     },
-    
+
     updateMessageStatus: function(messageId, status) {
         const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
         if (messageElement) {
@@ -113,7 +125,7 @@ window.shrekChatUtils = {
             window.pendingMessageStatuses[messageId] = status;
         }
     },
-    
+
     formatTime: function(date) {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
     }
@@ -125,19 +137,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // DOM Elements - Chat
     const contactsList = document.getElementById('contactsList');
     const searchInput = document.getElementById('searchInput');
-    
     const chatContent = document.getElementById('chatContent');
     const welcomeContainer = document.getElementById('welcomeContainer');
     const chatMessages = document.getElementById('chatMessages');
     const messageInput = document.getElementById('messageInput');
     const sendMessageBtn = document.getElementById('sendMessageBtn');
-    
     const chatContactName = document.getElementById('chatContactName');
     const chatContactStatus = document.getElementById('chatContactPresence');
     const chatContactAvatar = document.getElementById('chatContactAvatar');
     const chatHeader = document.getElementById('chatHeader');
     const overlay = document.getElementById('overlay');
-    
+
     // DOM Elements - Contact Info
     const contactInfoPopup = document.getElementById('contactInfoPopup');
     const closeContactInfoPopup = document.getElementById('closeContactInfoPopup');
@@ -147,13 +157,13 @@ document.addEventListener('DOMContentLoaded', function() {
     const contactInfoAvatar = document.getElementById('contactInfoAvatar');
     const contactInfoStatus = document.getElementById('contactInfoStatus');
     const closeInfoButton = document.getElementById('closeInfoButton');
-    
+
     // DOM Elements - Message Template
     const messageTemplate = document.getElementById('messageTemplate');
-    
+
     // Store current username to identify self messages
     const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
-    
+
     // Mobile responsiveness
     const backButton = document.querySelector('.back-btn');
     const sidebar = document.querySelector('.sidebar');
@@ -174,6 +184,53 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Save chat state (scroll position, room ID) before unload
+    function saveChatState() {
+        const timestamp = new Date().toISOString();
+        if (chatMessages && chatContent) {
+            const roomId = chatContent.getAttribute('data-current-room-id');
+            if (roomId && chatContent.style.display === 'flex') {
+                const scrollPosition = chatMessages.scrollTop;
+                sessionStorage.setItem('chatState', JSON.stringify({
+                    roomId,
+                    scrollPosition,
+                    timestamp
+                }));
+                console.log(`[${timestamp}] Saved chat state: roomId=${roomId}, scrollPosition=${scrollPosition}`);
+            }
+        }
+    }
+
+    // Restore chat state after load
+    function restoreChatState(roomData) {
+        const timestamp = new Date().toISOString();
+        const chatState = sessionStorage.getItem('chatState');
+        if (chatState && roomData) {
+            const { roomId, scrollPosition } = JSON.parse(chatState);
+            if (parseInt(roomId) === parseInt(roomData.id)) {
+                console.log(`[${timestamp}] Restoring chat state: roomId=${roomId}, scrollPosition=${scrollPosition}`);
+                updateChatHeader(roomData);
+                chatMessages.innerHTML = ''; // Clear to ensure fresh messages
+                loadMessages(roomData.id, scrollPosition);
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Check if chat is already open and restore if possible
+    function restoreChatIfOpen(roomData) {
+        const timestamp = new Date().toISOString();
+        const currentRoomId = chatContent?.getAttribute('data-current-room-id');
+        if (currentRoomId && parseInt(currentRoomId) === parseInt(roomData.id) && chatContent.style.display === 'flex') {
+            console.log(`[${timestamp}] Chat for room ${roomData.id} already open, restoring state`);
+            updateChatHeader(roomData);
+            loadMessages(roomData.id); // Load messages without clearing if possible
+            return true;
+        }
+        return restoreChatState(roomData);
+    }
+
     // Mobile back button
     if (backButton) {
         backButton.addEventListener('click', function() {
@@ -188,31 +245,71 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
-    // Load rooms list (both direct chats and groups)
-    function loadContacts() {
-        console.log("Loading contacts...");
-        fetch('/api/rooms')
+
+    // Save chat state before page unload
+    window.addEventListener('beforeunload', saveChatState);
+
+    // Fetch user status immediately
+    function fetchUserStatus(userId, callback) {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] Fetching status for user ${userId}`);
+        fetch(`/api/user/${userId}/status`)
             .then(response => {
                 if (!response.ok) {
-                    throw new Error('Failed to load rooms');
+                    throw new Error(`Failed to fetch status for user ${userId}`);
                 }
                 return response.json();
             })
-            .then(rooms => {
-                console.log("Loaded rooms:", rooms.length);
-                contactsList.innerHTML = '';
-                rooms.forEach(function(room) {
-                    addRoomToList(room);
-                });
+            .then(data => {
+                const status = data.status === 'online' || data.status === 'offline' ? data.status : 'offline';
+                console.log(`[${timestamp}] Fetched status for user ${userId}: ${status}`);
+                window.shrekChatUtils.updateContactStatus(userId, status, 'api');
+                if (typeof callback === 'function') callback(status);
             })
             .catch(error => {
-                console.error('Error loading rooms:', error);
+                console.error(`[${timestamp}] Error fetching status for user ${userId}:`, error);
+                if (typeof callback === 'function') callback(null);
             });
     }
-    
-    // Refresh rooms list without clearing existing chats - used after adding a new room
+
+    // Load rooms list (both direct chats and groups) with periodic polling
+    function loadContacts() {
+        console.log("Loading contacts...");
+        function fetchRooms() {
+            const timestamp = new Date().toISOString();
+            fetch('/api/rooms')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Failed to load rooms');
+                    }
+                    return response.json();
+                })
+                .then(rooms => {
+                    console.log(`[${timestamp}] Loaded rooms:`, rooms.length);
+                    contactsList.innerHTML = '';
+                    rooms.forEach(room => {
+                        // Use cached status if available and fresher than API
+                        if (!room.is_group && room.user_id && window.shrekChatUtils.statusCache[room.user_id]) {
+                            const cached = window.shrekChatUtils.statusCache[room.user_id];
+                            room.status = cached.status;
+                            console.log(`[${timestamp}] Used cached status for user ${room.user_id}: ${room.status}`);
+                        }
+                        addRoomToList(room);
+                    });
+                })
+                .catch(error => {
+                    console.error(`[${timestamp}] Error loading rooms:`, error);
+                });
+        }
+
+        fetchRooms();
+        // Poll every 30 seconds for visible contacts
+        setInterval(fetchRooms, 30000);
+    }
+
+    // Refresh rooms list without clearing existing chats
     function refreshRoomsList() {
+        const timestamp = new Date().toISOString();
         fetch('/api/rooms')
             .then(response => {
                 if (!response.ok) {
@@ -224,32 +321,35 @@ document.addEventListener('DOMContentLoaded', function() {
                 const existingRoomIds = Array.from(
                     document.querySelectorAll('.contact-item')
                 ).map(el => el.getAttribute('data-room-id'));
-                
-                rooms.forEach(function(room) {
+                rooms.forEach(room => {
                     if (!existingRoomIds.includes(room.id.toString())) {
+                        // Use cached status if available
+                        if (!room.is_group && room.user_id && window.shrekChatUtils.statusCache[room.user_id]) {
+                            room.status = window.shrekChatUtils.statusCache[room.user_id].status;
+                            console.log(`[${timestamp}] Used cached status for new room user ${room.user_id}: ${room.status}`);
+                        }
                         addRoomToList(room);
                     }
                 });
             })
             .catch(error => {
-                console.error('Error refreshing rooms:', error);
+                console.error(`[${timestamp}] Error refreshing rooms:`, error);
             });
     }
-    
+
     // Add a single room to the list (direct chat or group)
     function addRoomToList(roomData) {
         const contactElement = document.createElement('div');
         contactElement.className = 'contact-item';
         contactElement.setAttribute('data-room-id', roomData.id);
-        
         if (roomData.is_group) {
             contactElement.setAttribute('data-is-group', 'true');
         } else {
             contactElement.setAttribute('data-user-id', roomData.user_id);
         }
-        
-        const statusClass = roomData.status || 'offline';
-        
+
+        const statusClass = (roomData.status === 'online' || roomData.status === 'offline') ? roomData.status : 'offline';
+
         contactElement.innerHTML = `
             <div class="contact-avatar">
                 <img src="${roomData.avatar || '/static/images/shrek.jpg'}" alt="${roomData.name} Avatar">
@@ -264,24 +364,36 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             ${roomData.unread_count > 0 ? `<div class="unread-count">${roomData.unread_count}</div>` : ''}
         `;
-        
+
         contactElement.addEventListener('click', function() {
             console.log("Contact clicked:", roomData.id, roomData.name);
             openChat(roomData);
         });
-        
+
         contactsList.appendChild(contactElement);
     }
-    
+
     // Open a chat room (direct or group)
     function openChat(roomData) {
-        console.log("openChat called with:", roomData);
-        
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] openChat called with:`, roomData);
+
         try {
+            // Check if the chat is already open
+            const currentRoomId = chatContent?.getAttribute('data-current-room-id');
+            if (currentRoomId && parseInt(currentRoomId) === parseInt(roomData.id) && chatContent.style.display === 'flex') {
+                console.log(`[${timestamp}] Chat for room ${roomData.id} already open, updating header only`);
+                updateChatHeader(roomData);
+                setupContactInfoHandler(roomData);
+                return;
+            }
+
+            // Clean up existing status listeners to prevent leaks
+            window.removeEventListener('status-update', window.currentStatusListener);
             document.querySelectorAll('.contact-item').forEach(contact => {
                 contact.classList.remove('active');
             });
-            
+
             const contactElement = document.querySelector(`.contact-item[data-room-id="${roomData.id}"]`);
             if (contactElement) {
                 contactElement.classList.add('active');
@@ -290,10 +402,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     unreadCount.remove();
                 }
             }
-            
+
             // Update chat header
             updateChatHeader(roomData);
-            
+
             // Set the current chat area data attributes
             if (chatContent) {
                 chatContent.setAttribute('data-current-room-id', roomData.id);
@@ -303,68 +415,85 @@ document.addEventListener('DOMContentLoaded', function() {
                     chatContent.removeAttribute('data-current-user-id');
                 }
             }
-            
+
             // Store room info in WebSocket module
             if (window.shrekChatWebSocket) {
                 window.shrekChatWebSocket.setCurrentRoom(
-                    roomData.id, 
-                    roomData.is_group, 
+                    roomData.id,
+                    roomData.is_group,
                     !roomData.is_group ? roomData.user_id : null
                 );
             }
-            
-            // Clear messages and show chat area
-            chatMessages.innerHTML = '';
+
+            // Show chat area
             if (welcomeContainer) welcomeContainer.style.display = 'none';
             if (chatContent) chatContent.style.display = 'flex';
-            
-            if (sidebar) {
-                sidebar.classList.remove('active');
+            if (sidebar) sidebar.classList.remove('active');
+
+            // Fetch latest status for direct chats
+            if (!roomData.is_group && roomData.user_id) {
+                fetchUserStatus(roomData.user_id, (status) => {
+                    if (status) {
+                        roomData.status = status; // Update roomData for header
+                        updateChatHeader(roomData);
+                    }
+                });
             }
-            
+
             // Connect WebSocket and load messages
             if (window.shrekChatWebSocket) {
                 window.shrekChatWebSocket.connectChatWebSocket(roomData.id, function() {
-                    // Load messages after WebSocket is connected
                     loadMessages(roomData.id);
-                }, false); // false = don't suppress UI updates
+                }, false);
             } else {
-                // Fallback if WebSocket module is not available
                 loadMessages(roomData.id);
             }
-            
+
             setupContactInfoHandler(roomData);
-            
+
+            // Persistent status update listener
+            window.currentStatusListener = function handler(event) {
+                if (!roomData.is_group && event.detail.userId === roomData.user_id) {
+                    roomData.status = event.detail.status;
+                    updateChatHeader(roomData);
+                    console.log(`[${timestamp}] Updated chat header for user ${roomData.user_id} to ${roomData.status} via status-update event`);
+                }
+            };
+            window.addEventListener('status-update', window.currentStatusListener);
         } catch (error) {
-            console.error("Error in openChat function:", error);
+            console.error(`[${timestamp}] Error in openChat function:`, error);
         }
     }
-    
+
     // Update chat header with contact info
     function updateChatHeader(roomData) {
+        const timestamp = new Date().toISOString();
         const chatContactNameElement = document.getElementById('chatContactName');
         const chatContactStatusElement = document.getElementById('chatContactPresence');
         const chatContactAvatarElement = document.getElementById('chatContactAvatar');
-        
+
         if (!chatContactNameElement || !chatContactStatusElement || !chatContactAvatarElement) {
-            console.error("Critical DOM elements missing for chat header update");
+            console.error(`[${timestamp}] Critical DOM elements missing for chat header update`);
             return;
         }
-        
+
         chatContactNameElement.textContent = roomData.name || roomData.username || roomData.full_name || 'Chat';
-        
+
         if (!roomData.is_group) {
-            const statusText = roomData.status === 'online' ? 'Online' : 'Offline';
-            chatContactStatusElement.textContent = statusText;
-            chatContactStatusElement.className = `status-text ${roomData.status || 'offline'}`;
+            // Use cached status if available
+            const cachedStatus = roomData.user_id && window.shrekChatUtils.statusCache[roomData.user_id]?.status;
+            const statusText = cachedStatus || (roomData.status === 'online' || roomData.status === 'offline' ? roomData.status : 'offline');
+            chatContactStatusElement.textContent = statusText === 'online' ? 'Online' : 'Offline';
+            chatContactStatusElement.className = `status-text ${statusText}`;
+            console.log(`[${timestamp}] Updated chat header status for user ${roomData.user_id}: ${statusText} (cached: ${!!cachedStatus})`);
         } else {
             chatContactStatusElement.textContent = 'Group';
             chatContactStatusElement.className = 'status-text group';
         }
-        
+
         chatContactAvatarElement.src = roomData.avatar || '/static/images/shrek.jpg';
     }
-    
+
     // Setup handler for contact info button
     function setupContactInfoHandler(roomData) {
         const viewContactInfo = document.getElementById('viewContactInfo');
@@ -391,7 +520,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
         }
-        
+
         // Setup clear chat functionality
         const clearChatItem = document.getElementById('clearChat');
         if (clearChatItem) {
@@ -412,53 +541,47 @@ document.addEventListener('DOMContentLoaded', function() {
                             return;
                         }
 
-                        // Clear chat using API
                         fetch(`/api/rooms/${currentRoomId}/messages`, {
                             method: 'DELETE'
                         })
-                        .then(response => {
-                            if (!response.ok) {
-                                throw new Error('Failed to clear chat');
-                            }
-                            return response.json();
-                        })
-                        .then(data => {
-                            console.log('Chat cleared:', data);
-
-                            // Clear messages from UI
-                            chatMessages.innerHTML = '';
-
-                            // Update last message in the sidebar
-                            if (window.shrekChatUtils) {
-                                window.shrekChatUtils.updateLastMessage(currentRoomId, 'Chat cleared', null);
-                            }
-
-                            Swal.fire({
-                                icon: 'success',
-                                title: 'Chat Cleared',
-                                text: 'All messages have been successfully cleared.',
-                                confirmButtonText: 'OK'
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to clear chat');
+                                }
+                                return response.json();
+                            })
+                            .then(data => {
+                                console.log('Chat cleared:', data);
+                                chatMessages.innerHTML = '';
+                                if (window.shrekChatUtils) {
+                                    window.shrekChatUtils.updateLastMessage(currentRoomId, 'Chat cleared', null);
+                                }
+                                Swal.fire({
+                                    icon: 'success',
+                                    title: 'Chat Cleared',
+                                    text: 'All messages have been successfully cleared.',
+                                    confirmButtonText: 'OK'
+                                });
+                            })
+                            .catch(error => {
+                                console.error('Error clearing chat:', error);
+                                Swal.fire({
+                                    icon: 'error',
+                                    title: 'Error',
+                                    text: 'Failed to clear chat. Please try again.',
+                                    confirmButtonText: 'OK'
+                                });
                             });
-                        })
-                        .catch(error => {
-                            console.error('Error clearing chat:', error);
-                            Swal.fire({
-                                icon: 'error',
-                                title: 'Error',
-                                text: 'Failed to clear chat. Please try again.',
-                                confirmButtonText: 'OK'
-                            });
-                        });
                     }
                 });
-                
+
                 const dropdownMenu = document.querySelector('.dropdown-menu.active');
                 if (dropdownMenu) {
                     dropdownMenu.classList.remove('active');
                 }
             });
         }
-        
+
         const chatContactInfo = document.querySelector('.chat-contact-info');
         if (chatContactInfo) {
             const newChatContactInfo = chatContactInfo.cloneNode(true);
@@ -479,25 +602,51 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-    
+
     // Display contact info popup
     function showContactInfo(userData) {
+        const timestamp = new Date().toISOString();
         contactInfoName.textContent = userData.full_name || userData.username;
         contactInfoUsername.textContent = userData.username;
         contactInfoEmail.textContent = userData.email || 'No email provided';
         contactInfoAvatar.src = userData.avatar || '/static/images/shrek.jpg';
-        contactInfoStatus.textContent = userData.status === 'online' ? 'Online' : 'Offline';
-        contactInfoStatus.className = `status-text ${userData.status || 'offline'}`;
+        const cachedStatus = userData.user_id && window.shrekChatUtils.statusCache[userData.user_id]?.status;
+        const statusText = cachedStatus || (userData.status === 'online' || userData.status === 'offline' ? userData.status : 'offline');
+        contactInfoStatus.textContent = statusText === 'online' ? 'Online' : 'Offline';
+        contactInfoStatus.className = `status-text ${statusText}`;
         contactInfoPopup.setAttribute('data-user-id', userData.user_id);
         contactInfoPopup.classList.add('open');
         overlay.classList.add('active');
+        console.log(`[${timestamp}] Showing contact info for user ${userData.user_id} with status ${statusText} (cached: ${!!cachedStatus})`);
     }
-    
+
     // Load messages for a room
-    function loadMessages(roomId) {
-        console.log("Loading messages for room:", roomId);
+    function loadMessages(roomId, restoreScrollPosition = null) {
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] Loading messages for room:`, roomId);
+
+        // Check if messages are already loaded
+        const existingMessages = document.querySelectorAll(`.message[data-message-id]`).length > 0;
+        if (existingMessages && chatContent.getAttribute('data-current-room-id') === roomId.toString()) {
+            console.log(`[${timestamp}] Messages already loaded for room ${roomId}, updating read receipts only`);
+            // Update read receipts for unread messages
+            const unreadMessageIds = Array.from(document.querySelectorAll(`.message[data-message-id]`))
+                .filter(msg => !msg.querySelector('.message-status-double.read') && !msg.classList.contains('incoming'))
+                .map(msg => msg.getAttribute('data-message-id'));
+            if (unreadMessageIds.length > 0 && window.shrekChatWebSocket) {
+                console.log(`[${timestamp}] Sending read receipts for existing messages:`, unreadMessageIds);
+                window.shrekChatWebSocket.sendReadReceipts(roomId, unreadMessageIds);
+                unreadMessageIds.forEach(id => {
+                    if (window.shrekChatUtils) {
+                        window.shrekChatUtils.updateMessageStatus(id, "read");
+                    }
+                });
+            }
+            return;
+        }
+
         chatMessages.innerHTML = '<div class="loading-messages">Loading messages...</div>';
-        
+
         fetch(`/api/messages/${roomId}`)
             .then(response => {
                 if (!response.ok) {
@@ -507,7 +656,6 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(messages => {
                 chatMessages.innerHTML = '';
-                
                 if (messages.length === 0) {
                     chatMessages.innerHTML = '';
                 } else {
@@ -515,86 +663,91 @@ document.addEventListener('DOMContentLoaded', function() {
                         displayMessage(message);
                     });
                 }
-                
-                // Send read receipts for all unread messages that aren't from current user
+
                 const unreadMessageIds = messages
                     .filter(msg => msg.sender !== 'user' && !msg.read)
                     .map(msg => msg.id);
-                
+
                 if (unreadMessageIds.length > 0 && window.shrekChatWebSocket) {
-                    console.log("Sending read receipts for messages:", unreadMessageIds);
+                    console.log(`[${timestamp}] Sending read receipts for messages:`, unreadMessageIds);
                     window.shrekChatWebSocket.sendReadReceipts(roomId, unreadMessageIds);
-                    
-                    // Also mark these as read in the UI
                     unreadMessageIds.forEach(id => {
                         if (window.shrekChatUtils) {
                             window.shrekChatUtils.updateMessageStatus(id, "read");
                         }
                     });
                 }
-                
-                // Scroll to bottom
-                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+                requestAnimationFrame(() => {
+                    if (restoreScrollPosition !== null) {
+                        chatMessages.scrollTop = restoreScrollPosition;
+                        console.log(`[${timestamp}] Restored scroll position to ${restoreScrollPosition}`);
+                    } else {
+                        const isNearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 100;
+                        if (isNearBottom) {
+                            chatMessages.scrollTop = chatMessages.scrollHeight;
+                            console.log(`[${timestamp}] Scrolled to bottom for initial message load`);
+                        } else {
+                            console.log(`[${timestamp}] Not scrolling: User is viewing older messages`);
+                        }
+                    }
+                });
             })
             .catch(error => {
-                console.error('Error loading messages:', error);
+                console.error(`[${timestamp}] Error loading messages:`, error);
                 chatMessages.innerHTML = '<div class="error-messages">Failed to load messages. Please try again.</div>';
             });
     }
-    
+
     // Display a message in the chat
     function displayMessage(message) {
-        console.log("displayMessage called with:", message);
-        
-        // More robust duplicate message checking
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] displayMessage called with:`, message);
+
         if (message.id && document.querySelector(`.message[data-message-id="${message.id}"]`)) {
-            console.log("Skipping duplicate message:", message.id);
+            console.log(`[${timestamp}] Skipping duplicate message:`, message.id);
             return;
         }
-        
-        // Handle temp messages separately to avoid duplicates
+
         if (message.temp_id && document.querySelector(`.message[data-message-id="${message.temp_id}"]`)) {
-            console.log("This is a temp message we've already displayed:", message.temp_id);
+            console.log(`[${timestamp}] This is a temp message we've already displayed:`, message.temp_id);
             return;
         }
-        
-        const isRoomGroup = window.shrekChatWebSocket ? 
-                           window.shrekChatWebSocket.getCurrentRoomIsGroup() : 
-                           message.is_group || false;
-        
-        const templateToUse = isRoomGroup ? 
-            document.getElementById('groupMessageTemplate') : 
+
+        const isRoomGroup = window.shrekChatWebSocket ?
+            window.shrekChatWebSocket.getCurrentRoomIsGroup() :
+            message.is_group || false;
+
+        const templateToUse = isRoomGroup ?
+            document.getElementById('groupMessageTemplate') :
             messageTemplate;
-        
+
         if (!templateToUse) {
-            console.error("Message template not found for", isRoomGroup ? "group" : "direct", "message");
+            console.error(`[${timestamp}] Message template not found for`, isRoomGroup ? "group" : "direct", "message");
             return;
         }
-        
+
         try {
             const messageElement = templateToUse.content.cloneNode(true);
             const messageDiv = messageElement.querySelector('.message');
             const messageContent = messageElement.querySelector('.message-content');
             const messageTime = messageElement.querySelector('.message-time');
-            
-            // Apply message content safely
+
             messageContent.textContent = message.content;
-            messageTime.textContent = message.time || (window.shrekChatUtils ? 
-                                     window.shrekChatUtils.formatTime(new Date()) : 
-                                     new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false}));
-            
-            // Set message ID for future reference
+            messageTime.textContent = message.time || (window.shrekChatUtils ?
+                window.shrekChatUtils.formatTime(new Date()) :
+                new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }));
+
             if (message.id) {
                 messageDiv.setAttribute('data-message-id', message.id);
             } else if (message.temp_id) {
                 messageDiv.setAttribute('data-message-id', message.temp_id);
                 messageDiv.setAttribute('data-temp-message', 'true');
             }
-            
-            // Determine if this message is from the current user
+
             let isCurrentUser = false;
             const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
-            
+
             if (message._isOptimistic === true) {
                 isCurrentUser = true;
             } else if (message.sender === 'user') {
@@ -602,29 +755,24 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentUsername) {
                 isCurrentUser = message.sender === currentUsername;
             }
-            
-            console.log(`Message from ${message.sender}, currentUsername: ${currentUsername}, isCurrentUser: ${isCurrentUser}`);
-            
-            // For group messages, show sender name
+
+            console.log(`[${timestamp}] Message from ${message.sender}, currentUsername: ${currentUsername}, isCurrentUser: ${isCurrentUser}`);
+
             if (isRoomGroup) {
                 const messageSender = messageElement.querySelector('.message-sender');
                 if (messageSender) {
                     messageSender.textContent = isCurrentUser ? "You" : (message.sender_name || message.sender);
                 }
             }
-            
-            // Style and add status indicators for outgoing messages
-            if (isCurrentUser) {                
+
+            if (isCurrentUser) {
                 messageDiv.classList.add('outgoing');
-                
                 if (!isRoomGroup) {
                     const messageStatusSingle = messageElement.querySelector('.message-status-single');
                     const messageStatusDouble = messageElement.querySelector('.message-status-double');
-                    
                     if (messageStatusSingle && messageStatusDouble) {
-                        const messageStatus = message.status || 
-                                             (message.delivered ? (message.read ? 'read' : 'delivered') : 'sent');
-                        
+                        const messageStatus = message.status ||
+                            (message.delivered ? (message.read ? 'read' : 'delivered') : 'sent');
                         if (messageStatus === 'sent' || !message.delivered) {
                             messageStatusSingle.style.display = 'inline';
                             messageStatusDouble.style.display = 'none';
@@ -637,12 +785,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             messageStatusDouble.classList.add('read');
                             messageStatusSingle.style.display = 'none';
                         }
-                        
-                        // Check if there's a pending status update for this message
                         if (window.pendingMessageStatuses && message.id && window.pendingMessageStatuses[message.id]) {
                             const pendingStatus = window.pendingMessageStatuses[message.id];
-                            console.log(`Applying pending status update for message ${message.id}: ${pendingStatus}`);
-                            
+                            console.log(`[${timestamp}] Applying pending status update for message ${message.id}: ${pendingStatus}`);
                             if (pendingStatus === 'read') {
                                 messageStatusDouble.style.display = 'inline';
                                 messageStatusDouble.classList.add('read');
@@ -652,66 +797,59 @@ document.addEventListener('DOMContentLoaded', function() {
                                 messageStatusDouble.classList.remove('read');
                                 messageStatusSingle.style.display = 'none';
                             }
-                            
                             delete window.pendingMessageStatuses[message.id];
                         }
                     }
                 }
             } else {
                 messageDiv.classList.add('incoming');
-                // Remove any status indicators for incoming messages
                 const statusIndicators = messageElement.querySelectorAll('.message-status');
                 statusIndicators.forEach(indicator => indicator.remove());
             }
-            
-            // Append the message to the chat
+
             chatMessages.appendChild(messageElement);
 
-            // Ensure new messages are visible without jumping
-            const isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
-            if (isAtBottom) {
+            const isNearBottom = chatMessages.scrollHeight - chatMessages.scrollTop - chatMessages.clientHeight < 100;
+            if (isNearBottom || isCurrentUser) {
                 requestAnimationFrame(() => {
                     chatMessages.scrollTop = chatMessages.scrollHeight;
+                    console.log(`[${timestamp}] Scrolled to bottom for ${isCurrentUser ? 'user-sent' : 'near-bottom'} message`);
                 });
+            } else {
+                console.log(`[${timestamp}] Not scrolling: User is not near bottom and message is not from current user`);
             }
-            
         } catch (error) {
-            console.error("Error displaying message:", error, message);
+            console.error(`[${timestamp}] Error displaying message:`, error, message);
         }
     }
-    
+
     // Send message function
     function sendMessage() {
+        const timestamp = new Date().toISOString();
         const message = messageInput.value.trim();
-        
         if (!message) {
-            return; // Don't send empty messages
-        }
-        
-        const currentRoomId = chatContent.getAttribute('data-current-room-id');
-        if (!currentRoomId) {
-            console.log("Please select a contact or group first.");
             return;
         }
-        
-        // Clear input field before sending
+
+        const currentRoomId = chatContent.getAttribute('data-current-room-id');
+        if (!currentRoomId) {
+            console.log(`[${timestamp}] Please select a contact or group first.`);
+            return;
+        }
+
         messageInput.value = '';
-        
-        // Check if WebSocket is available
+
         if (!window.shrekChatWebSocket) {
-            console.error("WebSocket module not available");
+            console.error(`[${timestamp}] WebSocket module not available`);
             const errorMsg = document.createElement('div');
             errorMsg.className = 'system-message error';
             errorMsg.textContent = "Failed to send message. Please try again.";
             chatMessages.appendChild(errorMsg);
             return;
         }
-        
-        // Send via WebSocket
+
         const result = window.shrekChatWebSocket.sendChatMessage(message, currentRoomId);
-        
         if (result && result.success) {
-            // Create optimistic message to show immediately
             const isRoomGroup = window.shrekChatWebSocket.getCurrentRoomIsGroup();
             const optimisticMessage = {
                 temp_id: result.tempId,
@@ -724,26 +862,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 is_group: isRoomGroup,
                 _isOptimistic: true
             };
-            
-            // Show message in UI immediately
             displayMessage(optimisticMessage);
-            
-            // Update last message in the sidebar
             if (window.shrekChatUtils) {
                 window.shrekChatUtils.updateLastMessage(currentRoomId, message, result.timeStr);
             }
-            
-            // Scroll to see the new message
-            requestAnimationFrame(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            });
-            
-            // Set a timeout to check for confirmation
             setTimeout(() => {
                 const tempMessage = document.querySelector(`.message[data-message-id="${result.tempId}"][data-temp-message="true"]`);
                 if (tempMessage) {
-                    console.log("No confirmation received for message:", result.tempId, "- may need to resend");
-                    // Add a visual indicator that message might not have sent
+                    console.log(`[${timestamp}] No confirmation received for message:`, result.tempId, "- may need to resend");
                     const statusIndicator = tempMessage.querySelector('.message-status-single');
                     if (statusIndicator) {
                         statusIndicator.classList.add('warning');
@@ -751,17 +877,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }, 5000);
         } else {
-            // Show error to user
             const errorMsg = document.createElement('div');
             errorMsg.className = 'system-message error';
             errorMsg.textContent = "Failed to send message. Please try again.";
             chatMessages.appendChild(errorMsg);
         }
     }
-    
+
     // Add debugging logs for Add Friend functionality
     function addFriend(usernameToAdd) {
-        console.log("Attempting to add friend:", usernameToAdd);
+        const timestamp = new Date().toISOString();
+        console.log(`[${timestamp}] Attempting to add friend:`, usernameToAdd);
 
         fetch('/api/rooms/direct', {
             method: 'POST',
@@ -770,30 +896,29 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({ username_to_add: usernameToAdd })
         })
-        .then(response => {
-            console.log("Add Friend API response status:", response.status);
-            if (!response.ok) {
-                throw new Error(`Failed to add friend. Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            console.log("Friend added successfully:", data);
-            // Optionally refresh the rooms list
-            if (window.refreshRoomsList) {
-                window.refreshRoomsList();
-            }
-        })
-        .catch(error => {
-            console.error("Error adding friend:", error);
-        });
+            .then(response => {
+                console.log(`[${timestamp}] Add Friend API response status:`, response.status);
+                if (!response.ok) {
+                    throw new Error(`Failed to add friend. Status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log(`[${timestamp}] Friend added successfully:`, data);
+                if (window.refreshRoomsList) {
+                    window.refreshRoomsList();
+                }
+            })
+            .catch(error => {
+                console.error(`[${timestamp}] Error adding friend:`, error);
+            });
     }
 
     // Event listeners
     if (sendMessageBtn) {
         sendMessageBtn.addEventListener('click', sendMessage);
     }
-    
+
     if (messageInput) {
         messageInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
@@ -801,7 +926,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     if (closeContactInfoPopup) {
         closeContactInfoPopup.addEventListener('click', function() {
             contactInfoPopup.classList.remove('open');
@@ -809,7 +934,7 @@ document.addEventListener('DOMContentLoaded', function() {
             contactInfoPopup.removeAttribute('data-user-id');
         });
     }
-    
+
     if (closeInfoButton) {
         closeInfoButton.addEventListener('click', function() {
             contactInfoPopup.classList.remove('open');
@@ -817,16 +942,14 @@ document.addEventListener('DOMContentLoaded', function() {
             contactInfoPopup.removeAttribute('data-user-id');
         });
     }
-    
+
     if (searchInput) {
         searchInput.addEventListener('input', function() {
             const searchTerm = this.value.toLowerCase();
             const contacts = document.querySelectorAll('.contact-item');
-            
             contacts.forEach(function(contact) {
                 const name = contact.querySelector('h4').textContent.toLowerCase();
                 const lastMessage = contact.querySelector('.last-message').textContent.toLowerCase();
-                
                 if (name.includes(searchTerm) || lastMessage.includes(searchTerm)) {
                     contact.style.display = 'flex';
                 } else {
@@ -836,43 +959,38 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle dropdowns
     document.querySelectorAll('.dropdown-toggle').forEach(function(toggle) {
         toggle.addEventListener('click', function(e) {
             e.stopPropagation();
-            
             const menu = this.nextElementSibling;
             menu.classList.toggle('active');
-            
             document.querySelectorAll('.dropdown-menu.active').forEach(function(otherMenu) {
                 if (otherMenu !== menu) {
                     otherMenu.classList.remove('active');
                 }
             });
-            
             document.addEventListener('click', function closeDropdown() {
                 menu.classList.remove('active');
                 document.removeEventListener('click', closeDropdown);
             });
         });
     });
-    
+
     // Initialize chat
     console.log("Initializing chat...");
     loadContacts();
-    
-    // Initialize WebSockets if the module is available
+
     if (window.shrekChatWebSocket) {
         window.shrekChatWebSocket.initializeWebSockets();
     } else {
         console.error("WebSocket module not loaded!");
     }
-    
-    // Expose functions for other modules to use
+
     window.refreshRoomsList = refreshRoomsList;
     window.addRoomToList = addRoomToList;
     window.openChat = openChat;
     window.displayMessage = displayMessage;
-    
+    window.restoreChatIfOpen = restoreChatIfOpen;
+
     console.log("Chat initialization complete");
 });
