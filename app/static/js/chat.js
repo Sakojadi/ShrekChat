@@ -4,6 +4,121 @@
 
 console.log("Script execution started");
 
+// Utility functions for chat operations
+window.shrekChatUtils = {
+    updateContactStatus: function(userId, status) {
+        console.log(`Updating status for user ${userId} to ${status}`);
+        
+        // Update contact in sidebar
+        const contactElement = document.querySelector(`.contact-item[data-user-id="${userId}"]`);
+        if (contactElement) {
+            const statusIndicator = contactElement.querySelector('.status-indicator');
+            if (statusIndicator) {
+                statusIndicator.classList.remove('online', 'offline');
+                statusIndicator.classList.add(status || 'offline');
+            } else {
+                console.warn(`Status indicator not found for user ${userId} in sidebar`);
+            }
+        } else {
+            console.warn(`Contact element not found for user ${userId} in sidebar`);
+        }
+        
+        // Update chat header if this user is currently open
+        const chatContent = document.getElementById('chatContent');
+        const currentUserId = chatContent?.getAttribute('data-current-user-id');
+        if (currentUserId && parseInt(currentUserId) === parseInt(userId)) {
+            const chatContactStatus = document.getElementById('chatContactPresence');
+            if (chatContactStatus) {
+                chatContactStatus.textContent = status === 'online' ? 'Online' : 'Offline';
+                chatContactStatus.className = `status-text ${status || 'offline'}`;
+            } else {
+                console.warn(`Chat contact status element not found for user ${userId}`);
+            }
+        }
+        
+        // Update contact info popup if open
+        const contactInfoPopup = document.getElementById('contactInfoPopup');
+        if (contactInfoPopup.classList.contains('open')) {
+            const contactInfoUserId = contactInfoPopup.getAttribute('data-user-id');
+            if (contactInfoUserId && parseInt(contactInfoUserId) === parseInt(userId)) {
+                const contactInfoStatus = document.getElementById('contactInfoStatus');
+                if (contactInfoStatus) {
+                    contactInfoStatus.textContent = status === 'online' ? 'Online' : 'Offline';
+                    contactInfoStatus.className = `status-text ${status || 'offline'}`;
+                } else {
+                    console.warn(`Contact info status element not found for user ${userId}`);
+                }
+            }
+        }
+        
+        // Dispatch custom event for other modules
+        const statusEvent = new CustomEvent('status-update', {
+            detail: { userId, status }
+        });
+        window.dispatchEvent(statusEvent);
+    },
+    
+    updateLastMessage: function(roomId, content, time) {
+        const contactElement = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
+        if (contactElement) {
+            const lastMessage = contactElement.querySelector('.last-message');
+            const messageTime = contactElement.querySelector('.message-time');
+            if (lastMessage) {
+                lastMessage.textContent = content || 'No messages';
+            }
+            if (messageTime && time) {
+                messageTime.textContent = time;
+            }
+        }
+    },
+    
+    incrementUnreadCount: function(roomId) {
+        const contactElement = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
+        if (contactElement) {
+            let unreadCountElement = contactElement.querySelector('.unread-count');
+            if (!unreadCountElement) {
+                unreadCountElement = document.createElement('div');
+                unreadCountElement.className = 'unread-count';
+                contactElement.appendChild(unreadCountElement);
+            }
+            const currentCount = parseInt(unreadCountElement.textContent) || 0;
+            unreadCountElement.textContent = currentCount + 1;
+        }
+    },
+    
+    updateMessageStatus: function(messageId, status) {
+        const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+        if (messageElement) {
+            const messageStatusSingle = messageElement.querySelector('.message-status-single');
+            const messageStatusDouble = messageElement.querySelector('.message-status-double');
+            if (messageStatusSingle && messageStatusDouble) {
+                if (status === 'read') {
+                    messageStatusDouble.style.display = 'inline';
+                    messageStatusDouble.classList.add('read');
+                    messageStatusSingle.style.display = 'none';
+                } else if (status === 'delivered') {
+                    messageStatusDouble.style.display = 'inline';
+                    messageStatusDouble.classList.remove('read');
+                    messageStatusSingle.style.display = 'none';
+                } else if (status === 'sent') {
+                    messageStatusSingle.style.display = 'inline';
+                    messageStatusDouble.style.display = 'none';
+                }
+            }
+        } else {
+            // Store pending status update
+            if (!window.pendingMessageStatuses) {
+                window.pendingMessageStatuses = {};
+            }
+            window.pendingMessageStatuses[messageId] = status;
+        }
+    },
+    
+    formatTime: function(date) {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    }
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     console.log("DOM loaded - chat.js");
 
@@ -208,7 +323,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
             
             // Connect WebSocket and load messages
-            // Use the new callback parameter to ensure WebSocket is connected before sending read receipts
             if (window.shrekChatWebSocket) {
                 window.shrekChatWebSocket.connectChatWebSocket(roomData.id, function() {
                     // Load messages after WebSocket is connected
@@ -374,6 +488,7 @@ document.addEventListener('DOMContentLoaded', function() {
         contactInfoAvatar.src = userData.avatar || '/static/images/shrek.jpg';
         contactInfoStatus.textContent = userData.status === 'online' ? 'Online' : 'Offline';
         contactInfoStatus.className = `status-text ${userData.status || 'offline'}`;
+        contactInfoPopup.setAttribute('data-user-id', userData.user_id);
         contactInfoPopup.classList.add('open');
         overlay.classList.add('active');
     }
@@ -394,7 +509,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 chatMessages.innerHTML = '';
                 
                 if (messages.length === 0) {
-                    // Empty chat - just leave it blank
                     chatMessages.innerHTML = '';
                 } else {
                     messages.forEach(message => {
@@ -474,26 +588,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 messageDiv.setAttribute('data-message-id', message.id);
             } else if (message.temp_id) {
                 messageDiv.setAttribute('data-message-id', message.temp_id);
-                // Mark it as temporary for later updating
                 messageDiv.setAttribute('data-temp-message', 'true');
             }
             
-            // Determine if this message is from the current user - FIXED LOGIC
+            // Determine if this message is from the current user
             let isCurrentUser = false;
-            
-            // Get current username from the profile sidebar
             const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
             
-            // Case 1: For our own messages with temp_id or marked as optimistic
             if (message._isOptimistic === true) {
                 isCurrentUser = true;
-            } 
-            // Case 2: For messages with special "user" marker from the server
-            else if (message.sender === 'user') {
+            } else if (message.sender === 'user') {
                 isCurrentUser = true;
-            }
-            // Case 3: For regular messages, check sender against current username
-            else if (currentUsername) {
+            } else if (currentUsername) {
                 isCurrentUser = message.sender === currentUsername;
             }
             
@@ -537,7 +643,6 @@ document.addEventListener('DOMContentLoaded', function() {
                             const pendingStatus = window.pendingMessageStatuses[message.id];
                             console.log(`Applying pending status update for message ${message.id}: ${pendingStatus}`);
                             
-                            // Apply the pending status
                             if (pendingStatus === 'read') {
                                 messageStatusDouble.style.display = 'inline';
                                 messageStatusDouble.classList.add('read');
@@ -548,7 +653,6 @@ document.addEventListener('DOMContentLoaded', function() {
                                 messageStatusSingle.style.display = 'none';
                             }
                             
-                            // Remove the pending status now that it's been applied
                             delete window.pendingMessageStatuses[message.id];
                         }
                     }
@@ -562,11 +666,14 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Append the message to the chat
             chatMessages.appendChild(messageElement);
-            
-            // Ensure new messages are visible - using requestAnimationFrame for better scrolling
-            requestAnimationFrame(() => {
-                chatMessages.scrollTop = chatMessages.scrollHeight;
-            });
+
+            // Ensure new messages are visible without jumping
+            const isAtBottom = chatMessages.scrollHeight - chatMessages.scrollTop === chatMessages.clientHeight;
+            if (isAtBottom) {
+                requestAnimationFrame(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                });
+            }
             
         } catch (error) {
             console.error("Error displaying message:", error, message);
@@ -699,6 +806,7 @@ document.addEventListener('DOMContentLoaded', function() {
         closeContactInfoPopup.addEventListener('click', function() {
             contactInfoPopup.classList.remove('open');
             overlay.classList.remove('active');
+            contactInfoPopup.removeAttribute('data-user-id');
         });
     }
     
@@ -706,6 +814,7 @@ document.addEventListener('DOMContentLoaded', function() {
         closeInfoButton.addEventListener('click', function() {
             contactInfoPopup.classList.remove('open');
             overlay.classList.remove('active');
+            contactInfoPopup.removeAttribute('data-user-id');
         });
     }
     

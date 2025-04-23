@@ -23,6 +23,28 @@ function wsLog(message, data = null) {
     }
 }
 
+// Observe messages for visibility and send read receipts
+function observeMessagesForRead() {
+    const messages = document.querySelectorAll('.message[data-message-id]');
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+                const messageElement = entry.target;
+                const messageId = messageElement.getAttribute('data-message-id');
+                const isRead = messageElement.querySelector('.message-status-double.read');
+                if (!isRead && currentRoomId) {
+                    wsLog(`Message ${messageId} is visible, sending read receipt`);
+                    sendReadReceipts(currentRoomId, [messageId]);
+                }
+            }
+        });
+    }, {
+        root: document.getElementById('chatMessages'),
+        threshold: 0.5 // Trigger when 50% of the message is visible
+    });
+    messages.forEach((message) => observer.observe(message));
+}
+
 // Initialize WebSocket - Should be called on page load
 function initializeWebSockets() {
     wsLog("Initializing WebSockets...");
@@ -221,6 +243,9 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false)
                         clearInterval(heartbeatInterval);
                     });
                     
+                    // Start observing messages for read receipts
+                    observeMessagesForRead();
+                    
                     // Call the callback if provided
                     if (typeof onConnectCallback === 'function') {
                         onConnectCallback();
@@ -271,7 +296,24 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
             if (data.type === "message") {
                 handleChatMessage(data);
             } else if (data.type === "message_read") {
-                handleMessageRead(data);
+                const messageIds = Array.isArray(data.message_ids) ? data.message_ids : [data.message_id];
+                messageIds.forEach((id) => {
+                    const messageElement = document.querySelector(`.message[data-message-id="${id}"]`);
+                    if (!messageElement) {
+                        wsLog(`Message element for ID ${id} not found in DOM`);
+                        return;
+                    }
+                    const messageStatusDouble = messageElement.querySelector('.message-status-double');
+                    const messageStatusSingle = messageElement.querySelector('.message-status-single');
+                    if (!messageStatusDouble || !messageStatusSingle) {
+                        wsLog(`Status elements missing for message ${id}`);
+                        return;
+                    }
+                    messageStatusDouble.classList.add('read');
+                    messageStatusDouble.style.display = 'inline';
+                    messageStatusSingle.style.display = 'none';
+                    wsLog(`Updated message ${id} to read status`);
+                });
             } else if (data.type === "typing") {
                 handleTypingIndicator(data);
             } else if (data.type === "status") {
@@ -283,22 +325,17 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
             } else if (data.type === "chat_cleared") {
                 handleChatCleared(data);
             } else if (data.type === "pong") {
-                // Heartbeat response - nothing to do
                 wsLog("Received pong response");
             } else if (data.type === "error") {
                 console.error("WebSocket error from server:", data.error || data.message);
-                // Display error to user in console
                 if (data.message_id) {
                     console.error(`Error with message ID ${data.message_id}: ${data.error || data.message}`);
                 }
             } else if (data.type === "message_updated") {
-                // Handle message update notification
                 handleMessageUpdated(data);
             } else if (data.type === "message_deleted") {
-                // Handle message deletion notification
                 handleMessageDeleted(data);
             } else if (data.type === "group_deleted") {
-                // Handle group deletion notification
                 handleGroupDeleted(data);
             }
         } catch (error) {
@@ -375,13 +412,14 @@ function handleChatMessage(data) {
                 wsLog("Temp message not found in DOM, displaying as new message");
                 if (window.displayMessage) {
                     window.displayMessage(message);
+                    observeMessagesForRead(); // Observe new message
                 }
             }
         } else {
             if (window.displayMessage) {
                 window.displayMessage(message);
+                observeMessagesForRead(); // Observe new message
             }
-
             const messageElement = document.querySelector(`.message[data-message-id="${message.id}"]`);
             if (messageElement) {
                 const messageStatusSingle = messageElement.querySelector('.message-status-single');
@@ -430,8 +468,6 @@ function handleMessageRead(data) {
         }
         
         // After updating messages, update the chat interface
-        // This is needed specifically for the case where User B needs to see
-        // that User A has read their messages without a page reload
         if (data.room_id && data.room_id === currentRoomId) {
             wsLog("Updating read receipts in current chat view");
         }
@@ -596,6 +632,21 @@ function sendReadReceipts(roomId, messageIds) {
     
     wsLog(`Sending read receipts for messages: ${messageIds.join(', ')}`);
     
+    // Optimistically update UI
+    messageIds.forEach((id) => {
+        const messageElement = document.querySelector(`.message[data-message-id="${id}"]`);
+        if (messageElement) {
+            const messageStatusDouble = messageElement.querySelector('.message-status-double');
+            const messageStatusSingle = messageElement.querySelector('.message-status-single');
+            if (messageStatusDouble && messageStatusSingle) {
+                messageStatusDouble.classList.add('read');
+                messageStatusDouble.style.display = 'inline';
+                messageStatusSingle.style.display = 'none';
+                wsLog(`Optimistically updated message ${id} to read`);
+            }
+        }
+    });
+    
     const readData = {
         type: "seen",
         room_id: roomId,
@@ -607,6 +658,19 @@ function sendReadReceipts(roomId, messageIds) {
         return true;
     } catch (error) {
         console.error("Error sending read receipts:", error);
+        // Revert optimistic update
+        messageIds.forEach((id) => {
+            const messageElement = document.querySelector(`.message[data-message-id="${id}"]`);
+            if (messageElement) {
+                const messageStatusDouble = messageElement.querySelector('.message-status-double');
+                const messageStatusSingle = messageElement.querySelector('.message-status-single');
+                if (messageStatusDouble && messageStatusSingle) {
+                    messageStatusDouble.classList.remove('read');
+                    messageStatusDouble.style.display = 'none';
+                    messageStatusSingle.style.display = 'inline';
+                }
+            }
+        });
         return false;
     }
 }
@@ -620,7 +684,6 @@ function setCurrentRoom(roomId, isGroup, userId) {
     
     // Only store the current room ID when explicitly changing rooms via UI actions
     // Don't update localStorage for WebSocket events or notifications
-    // Check if this is a user-initiated action (not a WebSocket notification)
     const isUserAction = document.getElementById('chatContent')?.style.display === 'flex';
     if (roomId && isUserAction) {
         localStorage.setItem('lastOpenedRoomId', roomId);
