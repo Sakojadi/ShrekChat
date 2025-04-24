@@ -406,7 +406,10 @@ document.addEventListener('DOMContentLoaded', function() {
             // Update chat header
             updateChatHeader(roomData);
 
-            // Set the current chat area data attributes
+            // Clear chat messages before loading new ones
+            chatMessages.innerHTML = '';
+
+            // Ensure the current room ID is updated correctly
             if (chatContent) {
                 chatContent.setAttribute('data-current-room-id', roomData.id);
                 if (!roomData.is_group) {
