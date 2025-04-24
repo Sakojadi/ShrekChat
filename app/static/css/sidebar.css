@@ -39,8 +39,8 @@
 }
 
 .profile-picture img {
-    width: 40px;
-    height: 40px;
+    width: 32px; /* Reduced size */
+    height: 32px;
     border-radius: 50%;
     object-fit: cover;
 }
@@ -66,7 +66,8 @@
 .profile-name {
     font-size: 1rem;
     font-weight: 500;
-    color: #202020;
+    color: var(--profile-text-color, #202020); /* Default to dark text */
+    transition: color 0.3s ease;
 }
 
 /* Sidebar actions (menu dropdown) */
@@ -427,4 +428,13 @@
     padding: 20px;
     text-align: center;
     color: #909fab;
+}
+
+/* Add dark theme variable */
+:root {
+    --profile-text-color: #202020; /* Default for light theme */
+}
+
+[data-theme="dark"] {
+    --profile-text-color: #f1f1f1; /* Light text for dark theme */
 }

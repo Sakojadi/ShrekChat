@@ -75,6 +75,14 @@
     padding: 20px;
     overflow-y: auto;
     flex: 1;
+    color: var(--profile-text-color, #202020); /* Default to dark text */
+    transition: color 0.3s ease, background-color 0.3s ease;
+}
+
+/* Ensure all text in popup-content adapts to theme */
+.popup-content, .popup-content h2, .popup-content p {
+    color: var(--profile-text-color, #202020); /* Default to dark text */
+    transition: color 0.3s ease;
 }
 
 .popup-form {
@@ -243,8 +251,8 @@
 }
 
 .profile-view-avatar {
-    width: 100px;
-    height: 100px;
+    width: 90; /* Reduced size */
+    height: 90px;
     border-radius: 50%;
     overflow: hidden;
     margin-bottom: 15px;
@@ -260,8 +268,9 @@
     margin: 0 0 5px 0;
     font-size: 1.2rem;
     font-weight: 500;
+    color: var(--profile-text-color, #202020); /* Default to dark text */
+    transition: color 0.3s ease;
 }
-
 
 .profile-view-info {
     width: 100%;
@@ -284,7 +293,14 @@
 
 .info-value {
     flex: 1;
-    color: #202020;
+    color: var(--profile-text-color, #202020); /* Default to dark text */
+    transition: color 0.3s ease;
+}
+
+/* Ensure username and email adapt to theme */
+.profile-view .info-label, .profile-view .info-value {
+    color: var(--profile-text-color, #202020); /* Default to dark text */
+    transition: color 0.3s ease;
 }
 
 /* Animation for popups */
@@ -844,4 +860,45 @@ body.dark-theme .form-group input:focus {
 
 .swal2-confirm:hover {
     background-color: #388e3c; /* Darker green on hover */
+}
+
+/* Add dark theme variable */
+:root {
+    --profile-text-color: #202020; /* Default for light theme */
+}
+
+[data-theme="dark"] {
+    --profile-text-color: #f1f1f1; /* Light text for dark theme */
+}
+
+/* Styles for Contact Info Popup */
+.contact-info-avatar {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 15px;
+}
+
+.contact-info-avatar img {
+    width: 80px; /* Adjusted size */
+    height: 80px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--profile-text-color, #202020); /* Matches theme */
+}
+
+.contact-info-details {
+    text-align: center;
+}
+
+.contact-info-details h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--profile-text-color, #202020); /* Matches theme */
+    margin: 0;
+}
+
+.contact-info-details p {
+    font-size: 1rem;
+    color: var(--profile-text-color, #202020); /* Matches theme */
+    margin: 5px 0 0;
 }

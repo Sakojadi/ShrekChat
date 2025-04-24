@@ -7,9 +7,25 @@
     font-family: 'Roboto', sans-serif;
 }
 
+/* Global text color variable */
+:root {
+    --profile-text-color: #202020; /* Default for light theme */
+}
+
+[data-theme="dark"] {
+    --profile-text-color: #f1f1f1; /* Light text for dark theme */
+}
+
 body {
     min-height: 100vh;
     overflow-x: hidden;
+    color: var(--profile-text-color);
+    transition: color 0.3s ease, background-color 0.3s ease;
+}
+
+/* Ensure dark theme applies correct text color */
+body.dark-theme {
+    --profile-text-color: #f1f1f1; /* Light text for dark theme */
 }
 
 /* Button Styles */
