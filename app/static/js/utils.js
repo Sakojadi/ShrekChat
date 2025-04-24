@@ -124,14 +124,6 @@ function incrementUnreadCount(roomId) {
         if (parentElement) {
             parentElement.insertBefore(contactElement, parentElement.firstChild);
         }
-        
-        // Try to play notification sound
-        try {
-            const notificationSound = new Audio('/static/sounds/notification.mp3');
-            notificationSound.play().catch(e => console.log('Failed to play notification sound'));
-        } catch (soundError) {
-            console.log('Failed to play notification sound', soundError);
-        }
     }
 }
 

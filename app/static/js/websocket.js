@@ -379,7 +379,16 @@ function handleChatMessage(data) {
     wsLog("Handling chat message:", message);
 
     if (window.shrekChatUtils) {
+        // Update last message and move chat to top of sidebar
         window.shrekChatUtils.updateLastMessage(message.room_id, message.content, message.time);
+        
+        // Move the contact to the top of the sidebar regardless of whether it's the current chat or not
+        const contactElement = document.querySelector(`.contact-item[data-room-id="${message.room_id}"]`);
+        const parentElement = contactElement?.parentElement;
+        if (parentElement && contactElement) {
+            parentElement.insertBefore(contactElement, parentElement.firstChild);
+            wsLog(`Moved chat ${message.room_id} to top of sidebar`);
+        }
     }
 
     if (parseInt(currentRoomId) === parseInt(message.room_id)) {
@@ -418,6 +427,15 @@ function handleChatMessage(data) {
         wsLog(`Message is for room ${message.room_id}, but current room is ${currentRoomId}`);
         if (!isConfirmation && window.shrekChatUtils) {
             window.shrekChatUtils.incrementUnreadCount(message.room_id);
+            
+            // Play notification sound for messages that aren't from the current user and aren't in the current chat
+            try {
+                const notificationSound = new Audio('/static/sounds/notification.mp3');
+                notificationSound.play().catch(e => console.log('Failed to play notification sound:', e));
+                wsLog(`Playing notification sound for message in room ${message.room_id}`);
+            } catch (soundError) {
+                console.log('Failed to play notification sound:', soundError);
+            }
         }
     }
 }

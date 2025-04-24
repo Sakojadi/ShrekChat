@@ -5,11 +5,27 @@ from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
 
 # Updated imports to use the new location and updated models
-from app.routers.session import get_db, get_current_user, active_connections
+from app.routers.session import get_db, get_current_user, active_connections, id_to_username
 from app.database import User, Room, Message, GroupChat, room_members
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+@router.get("/api/user/{user_id}/status")
+async def get_user_status(user_id: int, db: Session = Depends(get_db)):
+    """Get user's online status"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    # Check if user is in active_connections dictionary or in id_to_username mapping
+    is_online = (user.username in active_connections and len(active_connections[user.username]) > 0) or user.is_online
+    
+    return {
+        "user_id": user_id,
+        "username": user.username,
+        "status": "online" if is_online else "offline"
+    }
 
 @router.get("/chat", response_class=HTMLResponse)
 async def chat_page(request: Request, username: str = Depends(get_current_user), db: Session = Depends(get_db)):

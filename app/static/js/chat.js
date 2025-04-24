@@ -304,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         fetchRooms();
         // Poll every 30 seconds for visible contacts
-        setInterval(fetchRooms, 30000);
+        // setInterval(fetchRooms, 30000);
     }
 
     // Refresh rooms list without clearing existing chats
