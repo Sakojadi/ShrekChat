@@ -284,11 +284,34 @@ async def get_room_messages(
         )
     ).all()
     
+    # Group unread messages by sender for WebSocket notifications
+    sender_to_messages = {}
     for msg in unread_messages:
         msg.read = True
         msg.read_at = datetime.utcnow()
+        
+        if msg.sender_id not in sender_to_messages:
+            sender_to_messages[msg.sender_id] = []
+        sender_to_messages[msg.sender_id].append(msg.id)
     
     db.commit()
+    
+    # Send WebSocket notifications to senders
+    from app.routers.session import active_connections
+    for sender_id, message_ids in sender_to_messages.items():
+        sender = db.query(User).filter(User.id == sender_id).first()
+        if sender and sender.username in active_connections:
+            for sender_ws in active_connections[sender.username]:
+                try:
+                    await sender_ws.send_json({
+                        "type": "message_read",
+                        "room_id": room_id,
+                        "reader_id": current_user.id,
+                        "reader": current_user.username,
+                        "message_ids": message_ids
+                    })
+                except Exception as e:
+                    print(f"Error sending read notification to {sender.username}: {e}")
     
     return result
 

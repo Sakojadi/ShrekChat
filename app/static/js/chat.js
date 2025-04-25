@@ -684,7 +684,7 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        chatMessages.innerHTML = '<div class="loading-messages">Loading messages...</div>';
+        chatMessages.innerHTML = '<div class="system-message info">Loading messages...</div>';
 
         fetch(`/api/messages/${roomId}`)
             .then(response => {
