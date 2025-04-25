@@ -48,6 +48,9 @@
                         <span class="message-time">{{ room.last_message_time }}</span>
                     </div>
                     <p class="last-message">{{ room.last_message }}</p>
+                    {% if not room.is_group %}
+                    <p class="contact-email">{{ room.email }}</p>
+                    {% endif %}
                 </div>
                 {% if room.unread_count > 0 %}
                 <div class="unread-count">{{ room.unread_count }}</div>

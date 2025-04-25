@@ -85,7 +85,8 @@ async def get_room_details(
             "is_group": False,
             "user_id": other_user.id,
             "status": "online" if other_user.is_online else "offline",
-            "created_at": room.created_at.isoformat()
+            "created_at": room.created_at.isoformat(),
+            "email": other_user.email,
         }
 
 # Create a group chat

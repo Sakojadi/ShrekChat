@@ -611,7 +611,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const timestamp = new Date().toISOString();
         contactInfoName.textContent = userData.full_name || userData.username;
         contactInfoUsername.textContent = userData.username;
-        contactInfoEmail.textContent = userData.email || 'No email provided';
+        contactInfoEmail.textContent = userData.email;
         contactInfoAvatar.src = userData.avatar || '/static/images/shrek.jpg';
         const cachedStatus = userData.user_id && window.shrekChatUtils.statusCache[userData.user_id]?.status;
         const statusText = cachedStatus || (userData.status === 'online' || userData.status === 'offline' ? userData.status : 'offline');
