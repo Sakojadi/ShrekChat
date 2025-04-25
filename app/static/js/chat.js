@@ -923,36 +923,6 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Add debugging logs for Add Friend functionality
-    function addFriend(usernameToAdd) {
-        const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] Attempting to add friend:`, usernameToAdd);
-
-        fetch('/api/rooms/direct', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ username_to_add: usernameToAdd })
-        })
-            .then(response => {
-                console.log(`[${timestamp}] Add Friend API response status:`, response.status);
-                if (!response.ok) {
-                    throw new Error(`Failed to add friend. Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log(`[${timestamp}] Friend added successfully:`, data);
-                if (window.refreshRoomsList) {
-                    window.refreshRoomsList();
-                }
-            })
-            .catch(error => {
-                console.error(`[${timestamp}] Error adding friend:`, error);
-            });
-    }
-
     // Event listeners
     if (sendMessageBtn) {
         sendMessageBtn.addEventListener('click', sendMessage);

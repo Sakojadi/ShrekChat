@@ -164,6 +164,24 @@
     flex-direction: column;
 }
 
+/* System messages */
+.system-message {
+    align-self: center;
+    max-width: 80%;
+    margin: 10px 0;
+    padding: 8px 16px;
+    border-radius: 12px;
+    text-align: center;
+    font-size: 0.9rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.system-message.info {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: #ffffff;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 .message {
     max-width: 60%;
     margin-bottom: 10px;
