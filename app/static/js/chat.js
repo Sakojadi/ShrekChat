@@ -515,7 +515,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 } else {
-                    showContactInfo(roomData);
+                    // Fetch full room details if email is missing
+                    if (!roomData.email && !roomData.is_group) {
+                        fetch(`/api/rooms/${roomData.id}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to fetch room details');
+                                }
+                                return response.json();
+                            })
+                            .then(fullRoomData => {
+                                Object.assign(roomData, fullRoomData); // Merge full details into roomData
+                                showContactInfo(roomData); // Display contact info with email
+                            })
+                            .catch(error => {
+                                console.error('Error fetching room details:', error);
+                            });
+                    } else {
+                        showContactInfo(roomData); // Display contact info immediately if email is present
+                    }
                 }
                 const dropdownMenu = document.querySelector('.dropdown-menu.active');
                 if (dropdownMenu) {
@@ -600,7 +618,25 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 } else {
-                    showContactInfo(roomData);
+                    // Fetch full room details if email is missing
+                    if (!roomData.email && !roomData.is_group) {
+                        fetch(`/api/rooms/${roomData.id}`)
+                            .then(response => {
+                                if (!response.ok) {
+                                    throw new Error('Failed to fetch room details');
+                                }
+                                return response.json();
+                            })
+                            .then(fullRoomData => {
+                                Object.assign(roomData, fullRoomData); // Merge full details into roomData
+                                showContactInfo(roomData); // Display contact info with email
+                            })
+                            .catch(error => {
+                                console.error('Error fetching room details:', error);
+                            });
+                    } else {
+                        showContactInfo(roomData); // Display contact info immediately if email is present
+                    }
                 }
             });
         }
