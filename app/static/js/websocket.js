@@ -82,6 +82,7 @@ function observeMessagesForRead() {
 function initializeWebSockets() {
     wsLog("Initializing WebSockets...");
     connectPresenceWebSocket();
+    setupCallEventListeners();
 
     const lastOpenedRoomId = localStorage.getItem('lastOpenedRoomId');
     if (lastOpenedRoomId) {
@@ -118,6 +119,17 @@ function initializeWebSockets() {
             .catch(error => {
                 console.error("Error reconnecting to room:", error);
             });
+    }
+}
+
+// Set up event listeners for call-related UI elements
+function setupCallEventListeners() {
+    // Use the WebRTC module's event listeners instead
+    if (window.shrekChatCall && typeof window.shrekChatCall.initWebRTC === 'function') {
+        window.shrekChatCall.initWebRTC();
+    } else {
+        // Set up WebRTC configuration
+        window.addEventListener('websocket_message', handleWebSocketCallMessage);
     }
 }
 
@@ -306,6 +318,10 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
             const data = JSON.parse(event.data);
             wsLog("ChatSocket message received:", data);
 
+            // Create a custom event to propagate WebSocket messages for call handling
+            const messageEvent = new CustomEvent('websocket_message', { detail: data });
+            window.dispatchEvent(messageEvent);
+
             if (data.type === "message") {
                 handleChatMessage(data);
             } else if (data.type === "message_read") {
@@ -335,11 +351,48 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
                 handleMessageDeleted(data);
             } else if (data.type === "group_deleted") {
                 handleGroupDeleted(data);
+            } else if (data.type === "call_offer" || 
+                       data.type === "call_answer" || 
+                       data.type === "call_ice_candidate" || 
+                       data.type === "call_end" || 
+                       data.type === "call_decline") {
+                wsLog(`Call signaling message received: ${data.type}`);
+                // Handled by websocket_message event listener
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error, event.data);
         }
     };
+}
+
+// Handle WebSocket call messages
+function handleWebSocketCallMessage(event) {
+    const data = event.detail;
+    if (!data || !data.type) return;
+
+    wsLog(`Handling call message: ${data.type}`, data);
+    
+    // Use WebRTC module functions if available
+    const callModule = window.shrekChatCall;
+    if (callModule) {
+        switch (data.type) {
+            case 'call_offer':
+                callModule.handleCallOffer(data);
+                break;
+            case 'call_answer':
+                callModule.handleCallAnswer(data);
+                break;
+            case 'call_ice_candidate':
+                callModule.handleIceCandidate(data);
+                break;
+            case 'call_end':
+                callModule.handleCallEnd(data);
+                break;
+            case 'call_decline':
+                callModule.handleCallDeclined(data);
+                break;
+        }
+    }
 }
 
 // Handle message update notification
@@ -620,6 +673,18 @@ function setCurrentRoom(roomId, isGroup, userId) {
     }
 }
 
+// Send a call signaling message
+function sendCallSignaling(data) {
+    if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
+        console.error("Cannot send call signaling: WebSocket not connected");
+        return false;
+    }
+    
+    wsLog("Sending call signaling", data);
+    chatWebSocket.send(JSON.stringify(data));
+    return true;
+}
+
 // Export the WebSocket API
 window.shrekChatWebSocket = {
     initializeWebSockets,
@@ -631,6 +696,9 @@ window.shrekChatWebSocket = {
     getCurrentRoomId: () => currentRoomId,
     getCurrentRoomIsGroup: () => currentRoomIsGroup,
     getCurrentUserId: () => currentUserId,
+    
+    // Call-related functions (delegating to webrtc.js)
+    sendCallSignaling,
 
     updateMessage: function(roomId, messageId, content, callback) {
         if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {

@@ -66,6 +66,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str, db: Session = Dep
                     await handle_message_update(websocket, user, message_data, db)
                 elif message_data["type"] == "delete_message":
                     await handle_message_delete(websocket, user, message_data, db)
+                elif message_data["type"] == "call_offer":
+                    await handle_call_offer(websocket, user, message_data, db)
+                elif message_data["type"] == "call_answer":
+                    await handle_call_answer(websocket, user, message_data, db)
+                elif message_data["type"] == "call_ice_candidate":
+                    await handle_ice_candidate(websocket, user, message_data, db)
+                elif message_data["type"] == "call_end":
+                    await handle_end_call(websocket, user, message_data, db)
+                elif message_data["type"] == "call_decline":
+                    await handle_decline_call(websocket, user, message_data, db)
                 else:
                     await websocket.send_json({"error": "Unknown message type"})
         
@@ -531,6 +541,194 @@ async def handle_message_delete(websocket: WebSocket, user: User, message_data: 
     except Exception as e:
         print(f"Error handling message delete: {e}")
         await websocket.send_json({"error": "Failed to delete message"})
+
+async def handle_call_offer(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle WebRTC call offer"""
+    try:
+        # Validate data
+        required_fields = ["target_user_id", "room_id", "sdp"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"type": "error", "message": "Missing required fields for call offer"})
+            return
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        sdp = message_data["sdp"]
+        
+        # Check if room exists
+        room = db.query(Room).filter(Room.id == room_id).first()
+        if not room:
+            await websocket.send_json({"type": "error", "message": "Room not found"})
+            return
+        
+        # Check if both users are members of this room
+        are_members = db.query(room_members).filter(
+            and_(
+                room_members.c.room_id == room_id,
+                room_members.c.user_id.in_([user.id, target_user_id])
+            )
+        ).count() == 2
+        
+        if not are_members:
+            await websocket.send_json({"type": "error", "message": "User is not a member of this room"})
+            return
+        
+        # Get target user
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user:
+            await websocket.send_json({"type": "error", "message": "Target user not found"})
+            return
+        
+        # Forward the call offer to the target user if they're online
+        if target_user.username in active_connections:
+            for ws in active_connections[target_user.username]:
+                await ws.send_json({
+                    "type": "call_offer",
+                    "caller_id": user.id,
+                    "caller_name": user.full_name or user.username,
+                    "caller_avatar": user.avatar,
+                    "room_id": room_id,
+                    "sdp": sdp
+                })
+            
+            await websocket.send_json({
+                "type": "call_initiated",
+                "target_user_id": target_user_id,
+                "room_id": room_id
+            })
+        else:
+            await websocket.send_json({
+                "type": "error",
+                "message": "User is offline",
+                "code": "user_offline"
+            })
+    
+    except Exception as e:
+        print(f"Error handling call offer: {e}")
+        await websocket.send_json({"type": "error", "message": "Failed to process call offer"})
+
+async def handle_call_answer(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle WebRTC call answer"""
+    try:
+        # Validate data
+        required_fields = ["target_user_id", "room_id", "sdp"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"type": "error", "message": "Missing required fields for call answer"})
+            return
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        sdp = message_data["sdp"]
+        
+        # Forward the call answer to the target user
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user or target_user.username not in active_connections:
+            await websocket.send_json({"type": "error", "message": "Target user not available"})
+            return
+        
+        # Forward answer to caller
+        for ws in active_connections[target_user.username]:
+            await ws.send_json({
+                "type": "call_answer",
+                "responder_id": user.id,
+                "responder_name": user.full_name or user.username,
+                "room_id": room_id,
+                "sdp": sdp
+            })
+        
+        await websocket.send_json({
+            "type": "call_answer_sent",
+            "target_user_id": target_user_id,
+            "room_id": room_id
+        })
+    
+    except Exception as e:
+        print(f"Error handling call answer: {e}")
+        await websocket.send_json({"type": "error", "message": "Failed to process call answer"})
+
+async def handle_ice_candidate(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle ICE candidate exchange for WebRTC"""
+    try:
+        # Validate data
+        required_fields = ["target_user_id", "room_id", "candidate"]
+        if not all(field in message_data for field in required_fields):
+            await websocket.send_json({"type": "error", "message": "Missing required fields for ICE candidate"})
+            return
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        candidate = message_data["candidate"]
+        
+        # Forward the ICE candidate to the target user
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user or target_user.username not in active_connections:
+            return  # Silently fail, as this is not critical
+        
+        # Forward candidate
+        for ws in active_connections[target_user.username]:
+            await ws.send_json({
+                "type": "call_ice_candidate",
+                "sender_id": user.id,
+                "room_id": room_id,
+                "candidate": candidate
+            })
+    
+    except Exception as e:
+        print(f"Error handling ICE candidate: {e}")
+
+async def handle_end_call(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle WebRTC call end"""
+    try:
+        # Validate data
+        required_fields = ["target_user_id", "room_id"]
+        if not all(field in message_data for field in required_fields):
+            return  # Silently fail, as the call is ending anyway
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        
+        # Forward the call end to the target user
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user or target_user.username not in active_connections:
+            return  # Silently fail, as the call is ending anyway
+        
+        # Forward call end
+        for ws in active_connections[target_user.username]:
+            await ws.send_json({
+                "type": "call_end",
+                "sender_id": user.id,
+                "room_id": room_id
+            })
+    
+    except Exception as e:
+        print(f"Error handling end call: {e}")
+
+async def handle_decline_call(websocket: WebSocket, user: User, message_data: dict, db: Session):
+    """Handle WebRTC call decline"""
+    try:
+        # Validate data
+        required_fields = ["target_user_id", "room_id"]
+        if not all(field in message_data for field in required_fields):
+            return  # Silently fail
+        
+        room_id = message_data["room_id"]
+        target_user_id = message_data["target_user_id"]
+        
+        # Forward the call decline to the target user
+        target_user = db.query(User).filter(User.id == target_user_id).first()
+        if not target_user or target_user.username not in active_connections:
+            return  # Silently fail
+        
+        # Forward call decline
+        for ws in active_connections[target_user.username]:
+            await ws.send_json({
+                "type": "call_decline",
+                "decliner_id": user.id,
+                "room_id": room_id
+            })
+    
+    except Exception as e:
+        print(f"Error handling decline call: {e}")
 
 async def broadcast_status(user: User, status: str, db: Session):
     """Broadcast user's online/offline status to contacts"""
