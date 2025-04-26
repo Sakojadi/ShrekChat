@@ -1,15 +1,18 @@
-from fastapi import APIRouter, Request, Depends, HTTPException, status, Form
+from fastapi import APIRouter, Request, Depends, HTTPException, status, Form, UploadFile, File, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, Any
 import bcrypt
 import jwt
 import os
-from app.database import SessionLocal, User
-from app.routers.session import manager
+import shutil
+from pathlib import Path
+from app.database import SessionLocal, User, get_db
+from app.routers.session import get_current_user_from_session as get_current_user
+from sqlalchemy.orm import Session
 
 # JWT settings
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")  # In production, use a secure key
@@ -18,6 +21,10 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
 router = APIRouter(tags=["authentication"])
 templates = Jinja2Templates(directory="app/templates")
+
+# Directory to store uploaded avatars
+UPLOAD_DIR = Path("app/static/uploads/avatars")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)  # Create the directory if it doesn’t exist
 
 # Pydantic models
 class Token(BaseModel):
@@ -176,63 +183,87 @@ async def logout(request: Request):
     return RedirectResponse("/login")
 
 @router.post("/api/profile/update")
-async def update_profile(request: Request):
-    # Check if user is logged in
+async def update_profile(
+    request: Request,
+    username: Optional[str] = Form(None),
+    email: Optional[str] = Form(None),
+    full_name: Optional[str] = Form(None),
+    phone_number: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
+    avatar: Optional[UploadFile] = File(None)
+):
     if "username" not in request.session:
         return {"success": False, "message": "Not authenticated"}
-    
-    # Get form data
-    form_data = await request.json()
-    username = request.session["username"]
-    
+
+    current_username = request.session["username"]
     db = SessionLocal()
     try:
-        # Get current user
-        user = db.query(User).filter(User.username == username).first()
+        user = db.query(User).filter(User.username == current_username).first()
         if not user:
             return {"success": False, "message": "User not found"}
-        
-        # Check if username is changed and not already taken
+
+        # Handle avatar upload
+        new_avatar_url = user.avatar  # Default to current avatar
+        if avatar:
+            # Validate file type
+            if not avatar.content_type.startswith('image/'):
+                return {"success": False, "message": "Invalid file type. Please upload an image."}
+            
+            # Generate a unique filename for the avatar
+            file_extension = avatar.filename.split(".")[-1]
+            avatar_filename = f"{user.id}_{current_username}.{file_extension}"
+            avatar_path = UPLOAD_DIR / avatar_filename
+
+            # Save the file to the server
+            with avatar_path.open("wb") as buffer:
+                shutil.copyfileobj(avatar.file, buffer)
+
+            # Update the user’s avatar path in the database
+            user.avatar = f"/static/uploads/avatars/{avatar_filename}"
+            new_avatar_url = user.avatar
+
+        # Update other fields
         username_changed = False
-        if "username" in form_data and form_data["username"] != user.username:
-            existing_username = db.query(User).filter(User.username == form_data["username"]).first()
+        if username and username != user.username:
+            existing_username = db.query(User).filter(User.username == username).first()
             if existing_username:
                 return {"success": False, "message": "Username already in use"}
-            user.username = form_data["username"]
+            user.username = username
             username_changed = True
-        
-        # Check if email is changed and not already taken
-        if "email" in form_data and form_data["email"] != user.email:
-            existing_email = db.query(User).filter(User.email == form_data["email"]).first()
+
+        if email and email != user.email:
+            existing_email = db.query(User).filter(User.email == email).first()
             if existing_email:
                 return {"success": False, "message": "Email already in use"}
-            user.email = form_data["email"]
-        
-        # Update other fields
-        if "full_name" in form_data:
-            user.full_name = form_data["full_name"]
-        
-        if "phone_number" in form_data:
-            user.phone_number = form_data["phone_number"]
-        
-        if "country" in form_data:
-            user.country = form_data["country"]
-        
+            user.email = email
+
+        if full_name:
+            user.full_name = full_name
+        if phone_number:
+            user.phone_number = phone_number
+        if country:
+            user.country = country
+
         # Save changes
         db.commit()
-        
+
+        # Broadcast avatar update to other users
+        if avatar:  # Only broadcast if the avatar was updated
+            try:
+                from app.routers.websocket import broadcast_avatar_update
+            except ImportError:
+                raise ImportError("The module 'app.routers.websocket' or the function 'broadcast_avatar_update' could not be found.")
+            await broadcast_avatar_update(user.id, new_avatar_url)
+
         # Update session if username changed
         if username_changed:
-            # Create new access token with updated username
             access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
             access_token = create_access_token(
                 data={"sub": user.username}, expires_delta=access_token_expires
             )
-            
-            # Update session with new username and token
             request.session["access_token"] = access_token
             request.session["username"] = user.username
-        
+
         return {"success": True, "message": "Profile updated successfully"}
     except Exception as e:
         db.rollback()
@@ -262,10 +293,55 @@ async def get_profile(request: Request):
                 "email": user.email,
                 "full_name": user.full_name or "",
                 "phone_number": user.phone_number or "",
-                "country": user.country or ""
+                "country": user.country or "",
+                "avatar": user.avatar or "/static/images/default-avatar.jpg"  # Include avatar
             }
         }
     except Exception as e:
         return {"success": False, "message": str(e)}
+    finally:
+        db.close()
+
+@router.post("/upload-avatar")
+async def upload_avatar(request: Request, file: UploadFile = File(...)):
+    """Endpoint to upload a new profile avatar."""
+    # Get current user from session
+    if "username" not in request.session:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    username = request.session["username"]
+    
+    # Open database connection
+    db = SessionLocal()
+    try:
+        # Get user from database
+        user = db.query(User).filter(User.username == username).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Create upload directory if it doesn't exist
+        upload_dir = Path("app/static/uploads/user_avatars")
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Process the file
+        file_extension = os.path.splitext(file.filename)[1]
+        avatar_filename = f"user_{user.id}{file_extension}"
+        avatar_path = f"/static/uploads/user_avatars/{avatar_filename}"
+        
+        # Save the file - Fix path construction
+        full_path = f"app{avatar_path}"  # This correctly joins the paths
+        with open(full_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Update user in database
+        user.avatar = avatar_path
+        db.commit()
+        
+        return {"message": "Avatar updated successfully", "avatar_url": avatar_path}
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {str(e)}")
+    
     finally:
         db.close()
