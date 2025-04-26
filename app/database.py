@@ -7,6 +7,7 @@ from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+from contextlib import contextmanager
 
 load_dotenv()
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./shrekchat.db")
@@ -110,3 +111,12 @@ class GroupMember(Base):
 GroupChat.members = relationship("GroupMember", back_populates="group")
 
 Base.metadata.create_all(bind=engine)
+
+@contextmanager
+def get_db():
+    """Dependency to provide a database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

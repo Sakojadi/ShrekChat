@@ -175,4 +175,41 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+
+    document.getElementById('uploadAvatarInput').addEventListener('change', function(event) {
+        const file = event.target.files[0];
+        if (file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload-avatar', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to upload avatar');
+                }
+                return response.json();
+            })
+            .then(data => {
+                document.getElementById('profileAvatar').src = data.avatar_url;
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Avatar Updated',
+                    text: 'Your profile avatar has been updated successfully.',
+                    confirmButtonText: 'OK'
+                });
+            })
+            .catch(error => {
+                console.error('Error uploading avatar:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Upload Failed',
+                    text: 'There was an error uploading your avatar. Please try again.',
+                    confirmButtonText: 'OK'
+                });
+            });
+        }
+    });
 });

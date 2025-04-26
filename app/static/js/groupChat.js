@@ -923,72 +923,89 @@ document.addEventListener('DOMContentLoaded', function() {
                                     }
                                     
                                     makeAdminAction.addEventListener('click', function() {
-                                        if (confirm(`Make ${member.name} an admin of this group?`)) {
-                                            // Make admin using API
-                                            fetch(`/api/rooms/${roomId}/members/${member.id}/make-admin`, {
-                                                method: 'POST'
-                                            })
-                                            .then(response => {
-                                                if (!response.ok) {
-                                                    throw new Error('Failed to make admin');
-                                                }
-                                                return response.json();
-                                            })
-                                            .then(data => {
-                                                console.log('Made admin:', data);
-                                                
-                                                // Update member role
-                                                memberRole.textContent = 'Admin';
-                                                makeAdminAction.style.display = 'none'; // Hide make admin option
-                                            })
-                                            .catch(error => {
-                                                console.error('Error making admin:', error);
-                                                Swal.fire({
-                                                    icon: 'error',
-                                                    title: 'Error',
-                                                    text: 'Failed to make admin. Please try again.',
-                                                    confirmButtonText: 'OK'
+                                        Swal.fire({
+                                            icon: 'question',
+                                            title: `Make ${member.name} an admin of this group?`,
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Yes',
+                                            cancelButtonText: 'No'
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                // Make admin using API
+                                                fetch(`/api/rooms/${roomId}/members/${member.id}/make-admin`, {
+                                                    method: 'POST'
+                                                })
+                                                .then(response => {
+                                                    if (!response.ok) {
+                                                        throw new Error('Failed to make admin');
+                                                    }
+                                                    return response.json();
+                                                })
+                                                .then(data => {
+                                                    console.log('Made admin:', data);
+
+                                                    // Update member role
+                                                    memberRole.textContent = 'Admin';
+                                                    makeAdminAction.style.display = 'none'; // Hide make admin option
+                                                })
+                                                .catch(error => {
+                                                    console.error('Error making admin:', error);
+                                                    Swal.fire({
+                                                        icon: 'error',
+                                                        title: 'Error',
+                                                        text: 'Failed to make admin. Please try again.',
+                                                        confirmButtonText: 'OK'
+                                                    });
                                                 });
-                                            });
-                                        }
+                                            }
+                                        });
                                     });
                                 }
                                 
                                 // Handle remove member action - only shown to admins
                                 if (removeMemberAction) {
                                     removeMemberAction.addEventListener('click', function() {
-                                        if (confirm(`Remove ${member.name} from this group?`)) {
-                                            // Remove member using API
-                                            fetch(`/api/rooms/${roomId}/members/${member.id}`, {
-                                                method: 'DELETE'
-                                            })
-                                            .then(response => {
-                                                if (!response.ok) {
-                                                    throw new Error('Failed to remove member');
-                                                }
-                                                return response.json();
-                                            })
-                                            .then(data => {
-                                                console.log('Removed member:', data);
-                                                
-                                                // Remove member from list
-                                                const memberDiv = this.closest('.group-member');
-                                                memberDiv.remove();
-                                                
-                                                // Update members count
-                                                const currentCount = parseInt(groupMembersCount.textContent.match(/\d+/)[0]);
-                                                groupMembersCount.textContent = `(${currentCount - 1})`;
-                                            })
-                                            .catch(error => {
-                                                console.error('Error removing member:', error);
-                                                Swal.fire({
-                                                    icon: 'error',
-                                                    title: 'Error',
-                                                    text: 'Failed to remove member. Please try again.',
-                                                    confirmButtonText: 'OK'
+                                        Swal.fire({
+                                            icon: 'warning',
+                                            title: `Remove ${member.name} from this group?`,
+                                            text: 'This action cannot be undone.',
+                                            showCancelButton: true,
+                                            confirmButtonText: 'Yes, remove',
+                                            cancelButtonText: 'Cancel'
+                                        }).then((result) => {
+                                            if (result.isConfirmed) {
+                                                // Remove member using API
+                                                fetch(`/api/rooms/${roomId}/members/${member.id}`, {
+                                                    method: 'DELETE'
+                                                })
+                                                .then(response => {
+                                                    if (!response.ok) {
+                                                        throw new Error('Failed to remove member');
+                                                    }
+                                                    return response.json();
+                                                })
+                                                .then(data => {
+                                                    console.log('Removed member:', data);
+
+                                                    // Remove member from list
+                                                    const memberDiv = this.closest('.group-member');
+                                                    memberDiv.remove();
+
+                                                    // Update members count
+                                                    const currentCount = parseInt(groupMembersCount.textContent.match(/\d+/)[0]);
+                                                    groupMembersCount.textContent = `(${currentCount - 1})`;
+                                                })
+                                                .catch(error => {
+                                                    console.error('Error removing member:', error);
+                                                    Swal.fire({
+                                                        icon: 'error',
+                                                        title: 'Error',
+                                                        text: 'Failed to remove member. Please try again.',
+                                                        confirmButtonText: 'OK'
+                                                    });
                                                 });
-                                            });
-                                        }
+                                            }
+                                        });
                                     });
                                 }
                                 
@@ -1047,3 +1064,13 @@ document.addEventListener('DOMContentLoaded', function() {
     // Expose loadGroupDetails globally to be accessed from chat.js
     window.loadGroupDetails = loadGroupDetails;
 });
+// Example function to append a group message
+function appendGroupMessage(message) {
+    const template = document.getElementById('groupMessageTemplate').content.cloneNode(true);
+    template.querySelector('.message').classList.add(message.isOutgoing ? 'outgoing' : 'incoming');
+    template.querySelector('.message-sender').textContent = message.senderName;
+    template.querySelector('.message-content').textContent = message.content;
+    template.querySelector('.message-time').textContent = message.time;
+    template.querySelector('.message-avatar img').src = message.senderAvatar; // Set the avatar URL
+    document.getElementById('chatMessages').appendChild(template);
+}

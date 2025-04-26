@@ -276,6 +276,49 @@
     animation: fadeIn 0.2s ease;
 }
 
+
+body.dark-theme .member-actions .dropdown-menu {
+    background-color: #cac7c79b; /* Light background for the popup */
+    border: 1px solid #ddd; /* Subtle border for visibility */
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); /* Shadow for depth */
+}
+
+body.dark-theme .member-actions .dropdown-menu .dropdown-item {
+    color: #1e431e !important; /* Light green text for dropdown items */
+    padding: 10px 15px; /* Add padding for better spacing */
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body.dark-theme .member-actions .dropdown-menu .dropdown-item i {
+    color: #1e431e !important; /* Light green icons for dropdown items */
+}
+
+body.darkt-theme .member-actions .dropdown-menu .dropdown-item:hover {
+    background-color: #cac7c79b; /* Slightly darker background on hover */
+}
+
+
+
+body.light-theme .member-actions .dropdown-menu {
+    background-color: #ffffff; /* Light background for the popup */
+    border: 1px solid #ddd; /* Subtle border for visibility */
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1); /* Shadow for depth */
+}
+
+body.light-theme .member-actions .dropdown-menu .dropdown-item {
+    color: #1e431e !important; /* Light green text for dropdown items */
+    padding: 10px 15px; /* Add padding for better spacing */
+    transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+body.light-theme .member-actions .dropdown-menu .dropdown-item i {
+    color: #1e431e !important; /* Light green icons for dropdown items */
+}
+
+body.light-theme .member-actions .dropdown-menu .dropdown-item:hover {
+    background-color: #f0f0f0; /* Slightly darker background on hover */
+}
+
 .no-contacts-message {
     padding: 20px;
     text-align: center;
@@ -290,7 +333,28 @@
 
 /* Group chat message styles */
 .message.group-message {
+    display: flex;
+    align-items: flex-start;
     position: relative;
+    margin-bottom: 10px;
+}
+
+.message.group-message .message-avatar {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 10px;
+}
+
+.message.group-message .message-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.message.group-message .message-body {
+    flex: 1;
 }
 
 .message-sender {
@@ -305,6 +369,38 @@
 
 .message.outgoing.group-message .message-sender {
     color: #4CAF50;
+}
+
+/* Ensure the avatar aligns correctly for incoming and outgoing messages */
+.message.incoming.group-message {
+    align-self: flex-start;
+    margin-right: auto;
+}
+
+.message.incoming.group-message .message-content {
+    background-color: #ffffff;
+    border-bottom-left-radius: 5px;
+}
+
+.message.outgoing.group-message {
+    align-self: flex-end;
+    margin-left: auto;
+    flex-direction: row-reverse; /* Reverse the order so avatar appears on the right */
+}
+
+.message.outgoing.group-message .message-avatar {
+    margin-right: 0;
+    margin-left: 10px; /* Adjust margin for outgoing messages */
+}
+
+.message.outgoing.group-message .message-content {
+    background-color: #dcf8c6;
+    border-bottom-right-radius: 5px;
+}
+
+/* Ensure the message body aligns properly */
+.message.outgoing.group-message .message-body {
+    text-align: right;
 }
 
 /* Group message styling to match direct messages */

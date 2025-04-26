@@ -143,9 +143,12 @@
         
         <div class="profile-content">
             <div class="profile-avatar-large">
-                <img src="/static/images/shrek.jpg" alt="User Avatar">
+                <img id="profileAvatar" src="/static/images/shrek.jpg" alt="User Avatar">
                 <div class="edit-avatar-overlay">
-                    <i class="fas fa-camera"></i>
+                    <label for="uploadAvatarInput" class="upload-label">
+                        <i class="fas fa-camera"></i>
+                    </label>
+                    <input type="file" id="uploadAvatarInput" accept="image/*" style="display: none;">
                 </div>
             </div>
             
@@ -453,11 +456,16 @@
 
 <!-- Group Message Template -->
 <template id="groupMessageTemplate">
-    <div class="message">
-        <div class="message-sender"></div>
-        <div class="message-content"></div>
-        <div class="message-info">
-            <span class="message-time">12:34</span>
+    <div class="message group-message">
+        <div class="message-avatar">
+            <img src="/static/images/shrek.jpg" alt="Sender Avatar">
+        </div>
+        <div class="message-body">
+            <div class="message-sender"></div>
+            <div class="message-content"></div>
+            <div class="message-info">
+                <span class="message-time">12:34</span>
+            </div>
         </div>
     </div>
 </template>
@@ -517,7 +525,7 @@
                 </div>
                 <div class="dropdown-item remove-member">
                     <i class="fas fa-user-minus"></i>
-                    <span>Remove from Group</span>
+                    <span>Remove from Group </span>
                 </div>
             </div>
         </div>
