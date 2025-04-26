@@ -222,10 +222,78 @@
 
 .search-results {
     margin-top: 10px;
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
     border: 1px solid #dde2e7;
     border-radius: 8px;
+    display: flex; /* Add display flex */
+    flex-direction: column;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f3f4;
+    transition: background-color 0.2s;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background-color: #f8f9fa;
+}
+
+.search-result-avatar {
+    margin-right: 12px;
+}
+
+.search-result-avatar img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.search-result-info {
+    flex: 1;
+}
+
+.search-result-name {
+    font-size: 0.95rem;
+    font-weight: 500;
+    margin-bottom: 2px;
+    color: var(--profile-text-color, #202020);
+}
+
+.search-result-username {
+    font-size: 0.85rem;
+    color: #909fab;
+}
+
+.already-friend {
+    margin-top: 5px;
+    display: inline-block;
+    font-size: 0.75rem;
+    background-color: #e8f5e9;
+    color: #4CAF50;
+    padding: 2px 8px;
+    border-radius: 10px;
+}
+
+.no-results {
+    padding: 15px;
+    text-align: center;
+    color: #909fab;
+}
+
+.search-results .error {
+    padding: 15px;
+    text-align: center;
+    color: #e74c3c;
 }
 
 .popup-actions {

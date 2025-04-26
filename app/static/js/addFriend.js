@@ -87,6 +87,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            console.log('Searching for users with query:', query);
+            
             fetch(`/api/users/search?query=${encodeURIComponent(query)}`)
                 .then(response => {
                     if (!response.ok) {
@@ -95,6 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     return response.json();
                 })
                 .then(data => {
+                    console.log('Search results:', data);
                     searchResults.innerHTML = '';
                     
                     if (data.length === 0) {
@@ -104,6 +107,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         searchResults.appendChild(noResults);
                         return;
                     }
+                    
+                    // Make sure the search results container is properly styled
+                    searchResults.style.display = 'block';
                     
                     data.forEach(user => {
                         const div = document.createElement('div');
@@ -127,6 +133,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         `;
                         
                         div.addEventListener('click', function() {
+                            console.log('Selected user:', user.username);
                             addFriendInput.value = user.username;
                             selectedUsername = user.username;
                             searchResults.innerHTML = '';

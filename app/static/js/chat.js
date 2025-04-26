@@ -128,6 +128,20 @@ window.shrekChatUtils = {
 
     formatTime: function(date) {
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    },
+
+    formatDateForChat: function(date) {
+        const today = new Date();
+        const yesterday = new Date(today);
+        yesterday.setDate(today.getDate() - 1);
+
+        if (date.toDateString() === today.toDateString()) {
+            return 'Today';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+            return 'Yesterday';
+        } else {
+            return date.toLocaleDateString();
+        }
     }
 };
 
@@ -698,7 +712,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (messages.length === 0) {
                     chatMessages.innerHTML = '';
                 } else {
+                    // Sort messages by their timestamp (if available) to ensure correct ordering
+                    messages.sort((a, b) => {
+                        const dateA = a.created_at ? new Date(a.created_at) : new Date();
+                        const dateB = b.created_at ? new Date(b.created_at) : new Date();
+                        return dateA - dateB;
+                    });
+                    
+                    // Track current date to detect when we need to add a date separator
+                    let currentDateStr = '';
+                    
                     messages.forEach(message => {
+                        // Determine message date (use timestamp if available, or fall back to created_at or current date)
+                        const messageDate = message.timestamp ? new Date(message.timestamp) : 
+                                           message.created_at ? new Date(message.created_at) : new Date();
+                        const messageDateStr = messageDate.toISOString().split('T')[0]; // YYYY-MM-DD format for comparison
+                        
+                        // If this message is from a different day than previous one, add a date separator
+                        if (messageDateStr !== currentDateStr) {
+                            currentDateStr = messageDateStr;
+                            
+                            // Format the date for display (Today, Yesterday, or DD-MM-YY)
+                            const displayDate = window.shrekChatUtils ? 
+                                window.shrekChatUtils.formatDateForChat(messageDate) : 
+                                messageDate.toLocaleDateString();
+                            
+                            // Create and add the date separator
+                            const dateSeparator = document.createElement('div');
+                            dateSeparator.className = 'date-separator';
+                            dateSeparator.innerHTML = `<div class="date-separator-inner">${displayDate}</div>`;
+                            chatMessages.appendChild(dateSeparator);
+                            
+                            console.log(`Added date separator: ${displayDate} for date: ${messageDateStr}`);
+                        }
+                        
+                        // Display the message
                         displayMessage(message);
                     });
                 }

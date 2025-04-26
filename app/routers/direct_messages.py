@@ -587,17 +587,23 @@ async def search_users(
     result = []
     for user in users:
         # Check if direct chat room exists with this user
+        # Using aliases to avoid ambiguous column references
+        from sqlalchemy.orm import aliased
+        
+        rm1 = aliased(room_members)
+        rm2 = aliased(room_members)
+        
         direct_room = db.query(Room).join(
-            room_members, Room.id == room_members.c.room_id
+            rm1, Room.id == rm1.c.room_id
         ).filter(
             and_(
                 Room.is_group == False,
-                room_members.c.user_id == current_user.id
+                rm1.c.user_id == current_user.id
             )
         ).join(
-            room_members, and_(
-                room_members.c.room_id == Room.id, 
-                room_members.c.user_id == user.id
+            rm2, and_(
+                rm2.c.room_id == Room.id, 
+                rm2.c.user_id == user.id
             )
         ).first()
         
@@ -605,7 +611,7 @@ async def search_users(
             "id": user.id,
             "username": user.username,
             "full_name": user.full_name,
-            "avatar": user.avatar,
+            "avatar": user.avatar or "/static/images/shrek.jpg",  # Default avatar if none
             "has_chat": direct_room is not None,
             "room_id": direct_room.id if direct_room else None
         })

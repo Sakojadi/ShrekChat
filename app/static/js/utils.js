@@ -7,6 +7,47 @@ function formatTime(date) {
     return date.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12: false});
 }
 
+// Format a date for display in chat header (Today, Yesterday, or DD-MM-YY)
+function formatDateForChat(dateStr) {
+    // If no date string is provided, return empty string
+    if (!dateStr) return '';
+    
+    // Parse the date string (assuming ISO format or similar)
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+        return ''; // Invalid date
+    }
+    
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    // Reset hours, minutes, seconds and milliseconds for today and yesterday
+    today.setHours(0, 0, 0, 0);
+    yesterday.setHours(0, 0, 0, 0);
+    
+    // Create a date object from the input date with time part removed
+    const compareDate = new Date(date);
+    compareDate.setHours(0, 0, 0, 0);
+    
+    // Check if date is today
+    if (compareDate.getTime() === today.getTime()) {
+        return 'Today';
+    }
+    
+    // Check if date is yesterday
+    if (compareDate.getTime() === yesterday.getTime()) {
+        return 'Yesterday';
+    }
+    
+    // Format as DD-MM-YY for other dates
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0'); // Months are 0-based
+    const year = date.getFullYear().toString().slice(-2); // Get last 2 digits of year
+    
+    return `${day}-${month}-${year}`;
+}
+
 // Debounce function for search inputs
 function debounce(func, wait) {
     let timeout;
@@ -130,6 +171,7 @@ function incrementUnreadCount(roomId) {
 // Export all utility functions
 window.shrekChatUtils = {
     formatTime,
+    formatDateForChat,
     debounce,
     updateMessageStatus,
     updateContactStatus,

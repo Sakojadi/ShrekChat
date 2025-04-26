@@ -164,6 +164,25 @@
     flex-direction: column;
 }
 
+/* Date separator in chat */
+.date-separator {
+    display: flex;
+    justify-content: center;
+    margin: 10px 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.date-separator-inner {
+    background-color: var(--secondary-bg, #e6f2ff);
+    border-radius: 12px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: var(--secondary-text-color, #5a6268);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
 /* System messages */
 .system-message {
     align-self: center;
