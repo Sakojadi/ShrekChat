@@ -441,6 +441,10 @@
     margin-right: auto; /* Push checkbox to the right */
 }
 
+body.dark-theme .selectable-contact .contact-name {
+    color: #f1f1f1; /* Light text for dark theme */
+}
+
 /* Group creation styles */
 .group-avatar-upload {
     display: flex;
@@ -901,4 +905,33 @@ body.dark-theme .form-group input:focus {
     font-size: 1rem;
     color: var(--profile-text-color, #202020); /* Matches theme */
     margin: 5px 0 0;
+}
+
+body.dark-theme .group-info {
+    background-color: #2c2c2c; /* Dark background for the popup */
+    color: #f1f1f1; /* Light text for dark theme */
+    border: 1px solid #444; /* Subtle border for better visibility */
+}
+
+body.dark-theme .group-info h3 {
+    color: #ffffff; /* Ensure the header text is bright */
+}
+
+body.dark-theme .group-info .group-description {
+    color: #cccccc; /* Softer light color for descriptions */
+}
+
+body.dark-theme .group-info .group-members-section h4 {
+    color: #f1f1f1; /* Light text for section headers */
+}
+
+body.dark-theme .group-info .member-actions-toggle {
+    color: #f1f1f1; /* Light text for action buttons */
+    background-color: #444; /* Darker background for buttons */
+    border-radius: 4px; /* Rounded corners for better aesthetics */
+    padding: 5px 10px; /* Add padding for better clickability */
+}
+
+body.dark-theme .group-info .member-actions-toggle:hover {
+    background-color: #555; /* Slightly lighter background on hover */
 }
