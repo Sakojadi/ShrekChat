@@ -137,6 +137,14 @@ function setupProfileSidebar() {
                     document.getElementById('profileEmail').value = data.data.email || '';
                     document.getElementById('profilePhone').value = data.data.phone_number || '';
                     document.getElementById('profileCountry').value = data.data.country || '';
+                    
+                    // Set bio field if available
+                    const bioField = document.getElementById('profileBio');
+                    if (bioField) {
+                        bioField.value = data.data.bio || '';
+                        // Update character count
+                        updateBioCharCount(bioField.value.length);
+                    }
                 } else {
                     console.error('Error loading profile:', data.message);
                 }
@@ -159,6 +167,12 @@ function setupProfileSidebar() {
             formData.append('email', document.getElementById('profileEmail').value);
             formData.append('phone_number', document.getElementById('profilePhone').value);
             formData.append('country', document.getElementById('profileCountry').value);
+            
+            // Add bio field
+            const bioField = document.getElementById('profileBio');
+            if (bioField) {
+                formData.append('bio', bioField.value.trim());
+            }
             
             fetch('/api/profile/update', {
                 method: 'POST',

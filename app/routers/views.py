@@ -27,6 +27,7 @@ async def get_user_profile(user_id: int, db: Session = Depends(get_db)):
         "avatar": user.avatar or "/static/images/shrek.jpg",
         "country": user.country or "Not provided",
         "phone_number": user.phone_number or "Not provided",
+        "bio": user.bio or "",
         "status": "online" if user.is_online else "offline"
     }
 

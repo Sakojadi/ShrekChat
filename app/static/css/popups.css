@@ -1444,3 +1444,67 @@ body.dark-theme #editGroupPopup .btn-primary {
 body.dark-theme #editGroupPopup .btn-primary:hover {
     background-color: #699C2F;
 }
+
+/* Bio field styling */
+#profileBio {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    resize: none;
+    height: 100px;
+    font-family: inherit;
+    font-size: 14px;
+    transition: border-color 0.3s ease;
+}
+
+#profileBio:focus {
+    border-color: #7BAE37;
+    outline: none;
+}
+
+.bio-counter {
+    font-size: 12px;
+    color: #777;
+    text-align: right;
+    margin-top: 5px;
+}
+
+/* Bio display in contact info */
+.bio-section {
+    margin-bottom: 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start; /* Align contents to the left */
+}
+
+.bio-text {
+    display: block;
+    font-style: italic;
+    line-height: 1.4;
+    margin-top: 5px;
+    color: #555;
+    word-wrap: break-word;
+    text-align: left; /* Align text to the left */
+    margin-left: 0; /* Remove any left margin */
+    width: 100%; /* Use full width */
+    padding-left: 10px; /* Add a small padding from the left */
+}
+
+/* Adjust info section layout for bio */
+.info-section.bio-info {
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.info-section.bio-info .info-label {
+    margin-bottom: 8px;
+    flex: none;
+    width: auto;
+}
+
+.info-section.bio-info .info-value {
+    text-align: left;
+    flex: none;
+    width: 100%;
+}

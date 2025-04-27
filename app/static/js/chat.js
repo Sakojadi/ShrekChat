@@ -541,6 +541,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const contactInfoCountry = document.getElementById('contactInfoCountry');
         const contactInfoPhone = document.getElementById('contactInfoPhone');
+        const contactInfoBio = document.getElementById('contactInfoBio');
         
         // Set status
         const cachedStatus = userData.user_id && window.shrekChatUtils.statusCache[userData.user_id]?.status;
@@ -555,6 +556,11 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (contactInfoPhone) {
             contactInfoPhone.textContent = 'Loading...';
+        }
+        
+        // Set bio placeholder until loaded
+        if (contactInfoBio) {
+            contactInfoBio.textContent = 'Loading...';
         }
         
         // Show the popup immediately
@@ -580,7 +586,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     contactInfoPhone.textContent = profileData.phone_number || 'Not provided';
                 }
                 
-                console.log(`[${timestamp}] Updated contact info with profile data including country and phone for user ${userData.user_id}`);
+                // Update bio with profile data
+                if (contactInfoBio) {
+                    if (profileData.bio && profileData.bio.trim()) {
+                        contactInfoBio.textContent = profileData.bio;
+                        contactInfoBio.parentElement.style.display = 'block';
+                    } else {
+                        contactInfoBio.textContent = 'No bio provided';
+                        contactInfoBio.parentElement.style.display = 'block';
+                    }
+                }
+                
+                console.log(`[${timestamp}] Updated contact info with profile data including country, phone, and bio for user ${userData.user_id}`);
             })
             .catch(error => {
                 console.error(`[${timestamp}] Error fetching profile data:`, error);
@@ -591,6 +608,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 if (contactInfoPhone) {
                     contactInfoPhone.textContent = userData.phone_number || 'Not provided';
+                }
+                
+                if (contactInfoBio) {
+                    contactInfoBio.textContent = 'Not provided';
                 }
             });
             
