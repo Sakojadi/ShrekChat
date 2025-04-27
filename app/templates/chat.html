@@ -129,6 +129,28 @@
                     <i class="far fa-smile"></i>
                 </button>
                 
+                <div class="emoji-picker">
+                    <div class="emoji-picker-header">
+                        <div class="emoji-categories">
+                            <button class="emoji-category active" data-category="smileys">😊</button>
+                            <button class="emoji-category" data-category="animals">🐱</button>
+                            <button class="emoji-category" data-category="food">🍔</button>
+                            <button class="emoji-category" data-category="travel">✈️</button>
+                            <button class="emoji-category" data-category="activities">⚽</button>
+                            <button class="emoji-category" data-category="objects">💡</button>
+                            <button class="emoji-category" data-category="symbols">❤️</button>
+                            <button class="emoji-category" data-category="flags">🏁</button>
+                        </div>
+                        <button class="emoji-close">✕</button>
+                    </div>
+                    <div class="emoji-search">
+                        <input type="text" placeholder="Search emojis...">
+                    </div>
+                    <div class="emoji-container">
+                        <!-- Emojis will be dynamically loaded here -->
+                    </div>
+                </div>
+                
                 <button id="sendMessageBtn" class="send-btn">
                     <i class="fas fa-paper-plane"></i>
                 </button>
@@ -628,6 +650,7 @@
 <script src="/static/js/webrtc.js"></script>
 <script src="/static/js/theme.js"></script>
 <script src="/static/js/sidebar.js"></script>
+<script src="/static/js/emoji.js"></script>
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/chatFunc.js"></script>
 <script src="/static/js/groupChat.js"></script>
