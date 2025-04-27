@@ -25,9 +25,6 @@ jobs:
         uses: google-github-actions/auth@v2
         with:
           credentials_json: '${{ secrets.GCP_SA_KEY }}'
-        
-      - name: Clear old Docker credentials
-        run: rm -rf ~/.docker/config.json
 
       - name: Authenticate Docker with GCloud
         run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev
