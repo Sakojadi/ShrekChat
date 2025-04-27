@@ -1375,3 +1375,72 @@ body.dark-theme #closeInfoButton {
 body.dark-theme #closeInfoButton:hover {
     background-color: #699C2F;
 }
+
+/* Edit Group Popup Buttons */
+#editGroupPopup .popup-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 30px;
+    gap: 15px;
+}
+
+#editGroupPopup .btn-secondary {
+    flex: 1;
+    padding: 12px 20px;
+    background-color: #f2f2f2;
+    color: #555;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    font-size: 14px;
+    letter-spacing: 0.5px;
+}
+
+#editGroupPopup .btn-secondary:hover {
+    background-color: #e6e6e6;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+#editGroupPopup .btn-primary {
+    flex: 1;
+    padding: 12px 20px;
+    background-color: #7BAE37; /* Shrek green */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    font-size: 14px;
+    letter-spacing: 0.5px;
+}
+
+#editGroupPopup .btn-primary:hover {
+    background-color: #699C2F; /* Darker Shrek green */
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Dark theme support for edit group popup buttons */
+body.dark-theme #editGroupPopup .btn-secondary {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+}
+
+body.dark-theme #editGroupPopup .btn-secondary:hover {
+    background-color: #4a4a4a;
+}
+
+body.dark-theme #editGroupPopup .btn-primary {
+    background-color: #7BAE37; /* Keep Shrek green in dark theme */
+    color: white;
+}
+
+body.dark-theme #editGroupPopup .btn-primary:hover {
+    background-color: #699C2F;
+}
