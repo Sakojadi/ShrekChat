@@ -32,8 +32,13 @@ let dialTone = null;
 
 // Initialize WebRTC
 function initWebRTC() {
-    setupWebSocketHandler();
-    setupEventListeners();
+    try {
+        setupWebSocketHandler();
+        setupEventListeners();
+        console.log('WebRTC initialized successfully');
+    } catch (error) {
+        console.error('Failed to initialize WebRTC:', error);
+    }
 }
 
 // Set up WebSocket handler
@@ -42,22 +47,28 @@ function setupWebSocketHandler() {
         const data = e.detail;
         if (!data || !data.type) return;
 
-        switch (data.type) {
-            case 'call_offer':
-                handleCallOffer(data);
-                break;
-            case 'call_answer':
-                handleCallAnswer(data);
-                break;
-            case 'call_ice_candidate':
-                handleIceCandidate(data);
-                break;
-            case 'call_end':
-                handleCallEnd(data);
-                break;
-            case 'call_declined':
-                handleCallDeclined(data);
-                break;
+        try {
+            switch (data.type) {
+                case 'call_offer':
+                    handleCallOffer(data);
+                    break;
+                case 'call_answer':
+                    handleCallAnswer(data);
+                    break;
+                case 'call_ice_candidate':
+                    handleIceCandidate(data);
+                    break;
+                case 'call_end':
+                    handleCallEnd(data);
+                    break;
+                case 'call_decline':
+                    handleCallDeclined(data);
+                    break;
+                default:
+                    console.log('Unknown call message type:', data.type);
+            }
+        } catch (error) {
+            console.error('Error handling call message:', error);
         }
     });
 }

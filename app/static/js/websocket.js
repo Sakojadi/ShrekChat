@@ -885,7 +885,12 @@ window.shrekChatWebSocket = {
             return false;
         }
         
-        chatWebSocket.send(JSON.stringify(data));
-        return true;
+        try {
+            chatWebSocket.send(JSON.stringify(data));
+            return true;
+        } catch (error) {
+            console.error("Error sending call signaling:", error);
+            return false;
+        }
     }
 };
