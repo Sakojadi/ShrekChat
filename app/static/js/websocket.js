@@ -367,27 +367,8 @@ function handleChatMessage(data) {
 
     // Update sidebar UI with new message info
     if (window.shrekChatUtils) {
-        // For attachments, use descriptive text in sidebar
-        let displayContent = message.content;
-        
-        // Use the provided display_name if available, otherwise derive it from content
-        if (message.display_name) {
-            displayContent = message.display_name;
-            wsLog(`Using provided display name for attachment: ${displayContent}`);
-        } else if (isAttachment) {
-            if (message.content.includes('<img-attachment')) displayContent = '📷 Photo';
-            else if (message.content.includes('<video-attachment')) displayContent = '🎥 Video';
-            else if (message.content.includes('<audio-attachment')) displayContent = '🎵 Audio';
-            else if (message.content.includes('<doc-attachment')) displayContent = '📄 Document';
-            else if (message.attachment && message.attachment.type) {
-                const type = message.attachment.type;
-                if (type === 'photo' || type === 'image') displayContent = '📷 Photo';
-                else if (type === 'video') displayContent = '🎥 Video';
-                else if (type === 'audio') displayContent = '🎵 Audio';
-                else displayContent = `📎 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-            }
-            wsLog(`Derived display content for attachment: ${displayContent}`);
-        }
+        // Get consistent display name for attachments
+        let displayContent = isAttachment ? getAttachmentDisplayName(message) : message.content;
         
         // Always update the last message in the sidebar
         window.shrekChatUtils.updateLastMessage(message.room_id, displayContent, message.time);
@@ -399,7 +380,6 @@ function handleChatMessage(data) {
         }
     }
 
-    // Handle message rendering based on whether it's in current room
     if (parseInt(currentRoomId) === parseInt(message.room_id)) {
         if (isConfirmation && message.temp_id) {
             // Update temporary message with confirmed ID
@@ -451,9 +431,19 @@ function processConfirmedMessage(message, isAttachment) {
             }
         }
 
-        // For attachments, update content
+        // For attachments, update content and sidebar
         if (isAttachment) {
             updateAttachmentContent(tempMessage, message.content, message.attachment);
+            
+            // Update sidebar for sender's own attachments
+            if (window.shrekChatUtils) {
+                // Get consistent display name for the attachment
+                let displayContent = getAttachmentDisplayName(message);
+                
+                // Force update the sidebar display for the sender
+                window.shrekChatUtils.updateLastMessage(message.room_id, displayContent, message.time);
+                wsLog(`Updated sender's sidebar for attachment: ${displayContent}`);
+            }
         }
     } else if (window.displayMessage) {
         // If temp message not found, display as new
@@ -462,7 +452,35 @@ function processConfirmedMessage(message, isAttachment) {
     }
 }
 
-// Process an incoming message from another user
+// Helper function to get consistent display name for attachments
+function getAttachmentDisplayName(message) {
+    // Use the provided display_name if available
+    if (message.display_name) {
+        return message.display_name;
+    }
+    
+    // Otherwise determine from content/attachment type
+    if (message.content) {
+        if (message.content.includes('<img-attachment')) return '📷 Photo';
+        if (message.content.includes('<video-attachment')) return '🎥 Video';
+        if (message.content.includes('<audio-attachment')) return '🎵 Audio';
+        if (message.content.includes('<doc-attachment')) return '📄 Document';
+    }
+    
+    // Check legacy attachment format
+    if (message.attachment && message.attachment.type) {
+        const type = message.attachment.type;
+        if (type === 'photo' || type === 'image') return '📷 Photo';
+        if (type === 'video') return '🎥 Video';
+        if (type === 'audio') return '🎵 Audio';
+        return `📎 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    }
+    
+    // Default fallback
+    return '📎 Attachment';
+}
+
+// Process an incoming message from another user    
 function processIncomingMessage(message, isAttachment) {
     const existingMessage = document.querySelector(`.message[data-message-id="${message.id}"]`);
     

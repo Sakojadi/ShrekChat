@@ -61,65 +61,73 @@ function debounce(func, wait) {
     };
 }
 
-// Update display of message status indicators
-function updateMessageStatus(messageId, status) {
-    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
-    if (messageElement) {
-        const messageStatusSingle = messageElement.querySelector('.message-status-single');
-        const messageStatusDouble = messageElement.querySelector('.message-status-double');
-        
-        if (messageStatusSingle && messageStatusDouble) {
-            if (status === 'delivered') {
-                messageStatusDouble.style.display = 'inline';
-                messageStatusDouble.classList.remove('read');
-                messageStatusSingle.style.display = 'none';
-            } else if (status === 'read') {
-                messageStatusDouble.style.display = 'inline';
-                messageStatusDouble.classList.add('read');
-                messageStatusSingle.style.display = 'none';
-            }
-        }
-    } else {
-        // Message element not found in DOM - might be an old message that's not currently visible
-        // Store this status update to apply when the message becomes visible
-        if (!window.pendingMessageStatuses) {
-            window.pendingMessageStatuses = {};
-        }
-        window.pendingMessageStatuses[messageId] = status;
-        console.log(`Stored pending status update for message ${messageId}: ${status}`);
-    }
-}
+// Cache for storing latest user statuses
+const statusCache = {};
 
 // Update a contact's online status in the UI
-function updateContactStatus(userId, status) {
-    const contactElement = document.querySelector(`.contact-item[data-user-id="${userId}"]`);
-    if (contactElement) {
-        const statusIndicator = contactElement.querySelector('.status-indicator');
-        if (statusIndicator) {
-            statusIndicator.className = `status-indicator ${status}`;
-        }
-        
-        // Also update the chat header if this is the current contact
-        const chatContactStatus = document.getElementById('chatContactPresence');
-        const chatHeader = document.getElementById('chatHeader');
-        const currentUserId = parseInt(document.querySelector('.chat-area')?.getAttribute('data-current-user-id'));
-        
-        if (currentUserId === userId && chatContactStatus && chatHeader) {
-            const headerStatusIndicator = chatHeader.querySelector('.status-indicator');
-            if (headerStatusIndicator) {
-                headerStatusIndicator.className = `status-indicator ${status}`;
+function updateContactStatus(userId, status, source = 'unknown') {
+    // Validate status
+    const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] Updating status for user ${userId} to ${validStatus} (source: ${source})`);
+
+    // Update cache
+    statusCache[userId] = { status: validStatus, updatedAt: timestamp };
+
+    // Batch DOM updates for performance
+    requestAnimationFrame(() => {
+        // Update contact in sidebar
+        const contactElement = document.querySelector(`.contact-item[data-user-id="${userId}"]`);
+        if (contactElement) {
+            const statusIndicator = contactElement.querySelector('.status-indicator');
+            if (statusIndicator) {
+                statusIndicator.classList.remove('online', 'offline');
+                statusIndicator.classList.add(validStatus);
+            } else {
+                console.warn(`[${timestamp}] Status indicator not found for user ${userId} in sidebar`);
             }
-            chatContactStatus.textContent = status === 'online' ? 'Online' : 'Offline';
-            
-            const newStatusIndicator = document.createElement('span');
-            newStatusIndicator.className = `status-indicator ${status}`;
-            chatContactStatus.prepend(newStatusIndicator);
+        } else {
+            console.warn(`[${timestamp}] Contact element not found for user ${userId} in sidebar`);
         }
-    }
+
+        // Update chat header if this user is currently open
+        const chatContent = document.getElementById('chatContent');
+        const currentUserId = chatContent?.getAttribute('data-current-user-id');
+        if (currentUserId && parseInt(currentUserId) === parseInt(userId)) {
+            const chatContactStatus = document.getElementById('chatContactPresence');
+            if (chatContactStatus) {
+                chatContactStatus.textContent = validStatus === 'online' ? 'Online' : 'Offline';
+                chatContactStatus.className = `status-text ${validStatus}`;
+            } else {
+                console.warn(`[${timestamp}] Chat contact status element not found for user ${userId}`);
+            }
+        }
+
+        // Update contact info popup if open
+        const contactInfoPopup = document.getElementById('contactInfoPopup');
+        if (contactInfoPopup && contactInfoPopup.classList.contains('open')) {
+            const contactInfoUserId = contactInfoPopup.getAttribute('data-user-id');
+            if (contactInfoUserId && parseInt(contactInfoUserId) === parseInt(userId)) {
+                const contactInfoStatus = document.getElementById('contactInfoStatus');
+                if (contactInfoStatus) {
+                    contactInfoStatus.textContent = validStatus === 'online' ? 'Online' : 'Offline';
+                    contactInfoStatus.className = `status-text ${validStatus}`;
+                } else {
+                    console.warn(`[${timestamp}] Contact info status element not found for user ${userId}`);
+                }
+            }
+        }
+    });
+
+    // Dispatch custom event for other modules
+    const statusEvent = new CustomEvent('status-update', {
+        detail: { userId, status: validStatus, source }
+    });
+    window.dispatchEvent(statusEvent);
 }
 
 // Update the last message preview in a chat contact list item
-function updateLastMessage(roomId, message, time) {
+function updateLastMessage(roomId, content, time) {
     const contactElement = document.querySelector(`.contact-item[data-room-id="${roomId}"]`);
     
     if (contactElement) {
@@ -127,11 +135,29 @@ function updateLastMessage(roomId, message, time) {
         const messageTimeElement = contactElement.querySelector('.message-time');
         
         if (lastMessageElement) {
-            const displayMessage = message.length > 30 ? message.substring(0, 27) + '...' : message;
+            // Process attachment markup for sidebar display
+            let displayMessage = content;
+            
+            // Check for attachment markers and use friendly names
+            if (typeof content === 'string') {
+                if (content.includes('<img-attachment')) {
+                    displayMessage = '📷 Photo';
+                } else if (content.includes('<video-attachment')) {
+                    displayMessage = '🎥 Video';
+                } else if (content.includes('<audio-attachment')) {
+                    displayMessage = '🎵 Audio';
+                } else if (content.includes('<doc-attachment')) {
+                    displayMessage = '📄 Document';
+                } else {
+                    // For normal text messages, truncate if too long
+                    displayMessage = content.length > 30 ? content.substring(0, 27) + '...' : content;
+                }
+            }
+            
             lastMessageElement.textContent = displayMessage;
         }
         
-        if (messageTimeElement) {
+        if (messageTimeElement && time) {
             messageTimeElement.textContent = time;
         }
         
@@ -141,26 +167,6 @@ function updateLastMessage(roomId, message, time) {
             parentElement.insertBefore(contactElement, parentElement.firstChild);
         }
     }
-
-            // Use the provided display_name if available, otherwise derive it from content
-            if (message.display_name) {
-                displayContent = message.display_name;
-                wsLog(`Using provided display name for attachment: ${displayContent}`);
-            } else if (isAttachment) {
-                if (message.content.includes('<img-attachment')) displayContent = '📷 Photo';
-                else if (message.content.includes('<video-attachment')) displayContent = '🎥 Video';
-                else if (message.content.includes('<audio-attachment')) displayContent = '🎵 Audio';
-                else if (message.content.includes('<doc-attachment')) displayContent = '📄 Document';
-                else if (message.attachment && message.attachment.type) {
-                    const type = message.attachment.type;
-                    if (type === 'photo' || type === 'image') displayContent = '📷 Photo';
-                    else if (type === 'video') displayContent = '🎥 Video';
-                    else if (type === 'audio') displayContent = '🎵 Audio';
-                    else displayContent = `📎 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-                }
-                wsLog(`Derived display content for attachment: ${displayContent}`);
-            }
-            
 }
 
 // Increment the unread message count badge for a room
@@ -188,6 +194,38 @@ function incrementUnreadCount(roomId) {
     }
 }
 
+// Update display of message status indicators
+function updateMessageStatus(messageId, status) {
+    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    if (messageElement) {
+        const messageStatusSingle = messageElement.querySelector('.message-status-single');
+        const messageStatusDouble = messageElement.querySelector('.message-status-double');
+        
+        if (messageStatusSingle && messageStatusDouble) {
+            if (status === 'delivered') {
+                messageStatusDouble.style.display = 'inline';
+                messageStatusDouble.classList.remove('read');
+                messageStatusSingle.style.display = 'none';
+            } else if (status === 'read') {
+                messageStatusDouble.style.display = 'inline';
+                messageStatusDouble.classList.add('read');
+                messageStatusSingle.style.display = 'none';
+            } else if (status === 'sent') {
+                messageStatusSingle.style.display = 'inline';
+                messageStatusDouble.style.display = 'none';
+            }
+        }
+    } else {
+        // Message element not found in DOM - might be an old message that's not currently visible
+        // Store this status update to apply when the message becomes visible
+        if (!window.pendingMessageStatuses) {
+            window.pendingMessageStatuses = {};
+        }
+        window.pendingMessageStatuses[messageId] = status;
+        console.log(`Stored pending status update for message ${messageId}: ${status}`);
+    }
+}
+
 // Export all utility functions
 window.shrekChatUtils = {
     formatTime,
@@ -196,5 +234,6 @@ window.shrekChatUtils = {
     updateMessageStatus,
     updateContactStatus,
     updateLastMessage,
-    incrementUnreadCount
+    incrementUnreadCount,
+    statusCache
 };
