@@ -18,6 +18,31 @@ function initAudioRecording() {
 
 // Toggle recording state
 async function toggleRecording() {
+    // Check if user is blocked before allowing recording
+    const chatContent = document.getElementById('chatContent');
+    if (chatContent) {
+        const currentUserId = chatContent.getAttribute('data-current-user-id');
+        if (currentUserId) {
+            // If checkIfBlocked is available, check block status
+            if (typeof checkIfBlocked === 'function') {
+                try {
+                    const blockStatus = await checkIfBlocked(currentUserId);
+                    if (blockStatus.is_blocked) {
+                        alert('You cannot send audio messages to a blocked user');
+                        return;
+                    }
+                    if (blockStatus.is_blocker) {
+                        alert('You cannot send audio messages to a user who has blocked you');
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error checking block status:', error);
+                }
+            }
+        }
+    }
+
+    // If we get here, user is not blocked
     if (isRecording) {
         stopRecording();
     } else {

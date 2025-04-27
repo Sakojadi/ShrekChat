@@ -290,6 +290,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
 
+            // Reset any blocked status from previous chats
+            if (typeof resetBlockStatus === 'function') {
+                resetBlockStatus();
+            }
+
             // Update chat header
             updateChatHeader(roomData);
 
@@ -319,6 +324,11 @@ document.addEventListener('DOMContentLoaded', function() {
             if (welcomeContainer) welcomeContainer.style.display = 'none';
             if (chatContent) chatContent.style.display = 'flex';
             if (sidebar) sidebar.classList.remove('active');
+
+            // For direct chats, check if user is blocked (only after resetting previous blocked state)
+            if (!roomData.is_group && roomData.user_id && typeof checkAndUpdateBlockStatus === 'function') {
+                checkAndUpdateBlockStatus(roomData.user_id);
+            }
 
             // Fetch latest status for direct chats
             if (!roomData.is_group && roomData.user_id) {
@@ -488,6 +498,44 @@ document.addEventListener('DOMContentLoaded', function() {
                     dropdownMenu.classList.remove('active');
                 }
             });
+        }
+
+        // Setup block/unblock user functionality
+        const toggleBlockUserItem = document.getElementById('toggleBlockUser');
+        if (toggleBlockUserItem && !roomData.is_group) {
+            const newToggleBlockUserItem = toggleBlockUserItem.cloneNode(true);
+            toggleBlockUserItem.parentNode.replaceChild(newToggleBlockUserItem, toggleBlockUserItem);
+            
+            // Update menu item text based on current blocked status
+            if (typeof updateBlockUserMenuItem === 'function' && roomData.user_id) {
+                updateBlockUserMenuItem(roomData.user_id);
+            }
+            
+            newToggleBlockUserItem.addEventListener('click', function() {
+                const userId = roomData.user_id;
+                if (userId) {
+                    // Check if user is already blocked
+                    if (typeof checkIfBlocked === 'function' && typeof blockUser === 'function' && typeof unblockUser === 'function') {
+                        checkIfBlocked(userId).then(blocked => {
+                            if (blocked.is_blocked) {
+                                // If blocked, unblock user
+                                unblockUser(userId);
+                            } else {
+                                // If not blocked, block user
+                                blockUser(userId);
+                            }
+                        });
+                    }
+                }
+                
+                const dropdownMenu = document.querySelector('.dropdown-menu.active');
+                if (dropdownMenu) {
+                    dropdownMenu.classList.remove('active');
+                }
+            });
+        } else if (toggleBlockUserItem && roomData.is_group) {
+            // Hide block option for group chats
+            toggleBlockUserItem.style.display = 'none';
         }
 
         const chatContactInfo = document.querySelector('.chat-contact-info');

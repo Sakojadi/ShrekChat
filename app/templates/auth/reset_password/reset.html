@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Новый пароль - ShrekChat{% endblock %}
+
+{% block css %}
+    {{ super() }}
+    <link rel="stylesheet" href="/static/css/auth.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="left-panel">
+        <div class="logo">
+            <img src="/static/images/shrek-logo.png" alt="Shrek Logo">
+        </div>
+        <div class="welcome-text">
+            <h1>Создание нового пароля</h1>
+            <p>Придумайте новый пароль для вашего аккаунта</p>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="form-container">
+            <h2>НОВЫЙ ПАРОЛЬ</h2>
+            <form id="newPasswordForm" method="POST" action="/reset-password/{{ token }}">
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" name="password" placeholder="НОВЫЙ ПАРОЛЬ" required>
+                </div>
+                <div class="input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="confirmPassword" name="confirm_password" placeholder="ПОДТВЕРДИТЕ ПАРОЛЬ" required>
+                </div>
+                <div class="error-message" id="errorMessage">
+                    {% if error %}{{ error }}{% endif %}
+                </div>
+                <button type="submit" class="btn-submit">Сохранить новый пароль</button>
+                <div class="login-link">
+                    <p>Вспомнили пароль? <a href="/login">Войти</a></p>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/validation.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('newPasswordForm');
+        const passwordInput = document.getElementById('password');
+        const confirmPasswordInput = document.getElementById('confirmPassword');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        form.addEventListener('submit', function(e) {
+            if (passwordInput.value !== confirmPasswordInput.value) {
+                e.preventDefault();
+                errorMessage.textContent = 'Пароли не совпадают';
+            }
+            
+            if (passwordInput.value.length < 6) {
+                e.preventDefault();
+                errorMessage.textContent = 'Пароль должен содержать минимум 6 символов';
+            }
+        });
+    });
+</script>
+{% endblock %}

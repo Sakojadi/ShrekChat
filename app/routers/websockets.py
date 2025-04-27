@@ -1,7 +1,7 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_
+from sqlalchemy import and_, or_, not_
 from typing import Dict, List, Set, Optional
 from datetime import datetime
 import pytz
@@ -14,7 +14,7 @@ from app.routers.session import ConnectionManager
 # Initialize our own manager instance
 manager = ConnectionManager()
 
-from app.database import SessionLocal, User, Room, Message, room_members, GroupChat
+from app.database import SessionLocal, User, Room, Message, room_members, GroupChat, BlockedUser
 
 router = APIRouter()
 
@@ -237,6 +237,35 @@ async def handle_chat_message(websocket: WebSocket, user: User, message_data: di
             await websocket.send_json({"error": "You are not a member of this room"})
             return
         
+        # For direct messages, check if either user has blocked the other
+        if not room.is_group:
+            # Get the other user in the direct message
+            other_user = db.query(User).join(
+                room_members, User.id == room_members.c.user_id
+            ).filter(
+                and_(
+                    room_members.c.room_id == room_id,
+                    User.id != user.id
+                )
+            ).first()
+            
+            if other_user:
+                # Check if either user has blocked the other
+                blocked_check = db.query(BlockedUser).filter(
+                    or_(
+                        and_(BlockedUser.user_id == user.id, BlockedUser.blocked_user_id == other_user.id),
+                        and_(BlockedUser.user_id == other_user.id, BlockedUser.blocked_user_id == user.id)
+                    )
+                ).first()
+                
+                if blocked_check:
+                    await websocket.send_json({
+                        "error": "Cannot send message", 
+                        "type": "blocked",
+                        "message": "You cannot exchange messages with this user"
+                    })
+                    return
+        
         # Create message
         new_message = Message(
             content=content,
@@ -281,15 +310,34 @@ async def handle_chat_message(websocket: WebSocket, user: User, message_data: di
             
         await websocket.send_json(sender_response)
         
-        # Send to all other room members who are connected
-        members = db.query(User.id).join(
-            room_members, User.id == room_members.c.user_id
-        ).filter(
-            and_(
-                room_members.c.room_id == room_id,
-                User.id != user.id  # Exclude sender
-            )
-        ).all()
+        # Get IDs of users who have blocked the current user or who have been blocked by the current user
+        if room.is_group:
+            # For group chats, exclude users who have blocked the sender
+            blocked_sender_user_ids = db.query(BlockedUser.user_id).filter(
+                BlockedUser.blocked_user_id == user.id
+            ).all()
+            blocked_sender_ids = [id for (id,) in blocked_sender_user_ids]
+            
+            # Send to all other room members who are connected, except those who blocked the sender
+            members = db.query(User.id).join(
+                room_members, User.id == room_members.c.user_id
+            ).filter(
+                and_(
+                    room_members.c.room_id == room_id,
+                    User.id != user.id,  # Exclude sender
+                    not_(User.id.in_(blocked_sender_ids))  # Exclude users who blocked sender
+                )
+            ).all()
+        else:
+            # For direct messages, we already checked blocking status above
+            members = db.query(User.id).join(
+                room_members, User.id == room_members.c.user_id
+            ).filter(
+                and_(
+                    room_members.c.room_id == room_id,
+                    User.id != user.id  # Exclude sender
+                )
+            ).all()
         
         member_ids = [member.id for member in members]
         

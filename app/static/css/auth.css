@@ -157,6 +157,14 @@ body {
     min-height: 20px;
 }
 
+.success-message {
+    color: #4CAF50;
+    font-size: 14px;
+    margin-bottom: 15px;
+    text-align: center;
+    min-height: 20px;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .container {
@@ -220,4 +228,8 @@ body.dark-theme .login-link {
 
 body.dark-theme .error-message {
     color: #f77;
+}
+
+body.dark-theme .success-message {
+    color: #7BAE37;
 }

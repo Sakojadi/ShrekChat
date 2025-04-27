@@ -125,6 +125,23 @@ async function startCall() {
             throw new Error("Cannot call: Target user ID not found");
         }
 
+        // Check if user is blocked before allowing call
+        if (typeof checkIfBlocked === 'function') {
+            try {
+                const blockStatus = await checkIfBlocked(targetUserId);
+                if (blockStatus.is_blocked) {
+                    showError("Call Blocked", "You cannot call a user you have blocked");
+                    return;
+                }
+                if (blockStatus.is_blocker) {
+                    showError("Call Blocked", "You cannot call a user who has blocked you");
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking block status:', error);
+            }
+        }
+
         // Initialize WebRTC connection
         peerConnection = new RTCPeerConnection(rtcConfiguration);
         setupPeerConnectionHandlers();
@@ -328,6 +345,31 @@ async function handleCallOffer(data) {
                 room_id: data.room_id
             });
             return;
+        }
+
+        // Check if the caller is blocked
+        if (typeof checkIfBlocked === 'function') {
+            try {
+                const blockStatus = await checkIfBlocked(data.caller_id);
+                if (blockStatus.is_blocked || blockStatus.is_blocker) {
+                    // Automatically decline calls from/to blocked users
+                    sendCallSignaling({
+                        type: 'call_decline',
+                        target_user_id: data.caller_id,
+                        room_id: data.room_id
+                    });
+                    
+                    // Show appropriate message
+                    if (blockStatus.is_blocked) {
+                        showInfo("Call Blocked", "Incoming call was automatically declined because you have blocked this user");
+                    } else {
+                        showInfo("Call Blocked", "Incoming call was automatically declined because this user has blocked you");
+                    }
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking block status:', error);
+            }
         }
 
         currentCallData = {
