@@ -399,24 +399,34 @@ body.light-theme .member-actions .dropdown-menu .dropdown-item:hover {
     background-color: #ffffff; /* White for incoming messages in light theme */
 }
 
-/* Style the sender name */
-.message-sender {
+/* Style the sender name in group messages with stronger specificity */
+.message.group-message .message-sender {
     font-size: 0.85rem;
     font-weight: 500;
     margin-bottom: 3px;
-    color: #777;
     display: block; /* Ensure it's displayed as block */
 }
 
-/* Style the "You" text to match outgoing message background in light theme */
-.message-sender.current-user-name {
-    color: #508030; /* Darker Shrek green that fits better with light theme */
+/* Outgoing messages (your messages) in group chat */
+.message.group-message.outgoing .message-sender {
+    color: #87c35f; /* Darker Shrek green for your username */
     font-weight: bold;
 }
 
-/* Style other usernames to match incoming message background in light theme */
-.message-sender.other-user-name {
-    color: #2c5986; /* Medium blue that stands out in light theme */
+/* Incoming messages (from others) in group chat */
+.message.group-message.incoming .message-sender {
+    color: #a5c5e4; /* Medium blue for other usernames */
+    font-weight: 500;
+}
+
+/* Dark theme adjustments for group message sender names */
+body.dark-theme .message.group-message.outgoing .message-sender {
+    color: #7BAE37; /* Light green color for your username in dark theme */
+    font-weight: bold;
+}
+
+body.dark-theme .message.group-message.incoming .message-sender {
+    color: #64b5f6; /* Light blue for other usernames in dark theme */
     font-weight: 500;
 }
 
