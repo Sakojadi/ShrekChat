@@ -13,6 +13,8 @@ from pathlib import Path
 from app.database import SessionLocal, User, get_db
 from app.routers.session import get_current_user_from_session as get_current_user
 from sqlalchemy.orm import Session
+# Import the manager from websockets module
+from app.routers.websockets import manager
 
 # JWT settings
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key")  # In production, use a secure key
