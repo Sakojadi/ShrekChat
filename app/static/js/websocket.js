@@ -296,6 +296,40 @@ function setupChatWebSocketEvents(webSocket) {
                     : { messageId: data.message_id, deletedBy: data.deleted_by };
                 
                 window.dispatchEvent(new CustomEvent(eventName, { detail: eventDetail }));
+            } else if (data.type === "new_room") {
+                // Handle new room notification (both direct and group)
+                if (window.shrekChatUtils && window.shrekChatUtils.updateRoomList) {
+                    window.shrekChatUtils.updateRoomList(data.room);
+                }
+                
+                // Play notification sound for new room
+                try {
+                    const notificationSound = new Audio('/static/sounds/notification.mp3');
+                    notificationSound.play().catch(e => console.log('Failed to play notification sound:', e));
+                } catch (soundError) {
+                    console.log('Failed to play notification sound:', soundError);
+                }
+            } else if (data.type === "group_deleted") {
+                // Handle group deletion notification
+                const roomElement = document.querySelector(`.contact-item[data-room-id="${data.room_id}"]`);
+                if (roomElement) {
+                    roomElement.remove();
+                }
+                // If the deleted group is currently open, close it
+                if (parseInt(currentRoomId) === parseInt(data.room_id)) {
+                    const chatContent = document.getElementById('chatContent');
+                    const welcomeContainer = document.getElementById('welcomeContainer');
+                    if (chatContent) chatContent.style.display = 'none';
+                    if (welcomeContainer) welcomeContainer.style.display = 'flex';
+                }
+            } else if (data.type === "chat_cleared") {
+                // Handle chat cleared notification
+                if (parseInt(currentRoomId) === parseInt(data.room_id)) {
+                    const chatMessages = document.getElementById('chatMessages');
+                    if (chatMessages) {
+                        chatMessages.innerHTML = '';
+                    }
+                }
             } else if (data.type === "avatar_update") {
                 handleAvatarUpdate(data.user_id, data.avatar_url);
             } else if (data.type === "own_avatar_update") {
@@ -352,7 +386,7 @@ function handleWebSocketCallMessage(event) {
             case 'call_decline': callModule.handleCallDeclined(data); break;
         }
     }
-}
+} 
 
 // Handle incoming chat message
 function handleChatMessage(data) {

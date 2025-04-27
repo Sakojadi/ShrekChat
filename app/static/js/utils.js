@@ -226,6 +226,35 @@ function updateMessageStatus(messageId, status) {
     }
 }
 
+// Update the room list with a new room
+function updateRoomList(roomData) {
+    const contactsList = document.getElementById('contactsList');
+    if (!contactsList) return;
+
+    // Check if room already exists
+    const existingRoom = document.querySelector(`.contact-item[data-room-id="${roomData.id}"]`);
+    if (existingRoom) {
+        // Update existing room
+        const nameElement = existingRoom.querySelector('.contact-info h4');
+        const avatarElement = existingRoom.querySelector('.contact-avatar img');
+        const lastMessageElement = existingRoom.querySelector('.last-message');
+        const messageTimeElement = existingRoom.querySelector('.message-time');
+        
+        if (nameElement) nameElement.textContent = roomData.name;
+        if (avatarElement) avatarElement.src = roomData.avatar || '/static/images/shrek.jpg';
+        if (lastMessageElement) lastMessageElement.textContent = roomData.last_message || 'Click to start chatting!';
+        if (messageTimeElement) messageTimeElement.textContent = roomData.last_message_time || 'Now';
+        
+        // Move to top of list
+        contactsList.insertBefore(existingRoom, contactsList.firstChild);
+    } else {
+        // Add new room
+        if (window.addRoomToList) {
+            window.addRoomToList(roomData);
+        }
+    }
+}
+
 // Export all utility functions
 window.shrekChatUtils = {
     formatTime,
@@ -235,5 +264,6 @@ window.shrekChatUtils = {
     updateContactStatus,
     updateLastMessage,
     incrementUnreadCount,
+    updateRoomList,
     statusCache
 };
