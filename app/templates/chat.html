@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="/static/css/popups.css">
 <link rel="stylesheet" href="/static/css/responsive.css">
 <link rel="stylesheet" href="/static/css/group-chat.css">
+<link rel="stylesheet" href="/static/css/calls.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
 {% endblock %}
 
@@ -88,6 +89,9 @@
                 </div>
                 
                 <div class="chat-actions">
+                    <button id="audioCallBtn" class="chat-call-btn" title="Start audio call">
+                        <i class="fas fa-phone"></i>
+                    </button>
                     <div class="dropdown">
                         <button class="dropdown-toggle">
                             <i class="fas fa-ellipsis-v"></i>
@@ -437,6 +441,68 @@
             </div>
         </div>
     </div>
+
+    <!-- Audio Call Interface -->
+    <div id="incomingCallOverlay" class="call-notification-overlay" style="display: none;">
+        <div class="incoming-call-container">
+            <div class="caller-avatar">
+                <img id="callerAvatar" src="/static/images/shrek.jpg" alt="Caller Avatar">
+            </div>
+            <div class="caller-info">
+                <h3 id="callerName">Username</h3>
+                <p>Incoming audio call...</p>
+            </div>
+            <div class="call-actions">
+                <button id="declineCallBtn" class="call-btn decline">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+                <button id="acceptCallBtn" class="call-btn accept">
+                    <i class="fas fa-phone"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Outgoing Call Interface -->
+    <div id="outgoingCallOverlay" class="call-notification-overlay" style="display: none;">
+        <div class="outgoing-call-container">
+            <div class="callee-avatar">
+                <img id="calleeAvatar" src="/static/images/shrek.jpg" alt="Callee Avatar">
+            </div>
+            <div class="callee-info">
+                <h3 id="calleeName">Username</h3>
+                <p id="outgoingCallStatus">Calling...</p>
+            </div>
+            <div class="call-actions">
+                <button id="cancelCallBtn" class="call-btn decline">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Call Interface -->
+    <div id="activeCallOverlay" class="call-notification-overlay" style="display: none;">
+        <div class="active-call-container">
+            <div class="active-call-participant">
+                <div class="participant-avatar">
+                    <img id="activeCallAvatar" src="/static/images/shrek.jpg" alt="Call Participant">
+                </div>
+                <div class="participant-info">
+                    <h3 id="activeCallName">Username</h3>
+                    <p id="callDuration">00:00</p>
+                </div>
+            </div>
+            <div class="call-actions">
+                <button id="toggleMuteBtn" class="call-btn toggle">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button id="endCallBtn" class="call-btn decline">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Templates -->
@@ -538,12 +604,14 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="/static/js/utils.js"></script>
 <script src="/static/js/websocket.js"></script>
+<script src="/static/js/webrtc.js"></script>
 <script src="/static/js/theme.js"></script>
 <script src="/static/js/sidebar.js"></script>
 <script src="/static/js/chat.js"></script>
 <script src="/static/js/chatFunc.js"></script>
 <script src="/static/js/groupChat.js"></script>
 <script src="/static/js/validation.js"></script>
+<script src="/static/js/sendAttach.js"></script>
 <script type="module" src="/static/js/addFriend.js"></script>
 <script type="module" src="/static/js/alertPopups.js"></script>
 {% endblock %}
