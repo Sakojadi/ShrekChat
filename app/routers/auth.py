@@ -191,6 +191,7 @@ async def update_profile(
     full_name: Optional[str] = Form(None),
     phone_number: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
+    bio: Optional[str] = Form(None),
     avatar: Optional[UploadFile] = File(None)
 ):
     if "username" not in request.session:
@@ -219,7 +220,7 @@ async def update_profile(
             with avatar_path.open("wb") as buffer:
                 shutil.copyfileobj(avatar.file, buffer)
 
-            # Update the user’s avatar path in the database
+            # Update the user's avatar path in the database
             user.avatar = f"/static/uploads/avatars/{avatar_filename}"
             new_avatar_url = user.avatar
 
@@ -244,6 +245,8 @@ async def update_profile(
             user.phone_number = phone_number
         if country:
             user.country = country
+        if bio is not None:
+            user.bio = bio
 
         # Save changes
         db.commit()
@@ -295,6 +298,7 @@ async def get_profile(request: Request):
                 "full_name": user.full_name or "",
                 "phone_number": user.phone_number or "",
                 "country": user.country or "",
+                "bio": user.bio or "",
                 "avatar": user.avatar or "/static/images/default-avatar.jpg"  # Include avatar
             }
         }

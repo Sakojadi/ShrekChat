@@ -220,6 +220,11 @@
                 <h2 id="contactInfoName">Contact Name</h2>
                 <p id="contactInfoStatus" class="status-text">Online</p>
                 
+                <div class="info-section bio-section">
+                    <span class="info-label">Bio</span>
+                    <span id="contactInfoBio" class="info-value bio-text">No bio yet</span>
+                </div>
+                
                 <div class="info-section">
                     <span class="info-label">Username</span>
                     <span id="contactInfoUsername" class="info-value">username</span>
@@ -263,6 +268,12 @@
                 <div class="form-group">
                     <label for="profileNickname">Nickname</label>
                     <input type="text" id="profileNickname" name="username" placeholder="Your display name">
+                </div>
+                
+                <div class="form-group">
+                    <label for="profileBio">Bio</label>
+                    <textarea id="profileBio" name="bio" placeholder="Tell us about yourself..." maxlength="150"></textarea>
+                    <div class="bio-counter"><span id="bioCharCount">0</span>/150</div>
                 </div>
                 
                 <div class="form-group">

@@ -52,6 +52,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     full_name = Column(String, nullable=True)
+    bio = Column(String(150), nullable=True)  # User bio/description with 150 char limit
     phone_number = Column(String, nullable=True)
     country = Column(String, nullable=True)
     is_online = Column(Boolean, default=False)
