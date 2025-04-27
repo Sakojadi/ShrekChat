@@ -557,7 +557,7 @@ function playRingtone() {
         if (ringtone) {
             stopRingtone();
         }
-        ringtone = new Audio('/static/sounds/notification.mp3');
+        ringtone = new Audio('/static/sounds/ringing.mp3');
         ringtone.loop = true;
         ringtone.play().catch(e => console.log('Failed to play ringtone:', e));
     } catch (error) {
@@ -575,7 +575,7 @@ function stopRingtone() {
 
 function playDialTone() {
     try {
-        dialTone = new Audio('/static/sounds/notification2.mp3');
+        dialTone = new Audio('/static/sounds/dialing.mp3');
         dialTone.loop = true;
         dialTone.play().catch(e => console.log('Failed to play dial tone:', e));
     } catch (error) {
