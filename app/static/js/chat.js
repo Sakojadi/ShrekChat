@@ -823,13 +823,39 @@ document.addEventListener('DOMContentLoaded', function() {
 
             if (isRoomGroup) {
                 const messageSender = messageElement.querySelector('.message-sender');
+                const messageAvatarImg = messageElement.querySelector('.message-avatar img');
+                
                 if (messageSender) {
                     messageSender.textContent = isCurrentUser ? "You" : (message.sender_name || message.sender);
+                }
+                
+                // Set the avatar for group chat messages
+                if (messageAvatarImg) {
+                    if (isCurrentUser) {
+                        // For current user's messages, use profile avatar
+                        const profileAvatar = document.getElementById('profileAvatar');
+                        if (profileAvatar && profileAvatar.src) {
+                            messageAvatarImg.src = profileAvatar.src;
+                            messageAvatarImg.setAttribute('data-sender-id', 'current-user');
+                            console.log(`[${timestamp}] Set own avatar in group message to: ${profileAvatar.src}`);
+                        }
+                    } else if (message.sender_avatar) {
+                        // For other users' messages, use their avatar
+                        messageAvatarImg.src = message.sender_avatar;
+                        if (message.sender_id) {
+                            messageAvatarImg.setAttribute('data-sender-id', message.sender_id);
+                        }
+                        console.log(`[${timestamp}] Set group message avatar to: ${message.sender_avatar}`);
+                    }
                 }
             }
 
             if (isCurrentUser) {
                 messageDiv.classList.add('outgoing');
+                if (message.sender_id) {
+                    messageDiv.setAttribute('data-sender-id', message.sender_id);
+                }
+                
                 if (!isRoomGroup) {
                     const messageStatusSingle = messageElement.querySelector('.message-status-single');
                     const messageStatusDouble = messageElement.querySelector('.message-status-double');
@@ -866,6 +892,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             } else {
                 messageDiv.classList.add('incoming');
+                if (message.sender_id) {
+                    messageDiv.setAttribute('data-sender-id', message.sender_id);
+                }
                 const statusIndicators = messageElement.querySelectorAll('.message-status');
                 statusIndicators.forEach(indicator => indicator.remove());
             }

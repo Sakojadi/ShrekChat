@@ -269,6 +269,7 @@ async def get_room_messages(
             "sender_id": message.sender_id,
             "sender": "user" if message.sender_id == current_user.id else sender.username if sender else "unknown",
             "sender_name": sender.full_name or sender.username if sender else "Unknown",
+            "sender_avatar": sender.avatar or "/static/images/shrek.jpg" if sender else "/static/images/shrek.jpg",
             "timestamp": message.timestamp.isoformat(),
             "time": message.timestamp.strftime("%H:%M"),
             "delivered": message.delivered,

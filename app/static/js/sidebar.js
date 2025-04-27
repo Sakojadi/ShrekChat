@@ -1,9 +1,23 @@
 /**
  * Sidebar functionality for ShrekChat
  */
-
 document.addEventListener('DOMContentLoaded', function() {
-    // DOM Elements - Sidebar
+    // Initialize sidebar
+    setupProfileSidebar();
+    setupThemeToggle();
+
+    // Listen for avatar updates from WebSocket
+    window.addEventListener('websocket_message', function(event) {
+        const data = event.detail;
+        if (data.type === "own_avatar_update") {
+            // Update all instances of the current user's avatar
+            updateCurrentUserAvatar(data.avatar_url);
+        }
+    });
+});
+
+// Setup profile sidebar functionality
+function setupProfileSidebar() {
     const profileButton = document.getElementById('profileButton');
     const profileSidebar = document.getElementById('profileSidebar');
     const closeProfileSidebar = document.getElementById('closeProfileSidebar');
@@ -13,8 +27,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const editProfilePopup = document.getElementById('editProfilePopup');
     const closeEditProfilePopup = document.getElementById('closeEditProfilePopup');
     const editProfileForm = document.getElementById('editProfileForm');
-
-    // Toggle profile sidebar
+    
+    // Profile button click event
     if (profileButton) {
         profileButton.addEventListener('click', function() {
             profileSidebar.classList.add('active');
@@ -22,6 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
+    // Close button click event
     if (closeProfileSidebar) {
         closeProfileSidebar.addEventListener('click', function() {
             profileSidebar.classList.remove('active');
@@ -72,6 +87,37 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             overlay.classList.remove('active');
+        });
+    }
+
+    // Setup avatar upload handling
+    const uploadAvatarInput = document.getElementById('uploadAvatarInput');
+    const profileAvatarContainer = document.querySelector('.profile-avatar-large');
+    
+    if (uploadAvatarInput && profileAvatarContainer) {
+        // Make the entire avatar area clickable for upload
+        profileAvatarContainer.addEventListener('click', function(e) {
+            // Only trigger if they clicked on the avatar or the overlay
+            if (e.target.closest('.edit-avatar-overlay') || e.target.id === 'profileAvatar') {
+                uploadAvatarInput.click();
+            }
+        });
+        
+        uploadAvatarInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                // Show loading indicator
+                Swal.fire({
+                    title: 'Uploading...',
+                    text: 'Please wait while we upload your avatar',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    willOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                uploadAvatar(this.files[0]);
+            }
         });
     }
 
@@ -175,41 +221,115 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
+}
 
-    document.getElementById('uploadAvatarInput').addEventListener('change', function(event) {
-        const file = event.target.files[0];
-        if (file) {
-            const formData = new FormData();
-            formData.append('file', file);
-
-            fetch('/upload-avatar', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => {
-                if (!response.ok) {
-                    throw new Error('Failed to upload avatar');
-                }
-                return response.json();
-            })
-            .then(data => {
-                document.getElementById('profileAvatar').src = data.avatar_url;
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Avatar Updated',
-                    text: 'Your profile avatar has been updated successfully.',
-                    confirmButtonText: 'OK'
-                });
-            })
-            .catch(error => {
-                console.error('Error uploading avatar:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Upload Failed',
-                    text: 'There was an error uploading your avatar. Please try again.',
-                    confirmButtonText: 'OK'
-                });
-            });
+// Upload avatar function
+function uploadAvatar(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    console.log('Uploading avatar file:', file.name);
+    
+    fetch('/upload-avatar', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        console.log('Avatar upload response status:', response.status);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Avatar upload response data:', data);
+        
+        if (data.success === false) {
+            throw new Error(data.message || 'Failed to upload avatar');
         }
+        
+        if (data.avatar_url) {
+            // Close any existing Swal popups
+            Swal.close();
+            
+            // Show success message
+            Swal.fire({
+                icon: 'success',
+                title: 'Avatar Updated',
+                text: 'Your profile picture has been updated successfully!'
+            });
+            
+            // Update avatar in UI
+            updateCurrentUserAvatar(data.avatar_url);
+        } else {
+            throw new Error('No avatar URL in response');
+        }
+    })
+    .catch(error => {
+        console.error('Error uploading avatar:', error);
+        
+        // Close any existing Swal popups
+        Swal.close();
+        
+        // Show error message
+        Swal.fire({
+            icon: 'error',
+            title: 'Upload Failed',
+            text: 'Failed to upload avatar: ' + error.message
+        });
     });
-});
+}
+
+// Update all instances of the current user's avatar
+function updateCurrentUserAvatar(avatarUrl) {
+    // Update avatar in profile sidebar
+    const profileAvatar = document.getElementById('profileAvatar');
+    if (profileAvatar) {
+        profileAvatar.src = avatarUrl;
+    }
+    
+    // Update avatar in sidebar header
+    const sidebarAvatar = document.querySelector('.profile-btn .profile-picture img');
+    if (sidebarAvatar) {
+        sidebarAvatar.src = avatarUrl;
+    }
+    
+    // Update avatar in profile edit popup
+    const editProfileAvatar = document.querySelector('.profile-avatar-circle img');
+    if (editProfileAvatar) {
+        editProfileAvatar.src = avatarUrl;
+    }
+    
+    // Update avatar in group pages where current user is listed
+    const userId = document.body.getAttribute('data-user-id');
+    if (userId) {
+        document.querySelectorAll(`.group-member[data-user-id="${userId}"] .member-avatar img`).forEach(img => {
+            img.src = avatarUrl;
+        });
+    }
+    
+    console.log('Avatar updated successfully across all UI elements');
+}
+
+// Toggle between light and dark theme
+function setupThemeToggle() {
+    const themeToggle = document.getElementById('themeToggle');
+    const body = document.body;
+    
+    // Check saved theme preference
+    const currentTheme = localStorage.getItem('theme');
+    if (currentTheme === 'dark') {
+        body.classList.add('dark-theme');
+        if (themeToggle) themeToggle.checked = true;
+    }
+    
+    // Listen for theme toggle changes
+    if (themeToggle) {
+        themeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                body.classList.add('dark-theme');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.classList.remove('dark-theme');
+                localStorage.setItem('theme', 'light');
+            }
+        });
+    }
+}

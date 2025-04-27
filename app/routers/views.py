@@ -129,5 +129,6 @@ async def chat_page(request: Request, username: str = Depends(get_current_user),
     return templates.TemplateResponse("chat.html", {
         "request": request,
         "username": username,
+        "user_avatar": current_user.avatar,
         "rooms": rooms_list
     })

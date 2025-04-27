@@ -14,7 +14,7 @@ from app.routers.session import ConnectionManager
 # Initialize our own manager instance
 manager = ConnectionManager()
 
-from app.database import User, Room, Message, room_members, GroupChat
+from app.database import SessionLocal, User, Room, Message, room_members, GroupChat
 
 router = APIRouter()
 
@@ -257,6 +257,7 @@ async def handle_chat_message(websocket: WebSocket, user: User, message_data: di
             "sender_id": new_message.sender_id,
             "sender": user.username,  # The actual username of sender
             "sender_name": user.full_name or user.username,
+            "sender_avatar": user.avatar or "/static/images/shrek.jpg",  # Add sender's avatar URL
             "room_id": room_id,
             "timestamp": new_message.timestamp.isoformat(),
             "time": new_message.timestamp.strftime("%H:%M"),
@@ -895,3 +896,77 @@ async def notify_group_deleted(room_id: int, target_user_ids: list, db: Session)
                     "type": "group_deleted",
                     "room_id": room_id
                 })
+
+async def broadcast_avatar_update(user_id: int, avatar_url: str):
+    """Broadcast avatar update to all connected users who have contact with this user"""
+    try:
+        db = SessionLocal()
+        # Get all users with direct or group connections to this user
+        connected_users = set()
+        
+        # Find users with direct messages
+        direct_contacts = db.query(User.id).join(
+            room_members, User.id == room_members.c.user_id
+        ).join(
+            Room, room_members.c.room_id == Room.id
+        ).filter(
+            and_(
+                Room.is_group == False,
+                room_members.c.room_id.in_(
+                    db.query(room_members.c.room_id).filter(
+                        room_members.c.user_id == user_id
+                    )
+                ),
+                User.id != user_id
+            )
+        ).all()
+        
+        for contact in direct_contacts:
+            connected_users.add(contact.id)
+        
+        # Find users in shared group chats
+        group_contacts = db.query(User.id).join(
+            room_members, User.id == room_members.c.user_id
+        ).filter(
+            and_(
+                room_members.c.room_id.in_(
+                    db.query(room_members.c.room_id).filter(
+                        and_(
+                            room_members.c.user_id == user_id,
+                            room_members.c.room_id.in_(
+                                db.query(Room.id).filter(Room.is_group == True)
+                            )
+                        )
+                    )
+                ),
+                User.id != user_id
+            )
+        ).all()
+        
+        for contact in group_contacts:
+            connected_users.add(contact.id)
+        
+        # Send update to all connected users
+        for contact_id in connected_users:
+            contact = db.query(User).filter(User.id == contact_id).first()
+            if contact and contact.username in active_connections:
+                for ws in active_connections[contact.username]:
+                    await ws.send_json({
+                        "type": "avatar_update",
+                        "user_id": user_id,
+                        "avatar_url": avatar_url
+                    })
+        
+        # Also update the user's own connections
+        user = db.query(User).filter(User.id == user_id).first()
+        if user and user.username in active_connections:
+            for ws in active_connections[user.username]:
+                await ws.send_json({
+                    "type": "own_avatar_update",
+                    "avatar_url": avatar_url
+                })
+                
+    except Exception as e:
+        print(f"Error broadcasting avatar update: {e}")
+    finally:
+        db.close()

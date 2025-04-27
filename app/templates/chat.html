@@ -21,7 +21,7 @@
         <div class="sidebar-header">
             <button id="profileButton" class="profile-btn">
                 <div class="profile-picture">
-                    <img src="/static/images/shrek.jpg" alt="User Avatar">
+                    <img src="{{ user_avatar|default('/static/images/shrek.jpg') }}" alt="User Avatar">
                 </div>
                 <div class="profile-name">{{ username }}</div>
             </button>
@@ -147,7 +147,7 @@
         
         <div class="profile-content">
             <div class="profile-avatar-large">
-                <img id="profileAvatar" src="/static/images/shrek.jpg" alt="User Avatar">
+                <img id="profileAvatar" src="{{ user_avatar|default('/static/images/shrek.jpg') }}" alt="User Avatar">
                 <div class="edit-avatar-overlay">
                     <label for="uploadAvatarInput" class="upload-label">
                         <i class="fas fa-camera"></i>
@@ -241,7 +241,7 @@
     <div id="editProfilePopup" class="popup">            
             <div class="popup-header">
                 <div class="profile-avatar-circle">
-                    <img src="/static/images/shrek.jpg" alt="User Avatar">
+                    <img src="{{ user_avatar|default('/static/images/shrek.jpg') }}" alt="User Avatar">
                 </div>
                 <h3>Edit Profile</h3>
                 <button id="closeEditProfilePopup" class="popup-close">

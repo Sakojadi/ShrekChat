@@ -296,6 +296,10 @@ function setupChatWebSocketEvents(webSocket) {
                     : { messageId: data.message_id, deletedBy: data.deleted_by };
                 
                 window.dispatchEvent(new CustomEvent(eventName, { detail: eventDetail }));
+            } else if (data.type === "avatar_update") {
+                handleAvatarUpdate(data.user_id, data.avatar_url);
+            } else if (data.type === "own_avatar_update") {
+                handleOwnAvatarUpdate(data.avatar_url);
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error, event.data);
@@ -665,6 +669,89 @@ function setCurrentRoom(roomId, isGroup, userId) {
     if (roomId && document.getElementById('chatContent')?.style.display === 'flex') {
         localStorage.setItem('lastOpenedRoomId', roomId);
     }
+}
+
+// Handle avatar update for other users
+function handleAvatarUpdate(userId, avatarUrl) {
+    wsLog(`Received avatar update for user ${userId}: ${avatarUrl}`);
+    
+    // Update avatar in contact list
+    const contactItems = document.querySelectorAll(`.contact-item[data-user-id="${userId}"]`);
+    contactItems.forEach(contactItem => {
+        const avatarImg = contactItem.querySelector('.contact-avatar img');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+        }
+    });
+    
+    // Update avatar in group member lists
+    const groupMembers = document.querySelectorAll(`.group-member[data-user-id="${userId}"]`);
+    groupMembers.forEach(member => {
+        const avatarImg = member.querySelector('.member-avatar img');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+        }
+    });
+    
+    // Update avatar in active chat header if this user's chat is open
+    const chatHeader = document.getElementById('chatHeader');
+    if (chatHeader) {
+        const currentUserId = chatHeader.getAttribute('data-user-id');
+        if (currentUserId === userId.toString()) {
+            const headerAvatar = document.getElementById('chatContactAvatar');
+            if (headerAvatar) {
+                headerAvatar.src = avatarUrl;
+            }
+        }
+    }
+    
+    // Update avatar in contact info popup
+    const contactInfoAvatar = document.getElementById('contactInfoAvatar');
+    const contactInfoUserIdAttr = document.getElementById('contactInfoPopup')?.getAttribute('data-user-id');
+    if (contactInfoAvatar && contactInfoUserIdAttr === userId.toString()) {
+        contactInfoAvatar.src = avatarUrl;
+    }
+    
+    // Update avatar in group messages from this user
+    const userMessages = document.querySelectorAll(`.group-message[data-sender-id="${userId}"]`);
+    userMessages.forEach(message => {
+        const avatarImg = message.querySelector('.message-avatar img');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+        }
+    });
+}
+
+// Handle own avatar update
+function handleOwnAvatarUpdate(avatarUrl) {
+    wsLog(`Received own avatar update: ${avatarUrl}`);
+    
+    // Update avatar in profile sidebar
+    const profileAvatar = document.getElementById('profileAvatar');
+    if (profileAvatar) {
+        profileAvatar.src = avatarUrl;
+    }
+    
+    // Update avatar in sidebar header
+    const sidebarAvatar = document.querySelector('.profile-btn .profile-picture img');
+    if (sidebarAvatar) {
+        sidebarAvatar.src = avatarUrl;
+    }
+    
+    // Update avatar in profile edit popup
+    const editProfileAvatar = document.querySelector('.profile-avatar-circle img');
+    if (editProfileAvatar) {
+        editProfileAvatar.src = avatarUrl;
+    }
+    
+    // Update all other places where the current user's avatar appears
+    const currentUserElements = document.querySelectorAll('.current-user-avatar');
+    currentUserElements.forEach(element => {
+        const avatarImg = element.querySelector('img');
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+        }
+    });
 }
 
 // Export the WebSocket API

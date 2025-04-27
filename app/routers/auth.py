@@ -251,10 +251,10 @@ async def update_profile(
         # Broadcast avatar update to other users
         if avatar:  # Only broadcast if the avatar was updated
             try:
-                from app.routers.websocket import broadcast_avatar_update
-            except ImportError:
-                raise ImportError("The module 'app.routers.websocket' or the function 'broadcast_avatar_update' could not be found.")
-            await broadcast_avatar_update(user.id, new_avatar_url)
+                from app.routers.websockets import broadcast_avatar_update
+                await broadcast_avatar_update(user.id, new_avatar_url)
+            except ImportError as e:
+                print(f"Could not broadcast avatar update: {e}")
 
         # Update session if username changed
         if username_changed:
@@ -311,6 +311,10 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     username = request.session["username"]
+    user_id = request.session.get("user_id")
+    
+    if not user_id:
+        raise HTTPException(status_code=401, detail="User ID not found in session")
     
     # Open database connection
     db = SessionLocal()
@@ -320,28 +324,50 @@ async def upload_avatar(request: Request, file: UploadFile = File(...)):
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         
+        # Validate file type
+        if not file.content_type.startswith('image/'):
+            raise HTTPException(status_code=400, detail="Invalid file type. Please upload an image")
+        
         # Create upload directory if it doesn't exist
-        upload_dir = Path("app/static/uploads/user_avatars")
+        upload_dir = Path("app/static/uploads/avatars")
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Process the file
+        # Generate a unique filename with timestamp to avoid caching issues
+        timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
         file_extension = os.path.splitext(file.filename)[1]
-        avatar_filename = f"user_{user.id}{file_extension}"
-        avatar_path = f"/static/uploads/user_avatars/{avatar_filename}"
+        avatar_filename = f"user_{user.id}_{timestamp}{file_extension}"
         
-        # Save the file - Fix path construction
-        full_path = f"app{avatar_path}"  # This correctly joins the paths
-        with open(full_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        # Save the file
+        file_path = upload_dir / avatar_filename
+        
+        # Use proper way to write file in Python
+        with open(file_path, "wb") as buffer:
+            # Read file in chunks to handle large files
+            contents = await file.read()
+            buffer.write(contents)
+        
+        # Create URL path for database
+        avatar_path = f"/static/uploads/avatars/{avatar_filename}"
         
         # Update user in database
         user.avatar = avatar_path
         db.commit()
         
-        return {"message": "Avatar updated successfully", "avatar_url": avatar_path}
+        print(f"Avatar updated successfully for user {user.id} at path {avatar_path}")
+        
+        # Broadcast avatar update to other users
+        try:
+            from app.routers.websockets import broadcast_avatar_update
+            await broadcast_avatar_update(user.id, avatar_path)
+            print(f"Avatar update broadcast sent for user {user.id}")
+        except Exception as e:
+            print(f"Could not broadcast avatar update: {e}")
+        
+        return {"success": True, "message": "Avatar updated successfully", "avatar_url": avatar_path}
     
     except Exception as e:
         db.rollback()
+        print(f"Avatar upload error: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Failed to upload avatar: {str(e)}")
     
     finally:
