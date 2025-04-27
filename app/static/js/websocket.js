@@ -1,5 +1,6 @@
 /**
  * WebSocket handling for ShrekChat
+ * Core connection and message handling functionality
  */
 
 // WebSocket connections
@@ -34,48 +35,6 @@ function debounceStatusUpdate(userId, status, callback, delay = 100) {
         callback(userId, status);
         delete statusUpdateDebounce[userId];
     }, delay);
-}
-
-// Observe messages for visibility and send read receipts
-let messageObserver = null;
-function observeMessagesForRead() {
-    const chatMessages = document.getElementById('chatMessages');
-    if (!chatMessages) {
-        console.error("chatMessages element not found for observer");
-        return;
-    }
-
-    // Disconnect previous observer to prevent leaks
-    if (messageObserver) {
-        messageObserver.disconnect();
-        wsLog("Disconnected previous message observer");
-    }
-
-    messageObserver = new IntersectionObserver(
-        (entries) => {
-            entries.forEach((entry) => {
-                if (entry.isIntersecting) {
-                    const messageElement = entry.target;
-                    const messageId = messageElement.getAttribute('data-message-id');
-                    const isRead = messageElement.querySelector('.message-status-double.read');
-                    if (!isRead && currentRoomId) {
-                        wsLog(`Message ${messageId} is visible, sending read receipt`);
-                        sendReadReceipts(currentRoomId, [messageId]);
-                    }
-                }
-            });
-        },
-        {
-            root: chatMessages,
-            threshold: 0.5 // Trigger when 50% of the message is visible
-        }
-    );
-
-    const messages = document.querySelectorAll('.message[data-message-id]');
-    messages.forEach((message) => {
-        messageObserver.observe(message);
-        wsLog(`Observing message ${message.getAttribute('data-message-id')}`);
-    });
 }
 
 // Initialize WebSocket - Should be called on page load
@@ -124,11 +83,9 @@ function initializeWebSockets() {
 
 // Set up event listeners for call-related UI elements
 function setupCallEventListeners() {
-    // Use the WebRTC module's event listeners instead
     if (window.shrekChatCall && typeof window.shrekChatCall.initWebRTC === 'function') {
         window.shrekChatCall.initWebRTC();
     } else {
-        // Set up WebRTC configuration
         window.addEventListener('websocket_message', handleWebSocketCallMessage);
     }
 }
@@ -200,7 +157,7 @@ function handleStatusMessage(data) {
         if (window.shrekChatUtils) {
             requestAnimationFrame(() => {
                 window.shrekChatUtils.updateContactStatus(userId, status, 'websocket');
-                wsLog(`Applied debounced status update for user ${userId}: ${status}`);
+                wsLog(`Applied status update for user ${userId}: ${status}`);
             });
         }
     });
@@ -253,6 +210,7 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false,
                     wsLog(`Chat WebSocket connection established for room ${roomId}`);
                     chatWebSocket.send(JSON.stringify({type: "ping"}));
 
+                    // Setup heartbeat
                     const heartbeatInterval = setInterval(function() {
                         if (chatWebSocket && chatWebSocket.readyState === WebSocket.OPEN) {
                             try {
@@ -280,10 +238,7 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false,
                     }
                 };
 
-                setupChatWebSocketEvents(chatWebSocket, () => {
-                    wsLog("Attempting to reconnect chat WebSocket...");
-                    connectChatWebSocket(roomId, onConnectCallback, suppressReload, retryCount + 1);
-                });
+                setupChatWebSocketEvents(chatWebSocket);
 
                 chatWebSocket.onerror = function(event) {
                     console.error("Chat WebSocket error:", event);
@@ -312,13 +267,13 @@ function connectChatWebSocket(roomId, onConnectCallback, suppressReload = false,
 }
 
 // Process WebSocket events
-function setupChatWebSocketEvents(webSocket, reconnectCallback) {
+function setupChatWebSocketEvents(webSocket) {
     webSocket.onmessage = function(event) {
         try {
             const data = JSON.parse(event.data);
             wsLog("ChatSocket message received:", data);
 
-            // Create a custom event to propagate WebSocket messages for call handling
+            // Create a custom event to propagate WebSocket messages
             const messageEvent = new CustomEvent('websocket_message', { detail: data });
             window.dispatchEvent(messageEvent);
 
@@ -329,35 +284,18 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
                 messageIds.forEach((id) => {
                     if (window.shrekChatUtils) {
                         window.shrekChatUtils.updateMessageStatus(id, "read");
-                        wsLog(`Updated message ${id} to read status`);
                     }
                 });
             } else if (data.type === "typing") {
-                handleTypingIndicator(data);
-            } else if (data.type === "new_room") {
-                handleNewRoom(data);
-            } else if (data.type === "chat_cleared") {
-                handleChatCleared(data);
-            } else if (data.type === "pong") {
-                wsLog("Received pong response");
-            } else if (data.type === "error") {
-                console.error("WebSocket error from server:", data.error || data.message);
-                if (data.message_id) {
-                    console.error(`Error with message ID ${data.message_id}: ${data.error || data.message}`);
-                }
-            } else if (data.type === "message_updated") {
-                handleMessageUpdated(data);
-            } else if (data.type === "message_deleted") {
-                handleMessageDeleted(data);
-            } else if (data.type === "group_deleted") {
-                handleGroupDeleted(data);
-            } else if (data.type === "call_offer" || 
-                       data.type === "call_answer" || 
-                       data.type === "call_ice_candidate" || 
-                       data.type === "call_end" || 
-                       data.type === "call_decline") {
-                wsLog(`Call signaling message received: ${data.type}`);
-                // Handled by websocket_message event listener
+                // Typing indicators handled by custom events
+            } else if (data.type === "message_updated" || data.type === "message_deleted") {
+                // Message updates handled by custom events
+                const eventName = data.type === "message_updated" ? "message-updated" : "message-deleted";
+                const eventDetail = data.type === "message_updated" 
+                    ? { messageId: data.message_id, content: data.content } 
+                    : { messageId: data.message_id, deletedBy: data.deleted_by };
+                
+                window.dispatchEvent(new CustomEvent(eventName, { detail: eventDetail }));
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error, event.data);
@@ -365,63 +303,50 @@ function setupChatWebSocketEvents(webSocket, reconnectCallback) {
     };
 }
 
+// Observe messages for visibility and send read receipts
+function observeMessagesForRead() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+
+    const messageObserver = new IntersectionObserver(
+        (entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) {
+                    const messageElement = entry.target;
+                    const messageId = messageElement.getAttribute('data-message-id');
+                    const isRead = messageElement.querySelector('.message-status-double.read');
+                    if (!isRead && currentRoomId && messageId) {
+                        sendReadReceipts(currentRoomId, [messageId]);
+                    }
+                }
+            });
+        },
+        {
+            root: chatMessages,
+            threshold: 0.5 // Trigger when 50% of the message is visible
+        }
+    );
+
+    // Observe all messages with IDs
+    document.querySelectorAll('.message[data-message-id]').forEach((message) => {
+        messageObserver.observe(message);
+    });
+}
+
 // Handle WebSocket call messages
 function handleWebSocketCallMessage(event) {
     const data = event.detail;
     if (!data || !data.type) return;
 
-    wsLog(`Handling call message: ${data.type}`, data);
-    
-    // Use WebRTC module functions if available
     const callModule = window.shrekChatCall;
     if (callModule) {
         switch (data.type) {
-            case 'call_offer':
-                callModule.handleCallOffer(data);
-                break;
-            case 'call_answer':
-                callModule.handleCallAnswer(data);
-                break;
-            case 'call_ice_candidate':
-                callModule.handleIceCandidate(data);
-                break;
-            case 'call_end':
-                callModule.handleCallEnd(data);
-                break;
-            case 'call_decline':
-                callModule.handleCallDeclined(data);
-                break;
+            case 'call_offer': callModule.handleCallOffer(data); break;
+            case 'call_answer': callModule.handleCallAnswer(data); break;
+            case 'call_ice_candidate': callModule.handleIceCandidate(data); break;
+            case 'call_end': callModule.handleCallEnd(data); break;
+            case 'call_decline': callModule.handleCallDeclined(data); break;
         }
-    }
-}
-
-// Handle message update notification
-function handleMessageUpdated(data) {
-    wsLog("Message update notification received:", data);
-    const currentRoomId = window.shrekChatWebSocket ? window.shrekChatWebSocket.getCurrentRoomId() : null;
-    if (parseInt(currentRoomId) === parseInt(data.room_id)) {
-        const updateEvent = new CustomEvent('message-updated', {
-            detail: {
-                messageId: data.message_id,
-                content: data.content
-            }
-        });
-        window.dispatchEvent(updateEvent);
-    }
-}
-
-// Handle message deletion notification
-function handleMessageDeleted(data) {
-    wsLog("Message deletion notification received:", data);
-    const currentRoomId = window.shrekChatWebSocket ? window.shrekChatWebSocket.getCurrentRoomId() : null;
-    if (parseInt(currentRoomId) === parseInt(data.room_id)) {
-        const deleteEvent = new CustomEvent('message-deleted', {
-            detail: {
-                messageId: data.message_id,
-                deletedBy: data.deleted_by
-            }
-        });
-        window.dispatchEvent(deleteEvent);
     }
 }
 
@@ -431,61 +356,74 @@ function handleChatMessage(data) {
     const isConfirmation = message.sender === "user";
     wsLog("Handling chat message:", message);
 
+    // Check if this is an attachment message
+    const isAttachment = message.content && (
+        message.content.includes('<img-attachment') || 
+        message.content.includes('<video-attachment') || 
+        message.content.includes('<audio-attachment') || 
+        message.content.includes('<doc-attachment') ||
+        (message.attachment && message.attachment.url)
+    );
+
+    // Update sidebar UI with new message info
     if (window.shrekChatUtils) {
-        // Update last message and move chat to top of sidebar
-        window.shrekChatUtils.updateLastMessage(message.room_id, message.content, message.time);
+        // For attachments, use descriptive text in sidebar
+        let displayContent = message.content;
         
-        // Move the contact to the top of the sidebar regardless of whether it's the current chat or not
+        // Use the provided display_name if available, otherwise derive it from content
+        if (message.display_name) {
+            displayContent = message.display_name;
+            wsLog(`Using provided display name for attachment: ${displayContent}`);
+        } else if (isAttachment) {
+            if (message.content.includes('<img-attachment')) displayContent = '📷 Photo';
+            else if (message.content.includes('<video-attachment')) displayContent = '🎥 Video';
+            else if (message.content.includes('<audio-attachment')) displayContent = '🎵 Audio';
+            else if (message.content.includes('<doc-attachment')) displayContent = '📄 Document';
+            else if (message.attachment && message.attachment.type) {
+                const type = message.attachment.type;
+                if (type === 'photo' || type === 'image') displayContent = '📷 Photo';
+                else if (type === 'video') displayContent = '🎥 Video';
+                else if (type === 'audio') displayContent = '🎵 Audio';
+                else displayContent = `📎 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+            }
+            wsLog(`Derived display content for attachment: ${displayContent}`);
+        }
+        
+        // Always update the last message in the sidebar
+        window.shrekChatUtils.updateLastMessage(message.room_id, displayContent, message.time);
+        
+        // Move contact to top of sidebar
         const contactElement = document.querySelector(`.contact-item[data-room-id="${message.room_id}"]`);
-        const parentElement = contactElement?.parentElement;
-        if (parentElement && contactElement) {
-            parentElement.insertBefore(contactElement, parentElement.firstChild);
-            wsLog(`Moved chat ${message.room_id} to top of sidebar`);
+        if (contactElement?.parentElement) {
+            contactElement.parentElement.insertBefore(contactElement, contactElement.parentElement.firstChild);
         }
     }
 
+    // Handle message rendering based on whether it's in current room
     if (parseInt(currentRoomId) === parseInt(message.room_id)) {
         if (isConfirmation && message.temp_id) {
-            wsLog(`Received confirmation for temp message: ${message.temp_id} -> ${message.id}`);
-            const tempMessage = document.querySelector(`.message[data-message-id="${message.temp_id}"]`);
-            if (tempMessage) {
-                tempMessage.setAttribute('data-message-id', message.id);
-                tempMessage.removeAttribute('data-temp-message');
-                const messageStatusSingle = tempMessage.querySelector('.message-status-single');
-                const messageStatusDouble = tempMessage.querySelector('.message-status-double');
-                if (messageStatusSingle && messageStatusDouble) {
-                    messageStatusSingle.style.display = 'none';
-                    messageStatusDouble.style.display = 'inline';
-                    if (message.read) {
-                        messageStatusDouble.classList.add('read');
-                    }
-                }
-            } else {
-                wsLog("Temp message not found in DOM, displaying as new message");
-                if (window.displayMessage) {
-                    window.displayMessage(message);
-                    observeMessagesForRead();
-                }
-            }
+            // Update temporary message with confirmed ID
+            processConfirmedMessage(message, isAttachment);
         } else {
-            const existingMessage = document.querySelector(`.message[data-message-id="${message.id}"]`);
-            if (!existingMessage && window.displayMessage) {
-                window.displayMessage(message);
-                observeMessagesForRead();
+            // New incoming message from another user - prioritize immediate display for attachments
+            if (isAttachment) {
+                wsLog(`Prioritizing immediate display of attachment message: ${message.id}`);
+                processIncomingMessage(message, true);
             } else {
-                wsLog(`Message ${message.id} already exists in DOM, skipping display`);
+                processIncomingMessage(message, false);
             }
         }
     } else {
-        wsLog(`Message is for room ${message.room_id}, but current room is ${currentRoomId}`);
+        // Message for a different room - increment unread count
+        // Always increment unread count for non-confirmation messages
         if (!isConfirmation && window.shrekChatUtils) {
+            wsLog(`Incrementing unread count for room: ${message.room_id} (attachment: ${isAttachment})`);
             window.shrekChatUtils.incrementUnreadCount(message.room_id);
             
-            // Play notification sound for messages that aren't from the current user and aren't in the current chat
+            // Play notification sound
             try {
                 const notificationSound = new Audio('/static/sounds/notification.mp3');
                 notificationSound.play().catch(e => console.log('Failed to play notification sound:', e));
-                wsLog(`Playing notification sound for message in room ${message.room_id}`);
             } catch (soundError) {
                 console.log('Failed to play notification sound:', soundError);
             }
@@ -493,125 +431,206 @@ function handleChatMessage(data) {
     }
 }
 
-// Handle typing indicators
-function handleTypingIndicator(data) {
-    wsLog("Typing indicator:", data);
+// Process a confirmed message (sent by current user)
+function processConfirmedMessage(message, isAttachment) {
+    const tempMessage = document.querySelector(`.message[data-message-id="${message.temp_id}"]`);
+    
+    if (tempMessage) {
+        // Update message ID and status indicators
+        tempMessage.setAttribute('data-message-id', message.id);
+        tempMessage.removeAttribute('data-temp-message');
+        
+        const messageStatusSingle = tempMessage.querySelector('.message-status-single');
+        const messageStatusDouble = tempMessage.querySelector('.message-status-double');
+        
+        if (messageStatusSingle && messageStatusDouble) {
+            messageStatusSingle.style.display = 'none';
+            messageStatusDouble.style.display = 'inline';
+            if (message.read) {
+                messageStatusDouble.classList.add('read');
+            }
+        }
+
+        // For attachments, update content
+        if (isAttachment) {
+            updateAttachmentContent(tempMessage, message.content, message.attachment);
+        }
+    } else if (window.displayMessage) {
+        // If temp message not found, display as new
+        window.displayMessage(message);
+        observeMessagesForRead();
+    }
 }
 
-// Handle new room notifications
-function handleNewRoom(data) {
-    wsLog("Handling new room notification:", data);
-    const existingRoom = document.querySelector(`.contact-item[data-room-id="${data.room.id}"]`);
-    if (existingRoom) {
-        wsLog("Room already exists in sidebar, skipping");
-        return;
-    }
-
-    if (window.addRoomToList) {
-        wsLog("Adding new room to sidebar:", data.room);
-        window.addRoomToList(data.room);
-        try {
-            const notificationSound = new Audio('/static/sounds/notification.mp3');
-            notificationSound.play().catch(e => console.log('Failed to play notification sound'));
-        } catch (soundError) {
-            console.log('Failed to play notification sound', soundError);
-        }
-        const newRoomElement = document.querySelector(`.contact-item[data-room-id="${data.room.id}"]`);
-        if (newRoomElement) {
-            newRoomElement.classList.add('new-contact');
+// Process an incoming message from another user
+function processIncomingMessage(message, isAttachment) {
+    const existingMessage = document.querySelector(`.message[data-message-id="${message.id}"]`);
+    
+    if (!existingMessage && window.displayMessage) {
+        if (isAttachment && typeof message.content === 'string') {
+            const originalContent = message.content;
+            window.displayMessage(message);
+            
+            // Verify attachment rendering after display
             setTimeout(() => {
-                newRoomElement.classList.remove('new-contact');
-            }, 3000);
+                verifyAttachmentRendering(message.id, originalContent);
+            }, 50);
+        } else {
+            window.displayMessage(message);
         }
-    } else {
-        console.error("addRoomToList function not available");
+        observeMessagesForRead();
     }
 }
 
-// Handle chat cleared notifications
-function handleChatCleared(data) {
-    wsLog("Handling chat cleared notification:", data);
-    if (parseInt(data.room_id) === parseInt(currentRoomId)) {
-        const chatMessages = document.getElementById('chatMessages');
-        if (chatMessages) {
-            chatMessages.innerHTML = '';
-            const clearMessage = document.createElement('div');
-            clearMessage.className = 'system-message info';
-            clearMessage.textContent = `Chat was cleared by ${data.cleared_by}`;
-            chatMessages.appendChild(clearMessage);
+// Update attachment content in a message element
+function updateAttachmentContent(messageElement, content, attachmentData) {
+    const messageContent = messageElement.querySelector('.message-content');
+    if (!messageContent) return;
+
+    if (content && typeof content === 'string') {
+        if (content.includes('<img-attachment')) {
+            const src = content.match(/src='([^']+)'/)[1];
+            const filename = content.match(/filename='([^']+)'/)[1];
+            messageContent.innerHTML = `
+                <div class="attachment-preview">
+                    <img src="${src}" alt="${filename}" onclick="window.openAttachmentFullscreen('${src}', 'image')">
+                </div>
+            `;
+        } else if (content.includes('<video-attachment')) {
+            const src = content.match(/src='([^']+)'/)[1];
+            const filename = content.match(/filename='([^']+)'/)[1];
+            messageContent.innerHTML = `
+                <div class="attachment-preview">
+                    <video src="${src}" controls preload="metadata"></video>
+                </div>
+            `;
+        } else if (content.includes('<audio-attachment')) {
+            const src = content.match(/src='([^']+)'/)[1];
+            const filename = content.match(/filename='([^']+)'/)[1];
+            messageContent.innerHTML = `
+                <div class="attachment-preview">
+                    <audio src="${src}" controls></audio>
+                    <div class="attachment-name">${filename}</div>
+                </div>
+            `;
+        } else if (content.includes('<doc-attachment')) {
+            const src = content.match(/src='([^']+)'/)[1];
+            const filename = content.match(/filename='([^']+)'/)[1];
+            messageContent.innerHTML = `
+                <div class="attachment-document">
+                    <i class="fas fa-file-alt"></i>
+                    <div class="attachment-info">
+                        <div class="attachment-name">${filename}</div>
+                        <a href="${src}" target="_blank" class="attachment-download">Download</a>
+                    </div>
+                </div>
+            `;
+        }
+    } else if (attachmentData && attachmentData.url) {
+        // Legacy format support
+        const { type, url, filename } = attachmentData;
+        if (type === 'photo' || type === 'image') {
+            messageContent.innerHTML = `
+                <div class="attachment-preview">
+                    <img src="${url}" alt="${filename}" onclick="window.openAttachmentFullscreen('${url}', 'image')">
+                </div>
+            `;
+        } else if (type === 'video') {
+            messageContent.innerHTML = `
+                <div class="attachment-preview">
+                    <video src="${url}" controls preload="metadata"></video>
+                </div>
+            `;
+        } else if (type === 'audio') {
+            messageContent.innerHTML = `
+                <div class="attachment-preview">
+                    <audio src="${url}" controls></audio>
+                    <div class="attachment-name">${filename}</div>
+                </div>
+            `;
+        } else {
+            messageContent.innerHTML = `
+                <div class="attachment-document">
+                    <i class="fas fa-file-alt"></i>
+                    <div class="attachment-info">
+                        <div class="attachment-name">${filename}</div>
+                        <a href="${url}" target="_blank" class="attachment-download">Download</a>
+                    </div>
+                </div>
+            `;
         }
     }
+}
 
+// Verify an attachment was rendered correctly and fix if needed
+function verifyAttachmentRendering(messageId, originalContent) {
+    const messageElement = document.querySelector(`.message[data-message-id="${messageId}"]`);
+    if (!messageElement) return;
+    
+    const content = messageElement.querySelector('.message-content');
+    if (!content) return;
+    
+    if (!content.innerHTML.includes('attachment-preview') && !content.innerHTML.includes('attachment-document')) {
+        updateAttachmentContent(messageElement, originalContent);
+        wsLog(`Fixed attachment display for message ${messageId}`);
+    }
+}
+
+// Send read receipts for messages
+function sendReadReceipts(roomId, messageIds) {
+    if (!roomId || !messageIds || !messageIds.length || !chatWebSocket) {
+        return false;
+    }
+
+    if (chatWebSocket.readyState !== WebSocket.OPEN) {
+        return false;
+    }
+
+    wsLog(`Sending read receipts for messages: ${messageIds.join(', ')}`);
+
+    // Optimistically update UI
     if (window.shrekChatUtils) {
-        window.shrekChatUtils.updateLastMessage(
-            data.room_id,
-            'Chat cleared',
-            new Date(data.cleared_at).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})
-        );
-    }
-}
-
-// Handle group deletion notification
-function handleGroupDeleted(data) {
-    wsLog("Handling group deletion notification:", data);
-    const groupElement = document.querySelector(`.contact-item[data-room-id="${data.room_id}"]`);
-    if (groupElement) {
-        groupElement.remove();
-        wsLog(`Group ${data.room_id} removed from sidebar`);
+        messageIds.forEach((id) => {
+            window.shrekChatUtils.updateMessageStatus(id, "read");
+        });
     }
 
-    if (parseInt(data.room_id) === parseInt(currentRoomId)) {
-        wsLog(`Currently open group ${data.room_id} was deleted, showing welcome screen`);
-        const welcomeContainer = document.getElementById('welcomeContainer');
-        const chatContent = document.getElementById('chatContent');
-        if (welcomeContainer && chatContent) {
-            welcomeContainer.style.display = 'flex';
-            chatContent.style.display = 'none';
-        }
+    try {
+        chatWebSocket.send(JSON.stringify({
+            type: "seen",
+            room_id: roomId,
+            message_ids: messageIds
+        }));
+        return true;
+    } catch (error) {
+        console.error("Error sending read receipts:", error);
+        return false;
     }
 }
 
 // Send a message through WebSocket
 function sendChatMessage(message, roomId) {
-    if (!message.trim() || !roomId) {
-        console.error("Cannot send message: Empty message or missing room ID");
-        return false;
-    }
-
-    if (!chatWebSocket) {
-        console.error("Cannot send message: WebSocket is not initialized");
+    if (!message.trim() || !roomId || !chatWebSocket) {
         return false;
     }
 
     if (chatWebSocket.readyState !== WebSocket.OPEN) {
-        console.error(`WebSocket is not connected. Current state: ${
-            chatWebSocket.readyState === WebSocket.CONNECTING ? 'CONNECTING' :
-            chatWebSocket.readyState === WebSocket.CLOSING ? 'CLOSING' :
-            chatWebSocket.readyState === WebSocket.CLOSED ? 'CLOSED' : 'UNKNOWN'
-        }`);
         return false;
     }
 
-    wsLog(`Sending message to room ${roomId}: ${message}`);
-
     const now = new Date();
-    const timeStr = window.shrekChatUtils ?
-        window.shrekChatUtils.formatTime(now) :
+    const timeStr = window.shrekChatUtils?.formatTime(now) || 
         now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12:false});
     const tempId = 'temp-' + Date.now();
 
-    const msgData = {
-        type: "message",
-        content: message,
-        room_id: roomId,
-        time: timeStr,
-        temp_id: tempId
-    };
-
     try {
-        const jsonStr = JSON.stringify(msgData);
-        wsLog(`Sending WebSocket message: ${jsonStr}`);
-        chatWebSocket.send(jsonStr);
+        chatWebSocket.send(JSON.stringify({
+            type: "message",
+            content: message,
+            room_id: roomId,
+            time: timeStr,
+            temp_id: tempId
+        }));
         return { success: true, tempId, timeStr };
     } catch (error) {
         console.error("Error sending message:", error);
@@ -619,70 +638,15 @@ function sendChatMessage(message, roomId) {
     }
 }
 
-// Send read receipts for messages
-function sendReadReceipts(roomId, messageIds) {
-    if (!roomId || !messageIds || !messageIds.length || !chatWebSocket) {
-        console.error("Cannot send read receipts: Missing parameters");
-        return false;
-    }
-
-    if (chatWebSocket.readyState !== WebSocket.OPEN) {
-        console.error("WebSocket is not connected");
-        return false;
-    }
-
-    wsLog(`Sending read receipts for messages: ${messageIds.join(', ')}`);
-
-    if (window.shrekChatUtils) {
-        messageIds.forEach((id) => {
-            window.shrekChatUtils.updateMessageStatus(id, "read");
-            wsLog(`Optimistically updated message ${id} to read`);
-        });
-    }
-
-    const readData = {
-        type: "seen",
-        room_id: roomId,
-        message_ids: messageIds
-    };
-
-    try {
-        chatWebSocket.send(JSON.stringify(readData));
-        return true;
-    } catch (error) {
-        console.error("Error sending read receipts:", error);
-        if (window.shrekChatUtils) {
-            messageIds.forEach((id) => {
-                window.shrekChatUtils.updateMessageStatus(id, "delivered");
-            });
-        }
-        return false;
-    }
-}
-
 // Set current room information
 function setCurrentRoom(roomId, isGroup, userId) {
-    wsLog(`Setting current room: id=${roomId}, isGroup=${isGroup}, userId=${userId}`);
     currentRoomId = roomId;
     currentRoomIsGroup = isGroup;
     currentUserId = userId;
 
-    const isUserAction = document.getElementById('chatContent')?.style.display === 'flex';
-    if (roomId && isUserAction) {
+    if (roomId && document.getElementById('chatContent')?.style.display === 'flex') {
         localStorage.setItem('lastOpenedRoomId', roomId);
     }
-}
-
-// Send a call signaling message
-function sendCallSignaling(data) {
-    if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
-        console.error("Cannot send call signaling: WebSocket not connected");
-        return false;
-    }
-    
-    wsLog("Sending call signaling", data);
-    chatWebSocket.send(JSON.stringify(data));
-    return true;
 }
 
 // Export the WebSocket API
@@ -697,52 +661,38 @@ window.shrekChatWebSocket = {
     getCurrentRoomIsGroup: () => currentRoomIsGroup,
     getCurrentUserId: () => currentUserId,
     
-    // Call-related functions (delegating to webrtc.js)
-    sendCallSignaling,
-
+    // Message editing
     updateMessage: function(roomId, messageId, content, callback) {
         if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
-            console.error("WebSocket is not connected");
             if (typeof callback === 'function') callback(false);
             return false;
         }
 
-        wsLog(`Updating message ${messageId} in room ${roomId}`);
-
-        const updateData = {
-            type: "update_message",
-            room_id: roomId,
-            message_id: messageId,
-            content: content
+        const messageHandler = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if ((data.type === "message_updated" || data.type === "error") && data.message_id === messageId) {
+                    chatWebSocket.removeEventListener('message', messageHandler);
+                    if (typeof callback === 'function') callback(data.type === "message_updated");
+                }
+            } catch (error) {
+                console.error("Error parsing message update response:", error);
+            }
         };
 
+        chatWebSocket.addEventListener('message', messageHandler);
+        setTimeout(() => {
+            chatWebSocket.removeEventListener('message', messageHandler);
+            if (typeof callback === 'function') callback(false);
+        }, 5000);
+
         try {
-            const messageHandler = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === "message_updated" && data.message_id === messageId) {
-                        wsLog("Message update confirmed:", data);
-                        chatWebSocket.removeEventListener('message', messageHandler);
-                        if (typeof callback === 'function') callback(true);
-                    }
-                    else if (data.type === "error" && data.message_id === messageId) {
-                        wsLog("Message update failed:", data);
-                        chatWebSocket.removeEventListener('message', messageHandler);
-                        if (typeof callback === 'function') callback(false);
-                    }
-                } catch (error) {
-                    console.error("Error parsing message update response:", error);
-                }
-            };
-
-            chatWebSocket.addEventListener('message', messageHandler);
-
-            setTimeout(() => {
-                chatWebSocket.removeEventListener('message', messageHandler);
-                if (typeof callback === 'function') callback(false);
-            }, 5000);
-
-            chatWebSocket.send(JSON.stringify(updateData));
+            chatWebSocket.send(JSON.stringify({
+                type: "update_message",
+                room_id: roomId,
+                message_id: messageId,
+                content: content
+            }));
             return true;
         } catch (error) {
             console.error("Error sending message update:", error);
@@ -751,53 +701,52 @@ window.shrekChatWebSocket = {
         }
     },
 
+    // Message deletion
     deleteMessage: function(roomId, messageId, callback) {
         if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
-            console.error("WebSocket is not connected");
             if (typeof callback === 'function') callback(false);
             return false;
         }
 
-        wsLog(`Deleting message ${messageId} in room ${roomId}`);
-
-        const deleteData = {
-            type: "delete_message",
-            room_id: roomId,
-            message_id: messageId
+        const messageHandler = function(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if ((data.type === "message_deleted" || data.type === "error") && data.message_id === messageId) {
+                    chatWebSocket.removeEventListener('message', messageHandler);
+                    if (typeof callback === 'function') callback(data.type === "message_deleted");
+                }
+            } catch (error) {
+                console.error("Error parsing message deletion response:", error);
+            }
         };
 
+        chatWebSocket.addEventListener('message', messageHandler);
+        setTimeout(() => {
+            chatWebSocket.removeEventListener('message', messageHandler);
+            if (typeof callback === 'function') callback(false);
+        }, 5000);
+
         try {
-            const messageHandler = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (data.type === "message_deleted" && data.message_id === messageId) {
-                        wsLog("Message deletion confirmed:", data);
-                        chatWebSocket.removeEventListener('message', messageHandler);
-                        if (typeof callback === 'function') callback(true);
-                    }
-                    else if (data.type === "error" && data.message_id === messageId) {
-                        wsLog("Message deletion failed:", data);
-                        chatWebSocket.removeEventListener('message', messageHandler);
-                        if (typeof callback === 'function') callback(false);
-                    }
-                } catch (error) {
-                    console.error("Error parsing message deletion response:", error);
-                }
-            };
-
-            chatWebSocket.addEventListener('message', messageHandler);
-
-            setTimeout(() => {
-                chatWebSocket.removeEventListener('message', messageHandler);
-                if (typeof callback === 'function') callback(false);
-            }, 5000);
-
-            chatWebSocket.send(JSON.stringify(deleteData));
+            chatWebSocket.send(JSON.stringify({
+                type: "delete_message",
+                room_id: roomId,
+                message_id: messageId
+            }));
             return true;
         } catch (error) {
             console.error("Error sending message deletion:", error);
             if (typeof callback === 'function') callback(false);
             return false;
         }
+    },
+    
+    // WebRTC call signaling
+    sendCallSignaling: function(data) {
+        if (!chatWebSocket || chatWebSocket.readyState !== WebSocket.OPEN) {
+            return false;
+        }
+        
+        chatWebSocket.send(JSON.stringify(data));
+        return true;
     }
 };

@@ -721,7 +721,6 @@ body.dark-theme .selectable-contact .contact-name {
     color: #4a76a8;
 }
 
-
 .profile-avatar-circle {
     width: 60px;
     height: 60px;
@@ -787,7 +786,6 @@ body.dark-theme .selectable-contact .contact-name {
 .btn-success:hover {
     background-color: #3e8e41;
 }
-
 
 body.dark-theme .form-group label {
     color: #ccc;
@@ -1002,4 +1000,281 @@ body.dark-theme .group-info .member-actions-toggle {
 
 body.dark-theme .group-info .member-actions-toggle:hover {
     background-color: #555; /* Slightly lighter background on hover */
+}
+
+/* Attachment Popup Styles */
+.attachments-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1050;
+    background-color: rgba(0, 0, 0, 0.5);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
+}
+
+.attachments-overlay.active {
+    opacity: 1;
+    visibility: visible;
+}
+
+.attachments-popup {
+    position: fixed;
+    z-index: 1060;
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+    padding: 15px;
+    display: flex;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+}
+
+.attachments-popup.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.attachment-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px;
+    cursor: pointer;
+    border-radius: 12px;
+    transition: background-color 0.2s ease;
+}
+
+.attachment-option:hover {
+    background-color: #f0f2f5;
+}
+
+.attachment-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #86bc42;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+    color: white;
+    font-size: 20px;
+}
+
+.attachment-option:nth-child(1) .attachment-icon {
+    background-color: #9c27b0; /* Purple for photos */
+}
+
+.attachment-option:nth-child(2) .attachment-icon {
+    background-color: #e91e63; /* Pink for videos */
+}
+
+.attachment-option:nth-child(3) .attachment-icon {
+    background-color: #3f51b5; /* Blue for documents */
+}
+
+.attachment-option:nth-child(4) .attachment-icon {
+    background-color: #ff9800; /* Orange for audio */
+}
+
+/* Attachment Popup Styles */
+.attachments-popup {
+    position: fixed;
+    display: flex;
+    flex-direction: row;
+    background-color: var(--popup-bg-color, #ffffff);
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    padding: 15px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    z-index: 1000;
+}
+
+.attachments-popup.active {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.attachment-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 10px;
+    padding: 10px;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background-color 0.2s;
+}
+
+.attachment-option:hover {
+    background-color: var(--hover-bg-color, #f5f5f5);
+}
+
+.attachment-icon {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 5px;
+    font-size: 20px;
+    color: var(--primary-color, #075e54);
+}
+
+.attachment-option span {
+    font-size: 12px;
+    color: var(--text-color, #333);
+}
+
+.attachments-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.attachments-overlay.active {
+    opacity: 1;
+}
+
+/* Attachment Preview Styles */
+.message .attachment-preview {
+    margin-top: 5px;
+    max-width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+}
+
+.message .attachment-preview img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.message .attachment-preview video {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.message .attachment-preview audio {
+    width: 100%;
+    margin-top: 5px;
+}
+
+.message .attachment-document {
+    display: flex;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.05);
+    padding: 10px;
+    border-radius: 8px;
+    margin-top: 5px;
+}
+
+.message .attachment-document i {
+    font-size: 24px;
+    margin-right: 10px;
+    color: var(--primary-color, #075e54);
+}
+
+.message .attachment-info {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    overflow: hidden;
+}
+
+.message .attachment-name {
+    font-weight: 500;
+    margin-bottom: 3px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.message .attachment-size {
+    font-size: 12px;
+    color: var(--secondary-text-color, #888);
+}
+
+.message .attachment-loading-bar {
+    width: 100%;
+    height: 4px;
+    background-color: #e0e0e0;
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 5px;
+}
+
+.message .attachment-loading-bar .loading-progress {
+    height: 100%;
+    background-color: var(--primary-color, #075e54);
+    width: 0%;
+    transition: width 0.3s linear;
+}
+
+/* Attachment Fullscreen Viewer */
+.attachment-fullscreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.attachment-fullscreen img,
+.attachment-fullscreen video {
+    max-width: 90%;
+    max-height: 90%;
+    object-fit: contain;
+}
+
+.attachment-fullscreen .close-btn {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    color: #fff;
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+}
+
+/* Responsive Styles */
+@media (max-width: 768px) {
+    .attachments-popup {
+        bottom: 80px !important;
+        left: 50% !important;
+        transform: translateX(-50%) translateY(10px);
+        width: 90%;
+        justify-content: space-around;
+    }
+
+    .attachments-popup.active {
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .attachment-option {
+        margin: 0 5px;
+    }
 }
