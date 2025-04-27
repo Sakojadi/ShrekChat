@@ -532,17 +532,68 @@ document.addEventListener('DOMContentLoaded', function() {
     // Display contact info popup
     function showContactInfo(userData) {
         const timestamp = new Date().toISOString();
+        
+        // First set basic info that should be available
         contactInfoName.textContent = userData.full_name || userData.username;
         contactInfoUsername.textContent = userData.username;
-        contactInfoEmail.textContent = userData.email;
+        contactInfoEmail.textContent = userData.email || 'Not provided';
         contactInfoAvatar.src = userData.avatar || '/static/images/shrek.jpg';
+        
+        const contactInfoCountry = document.getElementById('contactInfoCountry');
+        const contactInfoPhone = document.getElementById('contactInfoPhone');
+        
+        // Set status
         const cachedStatus = userData.user_id && window.shrekChatUtils.statusCache[userData.user_id]?.status;
         const statusText = cachedStatus || (userData.status === 'online' || userData.status === 'offline' ? userData.status : 'offline');
         contactInfoStatus.textContent = statusText === 'online' ? 'Online' : 'Offline';
         contactInfoStatus.className = `status-text ${statusText}`;
+        
+        // Set temp values while loading
+        if (contactInfoCountry) {
+            contactInfoCountry.textContent = 'Loading...';
+        }
+        
+        if (contactInfoPhone) {
+            contactInfoPhone.textContent = 'Loading...';
+        }
+        
+        // Show the popup immediately
         contactInfoPopup.setAttribute('data-user-id', userData.user_id);
         contactInfoPopup.classList.add('open');
         overlay.classList.add('active');
+        
+        // Fetch complete user profile data to get country and phone_number
+        fetch(`/api/user/${userData.user_id}/profile`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Failed to fetch user profile data');
+                }
+                return response.json();
+            })
+            .then(profileData => {
+                // Update country and phone number with fresh data
+                if (contactInfoCountry) {
+                    contactInfoCountry.textContent = profileData.country || 'Not provided';
+                }
+                
+                if (contactInfoPhone) {
+                    contactInfoPhone.textContent = profileData.phone_number || 'Not provided';
+                }
+                
+                console.log(`[${timestamp}] Updated contact info with profile data including country and phone for user ${userData.user_id}`);
+            })
+            .catch(error => {
+                console.error(`[${timestamp}] Error fetching profile data:`, error);
+                // Set default values in case of error
+                if (contactInfoCountry) {
+                    contactInfoCountry.textContent = userData.country || 'Not provided';
+                }
+                
+                if (contactInfoPhone) {
+                    contactInfoPhone.textContent = userData.phone_number || 'Not provided';
+                }
+            });
+            
         console.log(`[${timestamp}] Showing contact info for user ${userData.user_id} with status ${statusText} (cached: ${!!cachedStatus})`);
     }
 
@@ -692,6 +743,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const messageDiv = messageElement.querySelector('.message');
             const messageContent = messageElement.querySelector('.message-content');
             const messageTime = messageElement.querySelector('.message-time');
+            const messageAvatar = isRoomGroup ? messageElement.querySelector('.message-avatar') : null;
+            const messageSender = isRoomGroup ? messageElement.querySelector('.message-sender') : null;
 
             // Check if message contains an attachment
             let hasAttachment = false;
@@ -818,43 +871,59 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (currentUsername) {
                 isCurrentUser = message.sender === currentUsername;
             }
-
-            console.log(`[${timestamp}] Message from ${message.sender}, currentUsername: ${currentUsername}, isCurrentUser: ${isCurrentUser}`);
-
+            
+            // Set data attribute on message div for sender identity
             if (isRoomGroup) {
-                const messageSender = messageElement.querySelector('.message-sender');
-                const messageAvatarImg = messageElement.querySelector('.message-avatar img');
+                const senderId = isCurrentUser ? 'current-user' : (message.sender_id || message.sender || '');
+                messageDiv.setAttribute('data-sender-id', senderId);
                 
+                // Set the username with appropriate styling
                 if (messageSender) {
-                    messageSender.textContent = isCurrentUser ? "You" : (message.sender_name || message.sender);
+                    if (isCurrentUser) {
+                        messageSender.textContent = "You";
+                        messageSender.classList.add('current-user-name');
+                    } else {
+                        messageSender.textContent = message.sender_name || message.sender;
+                        messageSender.classList.add('other-user-name');
+                    }
                 }
                 
-                // Set the avatar for group chat messages
+                // Set the avatar
+                const messageAvatarImg = messageElement.querySelector('.message-avatar img');
                 if (messageAvatarImg) {
                     if (isCurrentUser) {
                         // For current user's messages, use profile avatar
                         const profileAvatar = document.getElementById('profileAvatar');
                         if (profileAvatar && profileAvatar.src) {
                             messageAvatarImg.src = profileAvatar.src;
-                            messageAvatarImg.setAttribute('data-sender-id', 'current-user');
                             console.log(`[${timestamp}] Set own avatar in group message to: ${profileAvatar.src}`);
                         }
                     } else if (message.sender_avatar) {
                         // For other users' messages, use their avatar
                         messageAvatarImg.src = message.sender_avatar;
-                        if (message.sender_id) {
-                            messageAvatarImg.setAttribute('data-sender-id', message.sender_id);
-                        }
                         console.log(`[${timestamp}] Set group message avatar to: ${message.sender_avatar}`);
                     }
+                }
+                
+                // Handle consecutive messages - check if the previous message is from the same sender
+                const lastMessage = chatMessages.lastElementChild;
+                
+                if (lastMessage && lastMessage.classList.contains('message') && 
+                    lastMessage.getAttribute('data-sender-id') === messageDiv.getAttribute('data-sender-id')) {
+                    
+                    // Hide avatar and username in current message (not the previous one)
+                    if (messageSender) {
+                        messageSender.style.display = 'none';
+                    }
+                    
+                    // Add class to mark this message as part of a sequence
+                    messageDiv.classList.add('consecutive-message');
+                    lastMessage.classList.add('part-of-sequence');
                 }
             }
 
             if (isCurrentUser) {
                 messageDiv.classList.add('outgoing');
-                if (message.sender_id) {
-                    messageDiv.setAttribute('data-sender-id', message.sender_id);
-                }
                 
                 if (!isRoomGroup) {
                     const messageStatusSingle = messageElement.querySelector('.message-status-single');

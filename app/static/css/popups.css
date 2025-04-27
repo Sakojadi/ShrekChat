@@ -773,7 +773,7 @@ body.dark-theme .selectable-contact .contact-name {
 }
 
 .btn-success {
-    background-color: #4CAF50;
+    background-color: #7BAE37; /* Shrek green */
     color: white;
     border: none;
     padding: 10px 20px;
@@ -784,7 +784,8 @@ body.dark-theme .selectable-contact .contact-name {
 }
 
 .btn-success:hover {
-    background-color: #3e8e41;
+    background-color: #699C2F; /* Darker Shrek green on hover */
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15);
 }
 
 body.dark-theme .form-group label {
@@ -1277,4 +1278,100 @@ body.dark-theme .group-info .member-actions-toggle:hover {
     .attachment-option {
         margin: 0 5px;
     }
+}
+
+/* Contact Info Popup Styling - Revised */
+#contactInfoPopup .popup-header {
+    background-color: transparent; /* Remove green background */
+    color: var(--profile-text-color, #202020); /* Match theme text color */
+    border-bottom: 1px solid #eaeaea;
+}
+
+#contactInfoPopup .popup-header h3 {
+    color: var(--profile-text-color, #202020); /* Match theme text color */
+}
+
+#contactInfoPopup .popup-close {
+    color: #6a7480; /* Neutral color for close button */
+    background-color: transparent;
+}
+
+#contactInfoPopup .popup-close:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+}
+
+/* Style the info sections like a table */
+.info-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f1f3f4;
+}
+
+.info-section:last-child {
+    border-bottom: none;
+}
+
+.info-label {
+    font-weight: bold; /* Make labels bold */
+    color: var(--profile-text-color, #202020);
+    text-align: left;
+    flex: 0 0 40%; /* Fixed width for labels */
+}
+
+.info-value {
+    text-align: right;
+    color: #6a7480;
+    flex: 0 0 60%; /* Fixed width for values */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Close button in contact info popup */
+#closeInfoButton {
+    background-color: #7BAE37; /* Shrek green */
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    margin-top: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+#closeInfoButton:hover {
+    background-color: #699C2F; /* Darker Shrek green on hover */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Dark theme adjustments */
+body.dark-theme #contactInfoPopup .popup-header {
+    border-bottom: 1px solid #444;
+}
+
+body.dark-theme .info-section {
+    border-bottom: 1px solid #444;
+}
+
+body.dark-theme .info-label {
+    color: #e0e0e0;
+}
+
+body.dark-theme .info-value {
+    color: #b0b0b0;
+}
+
+body.dark-theme #closeInfoButton {
+    background-color: #7BAE37; /* Keep green in dark theme too */
+    color: white;
+}
+
+body.dark-theme #closeInfoButton:hover {
+    background-color: #699C2F;
 }

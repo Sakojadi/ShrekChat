@@ -160,7 +160,7 @@
     flex: 1;
     overflow-y: auto;
     padding: 16px;
-    background: linear-gradient(rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0.35)),
+    background: linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05)),
                 url('../images/forest-background.jpg') center/cover fixed;
     display: flex;
     flex-direction: column;
@@ -288,7 +288,7 @@
 
 .message.outgoing .message-status-double.read {
     display: block;
-    color: #4a76a8; /* Blue color for read messages */
+    color: #538dd0; /* Blue color for read messages */
 }
 
 /* Hide status indicators for incoming messages */
@@ -420,7 +420,7 @@
 
 /* Make status indicator colors consistent */
 .status-indicator.online {
-    background-color: #4CAF50;
+    background-color: #7BAE37;
 }
 
 .status-indicator.offline {

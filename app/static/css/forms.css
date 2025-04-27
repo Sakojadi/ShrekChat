@@ -33,7 +33,7 @@
 .form-group input:focus,
 .form-group select:focus,
 .form-group textarea:focus {
-    border-color: #4CAF50;
+    border-color: #7BAE37;
     outline: none;
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }

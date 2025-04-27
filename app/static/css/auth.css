@@ -109,7 +109,7 @@ body {
 }
 
 .input-group input:focus {
-    border-color: #4CAF50;
+    border-color: #7BAE37;
     outline: none;
     box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
 }
@@ -120,7 +120,7 @@ body {
 }
 
 .forgot-password a, .register-link a, .login-link a {
-    color: #4CAF50;
+    color: #7BAE37;
     text-decoration: none;
     font-size: 14px;
 }
@@ -139,7 +139,7 @@ body {
 }
 
 .btn-submit:hover {
-    background-color: #45a049;
+    background-color: #7BAE37;
 }
 
 .register-link, .login-link {
@@ -210,7 +210,7 @@ body.dark-theme .input-group input::placeholder {
 body.dark-theme .forgot-password a, 
 body.dark-theme .register-link a, 
 body.dark-theme .login-link a {
-    color: #6FCF97;
+    color: #7BAE37;
 }
 
 body.dark-theme .register-link, 

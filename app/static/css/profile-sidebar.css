@@ -231,7 +231,7 @@
 }
 
 input:checked + .slider {
-    background-color: #4CAF50;
+    background-color: #7BAE37;
 }
 
 input:checked + .slider:before {
@@ -310,7 +310,7 @@ input:checked + .slider:before {
 .status-text {
     display: block;
     font-size: 0.9rem;
-    color: #4CAF50;
+    color: #7BAE37;
     margin: 10px 0;
     text-align: center;
 }

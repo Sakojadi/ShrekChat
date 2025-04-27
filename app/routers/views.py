@@ -11,6 +11,25 @@ from app.database import User, Room, Message, GroupChat, room_members
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+# Add new endpoint to get user profile
+@router.get("/api/user/{user_id}/profile")
+async def get_user_profile(user_id: int, db: Session = Depends(get_db)):
+    """Get user's profile information for contact info display"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    
+    return {
+        "user_id": user.id,
+        "username": user.username,
+        "full_name": user.full_name or "",
+        "email": user.email,
+        "avatar": user.avatar or "/static/images/shrek.jpg",
+        "country": user.country or "Not provided",
+        "phone_number": user.phone_number or "Not provided",
+        "status": "online" if user.is_online else "offline"
+    }
+
 @router.get("/api/user/{user_id}/status")
 async def get_user_status(user_id: int, db: Session = Depends(get_db)):
     """Get user's online status"""

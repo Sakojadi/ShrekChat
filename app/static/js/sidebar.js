@@ -151,24 +151,18 @@ function setupProfileSidebar() {
         editProfileForm.addEventListener('submit', function(e) {
             e.preventDefault();
             
-            const formData = {
-                username: document.getElementById('profileNickname').value,
-                email: document.getElementById('profileEmail').value,
-                phone_number: document.getElementById('profilePhone').value,
-                country: document.getElementById('profileCountry').value
-            };
-
-            // Only include fields that are not empty
-            Object.keys(formData).forEach(key => {
-                if (!formData[key]) delete formData[key];
-            });
+            // Create FormData object from the form
+            const formData = new FormData();
+            
+            // Add all form fields
+            formData.append('username', document.getElementById('profileNickname').value);
+            formData.append('email', document.getElementById('profileEmail').value);
+            formData.append('phone_number', document.getElementById('profilePhone').value);
+            formData.append('country', document.getElementById('profileCountry').value);
             
             fetch('/api/profile/update', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(formData)
+                body: formData
             })
             .then(response => {
                 if (!response.ok) {

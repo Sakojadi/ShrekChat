@@ -293,7 +293,7 @@ body.dark-theme .member-actions .dropdown-menu .dropdown-item i {
     color: #1e431e !important; /* Light green icons for dropdown items */
 }
 
-body.darkt-theme .member-actions .dropdown-menu .dropdown-item:hover {
+body.dark-theme .member-actions .dropdown-menu .dropdown-item:hover {
     background-color: #cac7c79b; /* Slightly darker background on hover */
 }
 
@@ -335,180 +335,320 @@ body.light-theme .member-actions .dropdown-menu .dropdown-item:hover {
 .message.group-message {
     display: flex;
     align-items: flex-start;
-    position: relative;
     margin-bottom: 10px;
+    max-width: 70%;
 }
 
-.message.group-message .message-avatar {
-    width: 30px;
-    height: 30px;
+.message.outgoing.group-message {
+    align-self: flex-end;
+    margin-left: auto;
+    flex-direction: row-reverse;
+}
+
+.message.incoming.group-message {
+    align-self: flex-start;
+    margin-right: auto;
+}
+
+.message-avatar {
+    width: 36px;
+    height: 36px;
+    min-width: 36px; /* Prevent shrinking */
     border-radius: 50%;
     overflow: hidden;
     margin-right: 10px;
 }
 
-.message.group-message .message-avatar img {
+.message.outgoing.group-message .message-avatar {
+    margin-right: 0;
+    margin-left: 10px;
+}
+
+.message-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+}
+
+/* Style for consecutive messages from the same user */
+.message.consecutive-message {
+    margin-bottom: 2px;
+}
+
+/* Hide avatar for consecutive messages */
+.message.consecutive-message .message-avatar {
+    visibility: hidden;
+    opacity: 0;
+}
+
+/* Add extra margin to the bottom of the last message in a series */
+.message.group-message:not(.consecutive-message) {
+    margin-bottom: 10px;
 }
 
 .message.group-message .message-body {
     flex: 1;
 }
 
+/* Style different message backgrounds based on sender */
+.message.outgoing .message-content {
+    background-color: #98ba7f; /* Light green for outgoing messages in light theme */
+}
+
+.message.incoming .message-content {
+    background-color: #ffffff; /* White for incoming messages in light theme */
+}
+
+/* Style the sender name */
 .message-sender {
-    font-size: 0.8rem;
+    font-size: 0.85rem;
+    font-weight: 500;
+    margin-bottom: 3px;
+    color: #777;
+    display: block; /* Ensure it's displayed as block */
+}
+
+/* Style the "You" text to match outgoing message background in light theme */
+.message-sender.current-user-name {
+    color: #508030; /* Darker Shrek green that fits better with light theme */
+    font-weight: bold;
+}
+
+/* Style other usernames to match incoming message background in light theme */
+.message-sender.other-user-name {
+    color: #2c5986; /* Medium blue that stands out in light theme */
+    font-weight: 500;
+}
+
+/* Round corners for first and last messages in a sequence */
+.message:not(.consecutive-message) .message-content {
+    border-radius: 8px;
+}
+
+.message.consecutive-message .message-content {
+    border-radius: 8px;
+    border-top-left-radius: 4px;
+}
+
+.message.part-of-sequence .message-content {
+    border-radius: 8px;
+    border-bottom-left-radius: 4px;
+}
+
+/* Adjust message spacing in sequences */
+.message.part-of-sequence {
     margin-bottom: 2px;
-    color: #888;
 }
 
-.message.incoming.group-message .message-sender {
-    color: #4a76a8;
+.message.consecutive-message {
+    margin-top: 2px;
 }
 
-.message.outgoing.group-message .message-sender {
-    color: #4CAF50;
-}
-
-/* Ensure the avatar aligns correctly for incoming and outgoing messages */
-.message.incoming.group-message {
-    align-self: flex-start;
-    margin-right: auto;
-}
-
-.message.incoming.group-message .message-content {
-    background-color: #ffffff;
-    border-bottom-left-radius: 5px;
-}
-
-.message.outgoing.group-message {
-    align-self: flex-end;
-    margin-left: auto;
-    flex-direction: row-reverse; /* Reverse the order so avatar appears on the right */
-}
-
-.message.outgoing.group-message .message-avatar {
-    margin-right: 0;
-    margin-left: 10px; /* Adjust margin for outgoing messages */
-}
-
-.message.outgoing.group-message .message-content {
-    background-color: #dcf8c6;
-    border-bottom-right-radius: 5px;
-}
-
-/* Ensure the message body aligns properly */
-.message.outgoing.group-message .message-body {
-    text-align: right;
-}
-
-/* Group message styling to match direct messages */
-.message.outgoing.group-message {
-    align-self: flex-end;
-    margin-left: auto;
-}
-
-.message.outgoing.group-message .message-content {
-    background-color: #dcf8c6;
-    border-bottom-right-radius: 5px;
-}
-
-.message.incoming.group-message {
-    align-self: flex-start;
-    margin-right: auto;
-}
-
-.message.incoming.group-message .message-content {
-    background-color: #ffffff;
-    border-bottom-left-radius: 5px;
-}
-
-/* Group contact item styles */
-.contact-item.group-contact .contact-avatar::before {
-    content: '';
-    position: absolute;
-    top: -2px;
-    right: -2px;
-    width: 14px;
-    height: 14px;
-    background-color: #4CAF50;
-    border-radius: 50%;
-    border: 2px solid #fff;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 8px;
+/* Dark theme styles */
+body.dark-theme .message.outgoing .message-content {
+    background-color: #7BAE37; /* Dark teal for outgoing messages in dark theme */
     color: #fff;
 }
 
-/* Button styles */
-.btn-primary {
-    background-color: #4CAF50;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s;
+body.dark-theme .message.incoming .message-content {
+    background-color: #202c33; /* Dark gray for incoming messages in dark theme */
+    color: #e9edef;
 }
 
-.btn-primary:hover {
-    background-color: #43a047;
+body.dark-theme .message-sender.current-user-name {
+    color: #7BAE37; /* Light green color for the "You" text in dark theme */
 }
 
-.btn-primary:disabled {
-    background-color: #a5d6a7;
-    cursor: not-allowed;
+body.dark-theme .message-sender.other-user-name {
+    color: #64b5f6; /* Light blue for other usernames in dark theme */
 }
 
-.btn-secondary {
-    background-color: #e0e0e0;
-    color: #333;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s;
-}
-
-.btn-secondary:hover {
-    background-color: #d0d0d0;
-}
-
-.btn-danger {
-    background-color: #f44336;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 20px;
-    cursor: pointer;
-    font-weight: 500;
-    transition: background-color 0.2s;
-}
-
-.btn-danger:hover {
-    background-color: #e53935;
-}
-
-/* Popup action buttons */
+/* ShrekChat group management buttons styling */
 .popup-actions {
     display: flex;
-    justify-content: flex-end;
-    margin-top: 20px;
+    flex-wrap: wrap;
+    justify-content: space-between;
     gap: 10px;
+    margin-top: 20px;
 }
 
-@media (max-width: 768px) {
-    .selectable-contacts-list,
-    .group-members-list {
-        max-height: 300px;
+/* Base button styling */
+#groupManagementPopup .popup-actions button {
+    padding: 10px 16px;
+    font-weight: 500;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+    min-width: 100px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+/* Specific button styling - in ShrekChat colors */
+#backToGroupChat {
+    background-color: #f0f0f0;
+    color: #333;
+}
+
+#backToGroupChat:hover {
+    background-color: #e0e0e0;
+}
+
+#editGroupButton {
+    background-color: #7BAE37; /* Shrek green */
+    color: white;
+}
+
+#editGroupButton:hover {
+    background-color: #699C2F;
+}
+
+#leaveGroupButton {
+    background-color: #FFA500; /* Warm orange/amber */
+    color: white;
+}
+
+#leaveGroupButton:hover {
+    background-color: #E69500;
+}
+
+#deleteGroupButton {
+    background-color: #e74c3c; /* Red */
+    color: white;
+}
+
+#deleteGroupButton:hover {
+    background-color: #c0392b;
+}
+
+/* Dark theme adjustments */
+body.dark-theme #backToGroupChat {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+}
+
+body.dark-theme #backToGroupChat:hover {
+    background-color: #4a4a4a;
+}
+
+body.dark-theme #editGroupButton {
+    background-color: #8BC34A; /* Brighter Shrek green for dark theme */
+}
+
+body.dark-theme #editGroupButton:hover {
+    background-color: #7CB342;
+}
+
+/* Make buttons full width on small screens */
+@media (max-width: 480px) {
+    #groupManagementPopup .popup-actions button {
+        flex: 1 0 100%;
+        margin-bottom: 5px;
     }
-    
-    .group-avatar {
-        width: 80px;
-        height: 80px;
-    }
+}
+
+/* Add Shrek-themed icon styles */
+#groupManagementPopup .popup-actions button::before {
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 8px;
+}
+
+#backToGroupChat::before {
+    content: '\f060'; /* arrow-left */
+}
+
+#editGroupButton::before {
+    content: '\f044'; /* edit */
+}
+
+#leaveGroupButton::before {
+    content: '\f2f5'; /* sign-out-alt */
+}
+
+#deleteGroupButton::before {
+    content: '\f1f8'; /* trash */
+}
+
+/* ShrekChat Create Group Button Styling */
+#proceedToGroupDetails,
+#createGroupButton,
+#confirmAddMember,
+#addFriendButton {
+    background-color: #7BAE37; /* Shrek green */
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 10px 20px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+#proceedToGroupDetails:hover,
+#createGroupButton:hover,
+#confirmAddMember:hover,
+#addFriendButton:hover {
+    background-color: #699C2F; /* Darker Shrek green on hover */
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+#proceedToGroupDetails:disabled {
+    background-color: #cccccc;
+    color: #888888;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+/* Cancel/Back buttons styling */
+#cancelGroupCreation,
+#backToMemberSelection,
+#cancelAddMember {
+    background-color: #f0f0f0;
+    color: #333;
+    border: none;
+    border-radius: 20px;
+    padding: 10px 20px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+#cancelGroupCreation:hover,
+#backToMemberSelection:hover,
+#cancelAddMember:hover {
+    background-color: #e0e0e0;
+}
+
+/* Dark theme adjustments */
+body.dark-theme #proceedToGroupDetails,
+body.dark-theme #createGroupButton,
+body.dark-theme #confirmAddMember,
+body.dark-theme #addFriendButton {
+    background-color: #8BC34A; /* Brighter Shrek green for dark theme */
+}
+
+body.dark-theme #proceedToGroupDetails:hover,
+body.dark-theme #createGroupButton:hover,
+body.dark-theme #confirmAddMember:hover,
+body.dark-theme #addFriendButton:hover {
+    background-color: #7CB342; /* Slightly darker on hover */
+}
+
+body.dark-theme #cancelGroupCreation,
+body.dark-theme #backToMemberSelection,
+body.dark-theme #cancelAddMember {
+    background-color: #3a3a3a;
+    color: #e0e0e0;
+}
+
+body.dark-theme #cancelGroupCreation:hover,
+body.dark-theme #backToMemberSelection:hover,
+body.dark-theme #cancelAddMember:hover {
+    background-color: #4a4a4a;
 }
