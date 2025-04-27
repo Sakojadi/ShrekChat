@@ -153,6 +153,51 @@ async function sendAudioMessage(audioBlob) {
         const result = await response.json();
         if (result.success) {
             console.log('Audio message sent successfully');
+            
+            // Create a temporary message element
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message outgoing';
+            messageElement.setAttribute('data-temp-message', 'true');
+            
+            // Get current time
+            const now = new Date();
+            const timeStr = window.shrekChatUtils?.formatTime(now) || 
+                now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12:false});
+            
+            // Create audio player
+            const audioUrl = URL.createObjectURL(audioBlob);
+            messageElement.innerHTML = `
+                <div class="message-content">
+                    <div class="attachment-preview">
+                        <audio src="${audioUrl}" controls></audio>
+                        <div class="attachment-info">
+                            <span class="attachment-name">audio-message.mp3</span>
+                            <div class="attachment-loading-bar">
+                                <div class="loading-progress"></div>
+                            </div>
+                    </div>
+                    </div>
+                </div>
+                <div class="message-info">
+                    <div class="message-time">${timeStr}</div>
+                    <div class="message-status">
+                        <span class="message-status-single sent">✓</span>
+                        <span class="message-status-double">✓✓</span>
+                    </div>
+                </div>
+            `;
+            
+            // Add message to chat
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages) {
+                chatMessages.appendChild(messageElement);
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Update last message in sidebar
+            if (window.shrekChatUtils && window.shrekChatUtils.updateLastMessage) {
+                window.shrekChatUtils.updateLastMessage(roomId, '🎵 Audio message', timeStr);
+            }
         } else {
             throw new Error('Failed to send audio message');
         }
