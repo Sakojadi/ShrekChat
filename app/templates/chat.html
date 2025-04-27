@@ -11,7 +11,29 @@
 <link rel="stylesheet" href="/static/css/responsive.css">
 <link rel="stylesheet" href="/static/css/group-chat.css">
 <link rel="stylesheet" href="/static/css/calls.css">
+<link rel="stylesheet" href="/static/css/call-debug.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
+<style>
+    /* Ensure pulse animation is available */
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(123, 174, 55, 0.7);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(123, 174, 55, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(123, 174, 55, 0);
+        }
+    }
+    
+    /* Force important styles for call containers */
+    #activeCallOverlay.visible,
+    #outgoingCallOverlay.visible {
+        opacity: 1 !important;
+        visibility: visible !important;
+    }
+</style>
 {% endblock %}
 
 {% block content %}
@@ -452,63 +474,66 @@
         </div>
     </div>
 
+    <!-- Call overlay backdrop -->
+    <div id="callOverlayBackdrop" class="call-overlay-backdrop" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); z-index: 999; opacity: 0; visibility: hidden;"></div>
+
     <!-- Audio Call Interface -->
-    <div id="incomingCallOverlay" class="call-notification-overlay" style="display: none;">
-        <div class="incoming-call-container">
-            <div class="caller-avatar">
-                <img id="callerAvatar" src="/static/images/shrek.jpg" alt="Caller Avatar">
+    <div id="incomingCallOverlay" class="call-notification-overlay" style="position: fixed; top: 20px; right: 20px; left: auto; transform: none; width: 280px; background: #2d2d2d; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); color: #fff; z-index: 1000; opacity: 0; visibility: hidden;">
+        <div class="incoming-call-container" style="padding: 20px; display: flex; flex-direction: column; align-items: center; width: 100%; box-sizing: border-box;">
+            <div class="caller-avatar" style="width: 60px; height: 60px; border-radius: 50%; overflow: hidden; margin-bottom: 12px; border: 2px solid #fff; animation: pulse 1.5s infinite;">
+                <img id="callerAvatar" src="/static/images/shrek.jpg" alt="Caller Avatar" style="width: 100%; height: 100%; object-fit: cover;">
             </div>
-            <div class="caller-info">
-                <h3 id="callerName">Username</h3>
-                <p>Incoming audio call...</p>
+            <div class="caller-info" style="text-align: center; margin-bottom: 12px; width: 100%;">
+                <h3 id="callerName" style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Username</h3>
+                <p style="font-size: 14px; color: rgba(255, 255, 255, 0.8);">Incoming audio call...</p>
             </div>
-            <div class="call-actions">
-                <button id="declineCallBtn" class="call-btn decline">
-                    <i class="fas fa-phone-slash"></i>
+            <div class="call-actions" style="display: flex; justify-content: center; gap: 15px; width: 100%; margin-top: 12px;">
+                <button id="declineCallBtn" class="call-btn decline" style="width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; outline: none; cursor: pointer; background-color: #ff3b30; transition: transform 0.2s;">
+                    <i class="fas fa-phone-slash" style="font-size: 18px; color: white;"></i>
                 </button>
-                <button id="acceptCallBtn" class="call-btn accept">
-                    <i class="fas fa-phone"></i>
+                <button id="acceptCallBtn" class="call-btn accept" style="width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; outline: none; cursor: pointer; background-color: #7BAE37; transition: transform 0.2s;">
+                    <i class="fas fa-phone" style="font-size: 18px; color: white;"></i>
                 </button>
             </div>
         </div>
     </div>
 
     <!-- Outgoing Call Interface -->
-    <div id="outgoingCallOverlay" class="call-notification-overlay" style="display: none;">
-        <div class="outgoing-call-container">
-            <div class="callee-avatar">
-                <img id="calleeAvatar" src="/static/images/shrek.jpg" alt="Callee Avatar">
+    <div id="outgoingCallOverlay" class="call-notification-overlay" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 280px; background: #2d2d2d; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); color: #fff; z-index: 1000; opacity: 0; visibility: hidden;">
+        <div class="outgoing-call-container" style="padding: 20px; display: flex; flex-direction: column; align-items: center; width: 100%; box-sizing: border-box;">
+            <div class="callee-avatar" style="width: 60px; height: 60px; border-radius: 50%; overflow: hidden; margin-bottom: 12px; border: 2px solid #fff;">
+                <img id="calleeAvatar" src="/static/images/shrek.jpg" alt="Callee Avatar" style="width: 100%; height: 100%; object-fit: cover;">
             </div>
-            <div class="callee-info">
-                <h3 id="calleeName">Username</h3>
-                <p id="outgoingCallStatus">Calling...</p>
+            <div class="callee-info" style="text-align: center; margin-bottom: 12px; width: 100%;">
+                <h3 id="calleeName" style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Username</h3>
+                <p id="outgoingCallStatus" style="font-size: 14px; color: rgba(255, 255, 255, 0.8);">Calling...</p>
             </div>
-            <div class="call-actions">
-                <button id="cancelCallBtn" class="call-btn decline">
-                    <i class="fas fa-phone-slash"></i>
+            <div class="call-actions" style="display: flex; justify-content: center; gap: 15px; width: 100%; margin-top: 12px;">
+                <button id="cancelCallBtn" class="call-btn decline" style="width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; outline: none; cursor: pointer; background-color: #ff3b30;">
+                    <i class="fas fa-phone-slash" style="font-size: 18px; color: white;"></i>
                 </button>
             </div>
         </div>
     </div>
 
     <!-- Active Call Interface -->
-    <div id="activeCallOverlay" class="call-notification-overlay" style="display: none;">
-        <div class="active-call-container">
-            <div class="active-call-participant">
-                <div class="participant-avatar">
-                    <img id="activeCallAvatar" src="/static/images/shrek.jpg" alt="Call Participant">
+    <div id="activeCallOverlay" class="call-notification-overlay" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 280px; background: #2d2d2d; border-radius: 12px; box-shadow: 0 8px 25px rgba(0,0,0,0.4); color: #fff; z-index: 1000; opacity: 0; visibility: hidden;">
+        <div class="active-call-container" style="padding: 20px; display: flex; flex-direction: column; align-items: center; width: 100%; box-sizing: border-box;">
+            <div class="active-call-participant" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px; width: 100%;">
+                <div class="participant-avatar" style="width: 60px; height: 60px; border-radius: 50%; overflow: hidden; margin-bottom: 12px; border: 2px solid #fff;">
+                    <img id="activeCallAvatar" src="/static/images/shrek.jpg" alt="Call Participant" style="width: 100%; height: 100%; object-fit: cover;">
                 </div>
-                <div class="participant-info">
-                    <h3 id="activeCallName">Username</h3>
-                    <p id="callDuration">00:00</p>
+                <div class="participant-info" style="text-align: center; margin-bottom: 12px; width: 100%;">
+                    <h3 id="activeCallName" style="font-size: 16px; font-weight: 600; margin-bottom: 6px;">Username</h3>
+                    <p id="callDuration" style="font-size: 14px; color: rgba(255, 255, 255, 0.8);">00:00</p>
                 </div>
             </div>
-            <div class="call-actions">
-                <button id="toggleMuteBtn" class="call-btn toggle">
-                    <i class="fas fa-microphone"></i>
+            <div class="call-actions" style="display: flex; justify-content: center; gap: 15px; width: 100%; margin-top: 12px;">
+                <button id="toggleMuteBtn" class="call-btn toggle" style="width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; outline: none; cursor: pointer; background-color: #3a3a3a;">
+                    <i class="fas fa-microphone" style="font-size: 18px; color: white;"></i>
                 </button>
-                <button id="endCallBtn" class="call-btn decline">
-                    <i class="fas fa-phone-slash"></i>
+                <button id="endCallBtn" class="call-btn decline" style="width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: none; outline: none; cursor: pointer; background-color: #ff3b30;">
+                    <i class="fas fa-phone-slash" style="font-size: 18px; color: white;"></i>
                 </button>
             </div>
         </div>

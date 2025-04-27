@@ -1,96 +1,47 @@
 /**
  * WebRTC audio call implementation for ShrekChat
- * Using functional programming approach
  */
 
 // WebRTC configuration
 const rtcConfiguration = {
     iceServers: [
         { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' }
-    ]
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun3.l.google.com:19302' },
+        { urls: 'stun:stun4.l.google.com:19302' }
+    ],
+    iceCandidatePoolSize: 10,
+    bundlePolicy: 'max-bundle',
+    rtcpMuxPolicy: 'require'
 };
 
-// Call state variables
+// Global state
 let peerConnection = null;
 let localStream = null;
 let remoteStream = null;
+let localAudio = null;
+let remoteAudio = null;
 let callActive = false;
 let currentCallData = null;
 let callDuration = 0;
 let callTimer = null;
 let isAudioMuted = false;
-let isAudioOnly = true; // Default to audio-only calls
 let ringtone = null;
 let dialTone = null;
 
-/**
- * Initialize WebRTC audio call functionality
- */
+// Initialize WebRTC
 function initWebRTC() {
-    // Set up WebSocket handler for call signaling
     setupWebSocketHandler();
-    
-    // Find and setup button event listeners
     setupEventListeners();
-    
-    console.log('WebRTC audio call initialized');
 }
 
-/**
- * Set up event listeners for call buttons
- */
-function setupEventListeners() {
-    // Audio call button in chat header
-    const audioCallBtn = document.getElementById('audioCallBtn');
-    console.log('Found audioCallBtn:', !!audioCallBtn);
-    if (audioCallBtn) {
-        audioCallBtn.addEventListener('click', function(e) {
-            console.log('Audio call button clicked');
-            startCall();
-        });
-    } else {
-        console.error('Audio call button not found in the DOM');
-    }
-    
-    // Incoming call buttons
-    const acceptCallBtn = document.getElementById('acceptCallBtn');
-    if (acceptCallBtn) {
-        acceptCallBtn.addEventListener('click', acceptIncomingCall);
-    }
-    
-    const declineCallBtn = document.getElementById('declineCallBtn');
-    if (declineCallBtn) {
-        declineCallBtn.addEventListener('click', declineIncomingCall);
-    }
-    
-    // Outgoing call buttons
-    const cancelCallBtn = document.getElementById('cancelCallBtn');
-    if (cancelCallBtn) {
-        cancelCallBtn.addEventListener('click', cancelOutgoingCall);
-    }
-    
-    // Active call buttons
-    const endCallBtn = document.getElementById('endCallBtn');
-    if (endCallBtn) {
-        endCallBtn.addEventListener('click', endCall);
-    }
-    
-    const toggleMuteBtn = document.getElementById('toggleMuteBtn');
-    if (toggleMuteBtn) {
-        toggleMuteBtn.addEventListener('click', toggleMute);
-    }
-}
-
-/**
- * Set up WebSocket handler for call signaling
- */
+// Set up WebSocket handler
 function setupWebSocketHandler() {
-    // Listen for call-related events on the existing WebSocket
     window.addEventListener('websocket_message', (e) => {
         const data = e.detail;
         if (!data || !data.type) return;
-        
+
         switch (data.type) {
             case 'call_offer':
                 handleCallOffer(data);
@@ -111,86 +62,87 @@ function setupWebSocketHandler() {
     });
 }
 
-/**
- * Start a new call to the current chat contact
- */
+// Set up event listeners
+function setupEventListeners() {
+    const audioCallBtn = document.getElementById('audioCallBtn');
+    if (audioCallBtn) {
+        audioCallBtn.addEventListener('click', startCall);
+    }
+
+    const acceptCallBtn = document.getElementById('acceptCallBtn');
+    if (acceptCallBtn) {
+        acceptCallBtn.addEventListener('click', acceptIncomingCall);
+    }
+
+    const declineCallBtn = document.getElementById('declineCallBtn');
+    if (declineCallBtn) {
+        declineCallBtn.addEventListener('click', declineIncomingCall);
+    }
+
+    const cancelCallBtn = document.getElementById('cancelCallBtn');
+    if (cancelCallBtn) {
+        cancelCallBtn.addEventListener('click', cancelOutgoingCall);
+    }
+
+    const endCallBtn = document.getElementById('endCallBtn');
+    if (endCallBtn) {
+        endCallBtn.addEventListener('click', endCall);
+    }
+
+    const toggleMuteBtn = document.getElementById('toggleMuteBtn');
+    if (toggleMuteBtn) {
+        toggleMuteBtn.addEventListener('click', toggleMute);
+    }
+}
+
+// Start a new call
 async function startCall() {
-    console.log('startCall function called');
     try {
-        // Get current chat contact info
         const currentRoomId = window.shrekChatWebSocket?.getCurrentRoomId();
         const isGroup = window.shrekChatWebSocket?.getCurrentRoomIsGroup();
         const contactName = document.getElementById('chatContactName')?.textContent;
         const contactAvatar = document.getElementById('chatContactAvatar')?.src;
-        
-        console.log('Call details:', { 
-            currentRoomId, 
-            isGroup, 
-            contactName, 
-            contactAvatar,
-            hasWebSocket: !!window.shrekChatWebSocket
-        });
-        
+
         if (!currentRoomId || isGroup) {
-            console.error("Cannot call: No valid contact selected or in a group chat");
-            // Show error alert
-            if (window.alertPopup) {
-                window.alertPopup.showError("Cannot start call", "Please select a valid contact to call. Group calls are not supported.");
-            }
-            return;
+            throw new Error("Cannot call: No valid contact selected or in a group chat");
         }
-        
-        // Get the target user ID
+
         const contactItem = document.querySelector(`.contact-item[data-room-id="${currentRoomId}"]`);
-        console.log('Contact item found:', !!contactItem);
-        
         const targetUserId = contactItem?.dataset.userId;
-        console.log('Target user ID:', targetUserId);
-        
+
         if (!targetUserId) {
-            console.error("Cannot call: Target user ID not found");
-            if (window.alertPopup) {
-                window.alertPopup.showError("Cannot start call", "Unable to identify the contact. Please try again.");
-            }
-            return;
+            throw new Error("Cannot call: Target user ID not found");
         }
-        
-        // Set up WebRTC connection
+
+        // Initialize WebRTC connection
         peerConnection = new RTCPeerConnection(rtcConfiguration);
-        
-        // Set up media stream
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: true, 
-            video: false // Audio only
+        setupPeerConnectionHandlers();
+
+        // Get user media with specific audio settings
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1
+            },
+            video: false
         });
-        
-        // Add tracks to the peer connection
+
+        // Set up local audio
+        setupLocalAudio();
+
+        // Add tracks to peer connection
         localStream.getTracks().forEach(track => {
             peerConnection.addTrack(track, localStream);
         });
-        
-        // Set up remote stream handling
-        peerConnection.ontrack = (event) => {
-            remoteStream = event.streams[0];
-            // We're doing audio only, so no video element to attach
-        };
-        
-        // Set up ICE candidate handling
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                sendCallSignaling({
-                    type: 'call_ice_candidate',
-                    target_user_id: targetUserId,
-                    room_id: currentRoomId,
-                    candidate: event.candidate
-                });
-            }
-        };
-        
+
         // Create and send offer
-        const offer = await peerConnection.createOffer();
+        const offer = await peerConnection.createOffer({
+            offerToReceiveAudio: true
+        });
         await peerConnection.setLocalDescription(offer);
-        
+
         // Store call data
         currentCallData = {
             roomId: currentRoomId,
@@ -198,35 +150,166 @@ async function startCall() {
             contactName: contactName,
             contactAvatar: contactAvatar
         };
-        
-        // Send the offer through WebSocket
+
+        // Send the offer
         sendCallSignaling({
             type: 'call_offer',
             target_user_id: targetUserId,
             room_id: currentRoomId,
             sdp: offer
         });
-        
+
         // Show outgoing call UI
         showOutgoingCall(contactName, contactAvatar);
-        
+
     } catch (error) {
         console.error("Error starting call:", error);
-        cleanupCall();
-        
-        // Show error alert
-        if (window.alertPopup) {
-            window.alertPopup.showError("Call Failed", "Could not access microphone. Please check your device permissions.");
-        }
+        cleanup();
+        showError("Call Failed", "Could not start the call. Please try again.");
     }
 }
 
-/**
- * Handle incoming call offer
- */
+// Set up peer connection handlers
+function setupPeerConnectionHandlers() {
+    peerConnection.onconnectionstatechange = () => {
+        console.log('Connection state:', peerConnection.connectionState);
+        if (peerConnection.connectionState === 'connected') {
+            console.log('Call connected successfully!');
+        }
+    };
+
+    peerConnection.oniceconnectionstatechange = () => {
+        console.log('ICE connection state:', peerConnection.iceConnectionState);
+    };
+
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            sendCallSignaling({
+                type: 'call_ice_candidate',
+                target_user_id: currentCallData.targetUserId,
+                room_id: currentCallData.roomId,
+                candidate: event.candidate
+            });
+        }
+    };
+
+    peerConnection.ontrack = (event) => {
+        console.log('Remote track received');
+        remoteStream = event.streams[0];
+        setupRemoteAudio();
+    };
+}
+
+// Set up local audio
+function setupLocalAudio() {
+    if (localAudio) {
+        localAudio.pause();
+        localAudio.srcObject = null;
+        localAudio.remove();
+    }
+
+    localAudio = document.createElement('audio');
+    localAudio.id = 'localAudio';
+    localAudio.muted = true; // Prevent echo
+    localAudio.autoplay = true;
+    localAudio.srcObject = localStream;
+    document.body.appendChild(localAudio);
+}
+
+// Set up remote audio
+function setupRemoteAudio() {
+    if (remoteAudio) {
+        remoteAudio.pause();
+        remoteAudio.srcObject = null;
+        remoteAudio.remove();
+    }
+
+    remoteAudio = document.createElement('audio');
+    remoteAudio.id = 'remoteAudio';
+    remoteAudio.autoplay = true;
+    remoteAudio.srcObject = remoteStream;
+    document.body.appendChild(remoteAudio);
+
+    // Try to play audio
+    const playAudio = () => {
+        if (!remoteAudio) return;
+
+        remoteAudio.play()
+            .then(() => {
+                console.log('Remote audio playing successfully');
+                remoteAudio.volume = 1.0;
+            })
+            .catch(error => {
+                console.error('Failed to play remote audio:', error);
+                if (remoteAudio && callActive) {
+                    setTimeout(playAudio, 1000);
+                }
+            });
+    };
+
+    playAudio();
+}
+
+// Accept incoming call
+async function acceptIncomingCall() {
+    try {
+        console.log('Accepting incoming call');
+        stopRingtone();
+        hideIncomingCallUI();
+
+        // Initialize WebRTC connection
+        peerConnection = new RTCPeerConnection(rtcConfiguration);
+        setupPeerConnectionHandlers();
+
+        // Get user media with specific audio settings
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: 1
+            },
+            video: false
+        });
+
+        // Set up local audio
+        setupLocalAudio();
+
+        // Add tracks to peer connection
+        localStream.getTracks().forEach(track => {
+            peerConnection.addTrack(track, localStream);
+        });
+
+        // Set remote description and create answer
+        await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(currentCallData.offer)
+        );
+        const answer = await peerConnection.createAnswer({
+            offerToReceiveAudio: true
+        });
+        await peerConnection.setLocalDescription(answer);
+
+        // Send the answer
+        sendCallSignaling({
+            type: 'call_answer',
+            target_user_id: currentCallData.targetUserId,
+            room_id: currentCallData.roomId,
+            sdp: answer
+        });
+
+        // Start active call
+        startActiveCall();
+
+    } catch (error) {
+        console.error("Error accepting call:", error);
+        cleanup();
+        showError("Call Failed", "Could not accept the call. Please try again.");
+    }
+}
+
+// Handle call offer
 async function handleCallOffer(data) {
     try {
-        // If already in a call, decline this one
         if (callActive) {
             sendCallSignaling({
                 type: 'call_decline',
@@ -235,8 +318,7 @@ async function handleCallOffer(data) {
             });
             return;
         }
-        
-        // Store call data
+
         currentCallData = {
             roomId: data.room_id,
             targetUserId: data.caller_id,
@@ -244,393 +326,226 @@ async function handleCallOffer(data) {
             contactAvatar: data.caller_avatar,
             offer: data.sdp
         };
-        
-        // Show incoming call UI
+
         showIncomingCall(data.caller_name, data.caller_avatar);
-        
-        // Play ringtone
         playRingtone();
-        
+
     } catch (error) {
         console.error("Error handling call offer:", error);
-        cleanupCall();
+        cleanup();
     }
 }
 
-/**
- * Accept an incoming call
- */
-async function acceptIncomingCall() {
-    try {
-        // Stop ringtone
-        stopRingtone();
-        
-        const incomingCallOverlay = document.getElementById('incomingCallOverlay');
-        // Hide incoming call UI
-        if (incomingCallOverlay) {
-            incomingCallOverlay.style.display = 'none';
-        }
-        
-        // Set up WebRTC connection
-        peerConnection = new RTCPeerConnection(rtcConfiguration);
-        
-        // Set up media stream
-        localStream = await navigator.mediaDevices.getUserMedia({ 
-            audio: true, 
-            video: false // Audio only
-        });
-        
-        // Add tracks to the peer connection
-        localStream.getTracks().forEach(track => {
-            peerConnection.addTrack(track, localStream);
-        });
-        
-        // Set up remote stream handling
-        peerConnection.ontrack = (event) => {
-            remoteStream = event.streams[0];
-            // Audio only, no video element to attach
-        };
-        
-        // Set up ICE candidate handling
-        peerConnection.onicecandidate = (event) => {
-            if (event.candidate) {
-                sendCallSignaling({
-                    type: 'call_ice_candidate',
-                    target_user_id: currentCallData.targetUserId,
-                    room_id: currentCallData.roomId,
-                    candidate: event.candidate
-                });
-            }
-        };
-        
-        // Set remote description (the offer)
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(currentCallData.offer));
-        
-        // Create and send answer
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        
-        // Send the answer through WebSocket
-        sendCallSignaling({
-            type: 'call_answer',
-            target_user_id: currentCallData.targetUserId,
-            room_id: currentCallData.roomId,
-            sdp: answer
-        });
-        
-        // Start call
-        startActiveCall();
-        
-    } catch (error) {
-        console.error("Error accepting call:", error);
-        cleanupCall();
-        
-        // Show error alert
-        if (window.alertPopup) {
-            window.alertPopup.showError("Call Failed", "Could not access microphone. Please check your device permissions.");
-        }
-    }
-}
-
-/**
- * Handle call answer from the other party
- */
+// Handle call answer
 async function handleCallAnswer(data) {
     try {
-        // Stop dial tone
         stopDialTone();
-        
-        const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
-        // Hide outgoing call UI
-        if (outgoingCallOverlay) {
-            outgoingCallOverlay.style.display = 'none';
-            outgoingCallOverlay.classList.remove('visible');
-        }
-        
-        // Set remote description (the answer)
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-        
-        // Start call
+        hideOutgoingCallUI();
+        await peerConnection.setRemoteDescription(
+            new RTCSessionDescription(data.sdp)
+        );
         startActiveCall();
-        
     } catch (error) {
         console.error("Error handling call answer:", error);
-        cleanupCall();
+        cleanup();
     }
 }
 
-/**
- * Handle ICE candidate from the other party
- */
+// Handle ICE candidate
 async function handleIceCandidate(data) {
     try {
-        if (peerConnection && peerConnection.remoteDescription) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        if (peerConnection && data.candidate) {
+            await peerConnection.addIceCandidate(
+                new RTCIceCandidate(data.candidate)
+            );
         }
     } catch (error) {
         console.error("Error handling ICE candidate:", error);
     }
 }
 
-/**
- * Decline an incoming call
- */
-function declineIncomingCall() {
-    // Stop ringtone
-    stopRingtone();
-    
-    // Send decline message
-    if (currentCallData && currentCallData.roomId) {
-        sendCallSignaling({
-            type: 'call_decline',
-            target_user_id: currentCallData.targetUserId,
-            room_id: currentCallData.roomId
-        });
-    }
-    
-    const incomingCallOverlay = document.getElementById('incomingCallOverlay');
-    // Hide incoming call UI
-    if (incomingCallOverlay) {
-        incomingCallOverlay.style.display = 'none';
-    }
-    
-    // Cleanup
-    cleanupCall();
-}
-
-/**
- * Handle call decline from the other party
- */
-function handleCallDeclined(data) {
-    // Stop dial tone
-    stopDialTone();
-    
-    const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
-    // Hide outgoing call UI
-    if (outgoingCallOverlay) {
-        outgoingCallOverlay.style.display = 'none';
-        outgoingCallOverlay.classList.remove('visible');
-    }
-    
-    // Show decline alert
-    if (window.alertPopup) {
-        window.alertPopup.showInfo("Call Declined", "The other party declined your call.");
-    }
-    
-    // Cleanup
-    cleanupCall();
-}
-
-/**
- * Cancel an outgoing call
- */
-function cancelOutgoingCall() {
-    // Stop dial tone
-    stopDialTone();
-    
-    // Send end call message
-    if (currentCallData && currentCallData.roomId) {
-        sendCallSignaling({
-            type: 'call_end',
-            target_user_id: currentCallData.targetUserId,
-            room_id: currentCallData.roomId
-        });
-    }
-    
-    const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
-    // Hide outgoing call UI
-    if (outgoingCallOverlay) {
-        outgoingCallOverlay.style.display = 'none';
-        outgoingCallOverlay.classList.remove('visible');
-    }
-    
-    // Cleanup
-    cleanupCall();
-}
-
-/**
- * End an active call
- */
-function endCall() {
-    // Send end call message
-    if (currentCallData && currentCallData.roomId) {
-        sendCallSignaling({
-            type: 'call_end',
-            target_user_id: currentCallData.targetUserId,
-            room_id: currentCallData.roomId
-        });
-    }
-    
-    const activeCallOverlay = document.getElementById('activeCallOverlay');
-    // Hide active call UI
-    if (activeCallOverlay) {
-        activeCallOverlay.style.display = 'none';
-    }
-    
-    // Stop timer
-    stopCallTimer();
-    
-    // Cleanup
-    cleanupCall();
-}
-
-/**
- * Handle call end from the other party
- */
+// Handle call end
 function handleCallEnd(data) {
-    // Hide all call UIs
-    const incomingCallOverlay = document.getElementById('incomingCallOverlay');
-    const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
-    const activeCallOverlay = document.getElementById('activeCallOverlay');
-    
-    if (incomingCallOverlay) incomingCallOverlay.style.display = 'none';
-    if (outgoingCallOverlay) {
-        outgoingCallOverlay.style.display = 'none';
-        outgoingCallOverlay.classList.remove('visible');
-    }
-    if (activeCallOverlay) activeCallOverlay.style.display = 'none';
-    
-    // Stop sounds
-    stopRingtone();
-    stopDialTone();
-    
-    // Stop timer
+    hideAllCallOverlays();
+    stopAllSounds();
     stopCallTimer();
-    
-    // Cleanup
-    cleanupCall();
+    cleanup();
 }
 
-/**
- * Show the outgoing call UI
- */
+// Handle call decline
+function handleCallDeclined(data) {
+    stopDialTone();
+    hideOutgoingCallUI();
+    showInfo("Call Declined", "The other party declined your call.");
+    cleanup();
+}
+
+// Decline incoming call
+function declineIncomingCall() {
+    stopRingtone();
+    sendCallSignaling({
+        type: 'call_decline',
+        target_user_id: currentCallData.targetUserId,
+        room_id: currentCallData.roomId
+    });
+    hideIncomingCallUI();
+    cleanup();
+}
+
+// Cancel outgoing call
+function cancelOutgoingCall() {
+    stopDialTone();
+    sendCallSignaling({
+        type: 'call_end',
+        target_user_id: currentCallData.targetUserId,
+        room_id: currentCallData.roomId
+    });
+    hideOutgoingCallUI();
+    cleanup();
+}
+
+// End active call
+function endCall() {
+    sendCallSignaling({
+        type: 'call_end',
+        target_user_id: currentCallData.targetUserId,
+        room_id: currentCallData.roomId
+    });
+    hideActiveCallUI();
+    stopCallTimer();
+    cleanup();
+}
+
+// Toggle mute
+function toggleMute() {
+    if (!localStream) return;
+    
+    isAudioMuted = !isAudioMuted;
+    localStream.getAudioTracks().forEach(track => {
+        track.enabled = !isAudioMuted;
+    });
+
+    const toggleMuteBtn = document.getElementById('toggleMuteBtn');
+    if (toggleMuteBtn) {
+        const icon = toggleMuteBtn.querySelector('i');
+        icon.className = isAudioMuted ? 'fas fa-microphone-slash' : 'fas fa-microphone';
+    }
+}
+
+// UI Management
 function showOutgoingCall(contactName, contactAvatar) {
     const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
     const calleeAvatar = document.getElementById('calleeAvatar');
     const calleeName = document.getElementById('calleeName');
-    const outgoingCallStatus = document.getElementById('outgoingCallStatus');
-    
+    const backdrop = document.getElementById('callOverlayBackdrop');
+
     if (calleeAvatar) calleeAvatar.src = contactAvatar || '/static/images/shrek.jpg';
     if (calleeName) calleeName.textContent = contactName || 'User';
-    if (outgoingCallStatus) outgoingCallStatus.textContent = 'Calling...';
-    
-    if (outgoingCallOverlay) {
-        outgoingCallOverlay.style.display = 'flex';
-        outgoingCallOverlay.classList.add('visible');
-    }
-    
-    // Play outgoing call sound
+
+    showBackdrop();
+    showOverlay(outgoingCallOverlay);
     playDialTone();
 }
 
-/**
- * Show the incoming call UI
- */
 function showIncomingCall(callerName, callerAvatar) {
     const incomingCallOverlay = document.getElementById('incomingCallOverlay');
     const callerAvatarElem = document.getElementById('callerAvatar');
     const callerNameElem = document.getElementById('callerName');
-    
+
     if (callerAvatarElem) callerAvatarElem.src = callerAvatar || '/static/images/shrek.jpg';
     if (callerNameElem) callerNameElem.textContent = callerName || 'User';
-    
-    if (incomingCallOverlay) incomingCallOverlay.style.display = 'flex';
-    activeCallOverlay.style.display = 'flex';
+
+    showBackdrop();
+    showOverlay(incomingCallOverlay);
 }
 
-/**
- * Start an active call
- */
 function startActiveCall() {
-    const incomingCallOverlay = document.getElementById('incomingCallOverlay');
-    const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
     const activeCallOverlay = document.getElementById('activeCallOverlay');
     const activeCallAvatar = document.getElementById('activeCallAvatar');
     const activeCallName = document.getElementById('activeCallName');
-    
-    // Hide other call UIs
-    if (incomingCallOverlay) incomingCallOverlay.style.display = 'none';
-    if (outgoingCallOverlay) outgoingCallOverlay.style.display = 'none';
-    
-    // Set up active call UI
+
+    hideIncomingCallUI();
+    hideOutgoingCallUI();
+
     if (activeCallAvatar) {
         activeCallAvatar.src = currentCallData.contactAvatar || '/static/images/shrek.jpg';
     }
     if (activeCallName) {
         activeCallName.textContent = currentCallData.contactName || 'User';
     }
-    
-    if (activeCallOverlay) activeCallOverlay.style.display = 'flex';
-    
-    // Set call as active and start timer
-    callActive = true;
-    startCallTimer();
+
+    setTimeout(() => {
+        showOverlay(activeCallOverlay);
+        callActive = true;
+        startCallTimer();
+    }, 100);
 }
 
-/**
- * Toggle mute state
- */
-function toggleMute() {
-    if (!localStream) return;
-    
-    isAudioMuted = !isAudioMuted;
-    
-    localStream.getAudioTracks().forEach(track => {
-        track.enabled = !isAudioMuted;
-    });
-    
-    // Update mute button UI
-    const toggleMuteBtn = document.getElementById('toggleMuteBtn');
-    if (toggleMuteBtn) {
-        if (isAudioMuted) {
-            toggleMuteBtn.querySelector('i').className = 'fas fa-microphone-slash';
-        } else {
-            toggleMuteBtn.querySelector('i').className = 'fas fa-microphone';
-        }
+// Helper methods
+function showOverlay(overlay) {
+    if (overlay) {
+        overlay.classList.add('visible');
+        overlay.style.opacity = '1';
+        overlay.style.visibility = 'visible';
     }
 }
 
-/**
- * Start the call timer
- */
-function startCallTimer() {
-    callDuration = 0;
-    updateCallDuration();
-    
-    callTimer = setInterval(() => {
-        callDuration++;
-        updateCallDuration();
-    }, 1000);
-}
-
-/**
- * Stop the call timer
- */
-function stopCallTimer() {
-    if (callTimer) {
-        clearInterval(callTimer);
-        callTimer = null;
+function hideOverlay(overlay) {
+    if (overlay) {
+        overlay.classList.remove('visible');
+        overlay.style.opacity = '0';
+        overlay.style.visibility = 'hidden';
     }
 }
 
-/**
- * Update the call duration display
- */
-function updateCallDuration() {
-    const callDurationElement = document.getElementById('callDuration');
-    if (!callDurationElement) return;
-    
-    const minutes = Math.floor(callDuration / 60).toString().padStart(2, '0');
-    const seconds = (callDuration % 60).toString().padStart(2, '0');
-    
-    callDurationElement.textContent = `${minutes}:${seconds}`;
+function showBackdrop() {
+    const backdrop = document.getElementById('callOverlayBackdrop');
+    if (backdrop) {
+        backdrop.classList.add('visible');
+        backdrop.style.opacity = '1';
+        backdrop.style.visibility = 'visible';
+    }
+    document.body.classList.add('has-call-active');
 }
 
-/**
- * Play ringtone for incoming call
- */
+function hideBackdrop() {
+    const backdrop = document.getElementById('callOverlayBackdrop');
+    if (backdrop) {
+        backdrop.classList.remove('visible');
+        backdrop.style.opacity = '0';
+        backdrop.style.visibility = 'hidden';
+    }
+    document.body.classList.remove('has-call-active');
+}
+
+function hideIncomingCallUI() {
+    const incomingCallOverlay = document.getElementById('incomingCallOverlay');
+    hideOverlay(incomingCallOverlay);
+}
+
+function hideOutgoingCallUI() {
+    const outgoingCallOverlay = document.getElementById('outgoingCallOverlay');
+    hideOverlay(outgoingCallOverlay);
+}
+
+function hideActiveCallUI() {
+    const activeCallOverlay = document.getElementById('activeCallOverlay');
+    hideOverlay(activeCallOverlay);
+}
+
+function hideAllCallOverlays() {
+    hideIncomingCallUI();
+    hideOutgoingCallUI();
+    hideActiveCallUI();
+    hideBackdrop();
+}
+
+// Sound management
 function playRingtone() {
     try {
+        if (ringtone) {
+            stopRingtone();
+        }
         ringtone = new Audio('/static/sounds/notification.mp3');
         ringtone.loop = true;
         ringtone.play().catch(e => console.log('Failed to play ringtone:', e));
@@ -639,19 +554,14 @@ function playRingtone() {
     }
 }
 
-/**
- * Stop ringtone
- */
 function stopRingtone() {
     if (ringtone) {
         ringtone.pause();
+        ringtone.currentTime = 0;
         ringtone = null;
     }
 }
 
-/**
- * Play dial tone for outgoing call
- */
 function playDialTone() {
     try {
         dialTone = new Audio('/static/sounds/notification2.mp3');
@@ -662,35 +572,66 @@ function playDialTone() {
     }
 }
 
-/**
- * Stop dial tone
- */
 function stopDialTone() {
     if (dialTone) {
         dialTone.pause();
+        dialTone.currentTime = 0;
         dialTone = null;
     }
 }
 
-/**
- * Send a call signaling message through the WebSocket
- */
-function sendCallSignaling(message) {
-    if (window.shrekChatWebSocket && window.shrekChatWebSocket.sendCallSignaling) {
-        window.shrekChatWebSocket.sendCallSignaling(message);
-    } else {
-        console.error("WebSocket interface is not available");
+function stopAllSounds() {
+    stopRingtone();
+    stopDialTone();
+}
+
+// Timer management
+function startCallTimer() {
+    callDuration = 0;
+    updateCallDuration();
+    callTimer = setInterval(() => {
+        callDuration++;
+        updateCallDuration();
+    }, 1000);
+}
+
+function stopCallTimer() {
+    if (callTimer) {
+        clearInterval(callTimer);
+        callTimer = null;
     }
 }
 
-/**
- * Clean up call resources
- */
-function cleanupCall() {
+function updateCallDuration() {
+    const callDurationElement = document.getElementById('callDuration');
+    if (!callDurationElement) return;
+    
+    const minutes = Math.floor(callDuration / 60).toString().padStart(2, '0');
+    const seconds = (callDuration % 60).toString().padStart(2, '0');
+    
+    callDurationElement.textContent = `${minutes}:${seconds}`;
+}
+
+// Cleanup
+function cleanup() {
     // Stop media streams
     if (localStream) {
         localStream.getTracks().forEach(track => track.stop());
         localStream = null;
+    }
+    
+    // Remove audio elements
+    if (localAudio) {
+        localAudio.pause();
+        localAudio.srcObject = null;
+        localAudio.remove();
+        localAudio = null;
+    }
+    if (remoteAudio) {
+        remoteAudio.pause();
+        remoteAudio.srcObject = null;
+        remoteAudio.remove();
+        remoteAudio = null;
     }
     
     // Close peer connection
@@ -703,26 +644,36 @@ function cleanupCall() {
     callActive = false;
     currentCallData = null;
     isAudioMuted = false;
+    remoteStream = null;
     
-    // Stop sounds
-    stopRingtone();
-    stopDialTone();
+    // Stop all sounds
+    stopAllSounds();
+    
+    // Hide all overlays
+    hideAllCallOverlays();
 }
 
-// Export functions for use by other modules
-window.shrekChatCall = {
-    startCall,
-    acceptIncomingCall,
-    declineIncomingCall,
-    endCall,
-    toggleMute,
-    handleCallOffer,
-    handleCallAnswer,
-    handleIceCandidate,
-    handleCallEnd,
-    handleCallDeclined,
-    cleanupCall
-};
+// Signaling
+function sendCallSignaling(message) {
+    if (window.shrekChatWebSocket && window.shrekChatWebSocket.sendCallSignaling) {
+        window.shrekChatWebSocket.sendCallSignaling(message);
+    } else {
+        console.error("WebSocket interface is not available");
+    }
+}
+
+// Error handling
+function showError(title, message) {
+    if (window.alertPopup) {
+        window.alertPopup.showError(title, message);
+    }
+}
+
+function showInfo(title, message) {
+    if (window.alertPopup) {
+        window.alertPopup.showInfo(title, message);
+    }
+}
 
 // Initialize WebRTC when the page loads
 document.addEventListener('DOMContentLoaded', initWebRTC);

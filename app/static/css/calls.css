@@ -17,7 +17,7 @@
     color: #fff;
     transition: all 0.3s ease;
     opacity: 0;
-    display: none; /* Ensure it's hidden by default */
+    visibility: hidden; /* Use visibility instead of display */
 }
 
 /* Call overlay visible */
@@ -32,15 +32,23 @@
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 280px; /* Reduced width */
+    width: 280px;
+    max-width: 90vw;
     background: #2d2d2d;
     border-radius: 12px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.4);
     color: #fff;
-    z-index: 9999;
+    z-index: 1000;
     overflow: hidden;
-    display: none; /* Hidden by default */
+    opacity: 0;
+    visibility: hidden;
     transition: all 0.3s ease;
+    max-height: 400px;
+}
+
+.call-notification-overlay.visible {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* Video container - more compact */
@@ -163,7 +171,7 @@
 }
 
 .incoming-call-overlay {
-    position: fixed;
+    position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -250,6 +258,9 @@
     font-size: 20px; /* Smaller icons */
     color: white;
 }
+
+
+.outgoingCallOverlay,
 .outgoing-call-overlay {
     position: fixed;
     bottom: 20px;
@@ -267,13 +278,12 @@
 }
 
 .active-call-container {
-    padding: 16px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 280px;
     width: 100%;
-    background: #2d2d2d;
+    box-sizing: border-box;
     border-radius: 12px;
 }
 
@@ -281,11 +291,13 @@
     position: fixed;
     bottom: 20px;
     right: 20px;
-    width: 280px;
-    background: rgba(45, 45, 45, 0.95);
-    padding: 12px;
+    width: 220px;
+    height: auto;
+    padding: 10px;
+    background: rgba(45, 45, 45, 0.9);
+    border-radius: 12px;
     box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 9998;
+    z-index: 998;
 }
 
 .outgoing-call-overlay.visible {
@@ -364,26 +376,12 @@
 }
 
 .incoming-call-container, .outgoing-call-container, .active-call-container {
-    padding: 16px;
+    padding: 20px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    max-width: 280px; /* Match the overlay width */
     width: 100%;
-    background: #2d2d2d;
-    border-radius: 12px;
-}
-
-/* Active call container - Modified to be a compact widget when minimized */
-.active-call-container.minimized {
-    position: fixed;
-    bottom: 20px;
-    right: 20px;
-    width: 280px;
-    background: rgba(45, 45, 45, 0.95);
-    padding: 12px;
-    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
-    z-index: 9998;
+    box-sizing: border-box;
 }
 
 /* Minimize/Maximize button for active call */
@@ -409,64 +407,68 @@
     color: white;
 }
 
-.caller-avatar img, .callee-avatar img, .participant-avatar img {
+.caller-avatar,
+.callee-avatar,
+.participant-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-bottom: 12px;
+    border: 2px solid #fff;
+}
+
+.caller-avatar img,
+.callee-avatar img,
+.participant-avatar img {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    transform: none; /* Prevent any scaling */
 }
 
-.caller-avatar, .callee-avatar, .participant-avatar {
-    width: 42px;
-    height: 42px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 2px solid #4CAF50;
-    margin-bottom: 8px;
-    flex-shrink: 0;
-    flex-grow: 0; /* Prevent flex growth */
-}
-/* Caller info - more compact */
-.caller-info, .callee-info, .participant-info {
+.caller-info,
+.callee-info,
+.participant-info {
     text-align: center;
-    margin-bottom: 12px; /* Reduced margin */
+    margin-bottom: 12px;
     width: 100%;
 }
 
-.caller-info h3, .callee-info h3, .participant-info h3 {
-    font-size: 14px; /* Smaller font */
-    margin-bottom: 2px; /* Reduced margin */
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.caller-info h3,
+.callee-info h3,
+.participant-info h3 {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 6px;
 }
 
-.caller-info p, .callee-info p {
-    font-size: 12px; /* Smaller font */
-    opacity: 0.8;
-    margin: 0;
+.caller-info p,
+.callee-info p,
+.participant-info p {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* Call actions - more compact */
 .call-actions {
     display: flex;
     justify-content: center;
-    gap: 18px; /* Reduced gap */
-    margin-top: 8px; /* Reduced margin */
+    gap: 15px;
     width: 100%;
+    margin-top: 12px;
 }
 
 .call-btn {
-    width: 36px; /* Smaller buttons */
-    height: 36px; /* Smaller buttons */
+    width: 46px;
+    height: 46px;
     border-radius: 50%;
-    border: none;
     display: flex;
     align-items: center;
     justify-content: center;
+    border: none;
+    outline: none;
     cursor: pointer;
     transition: all 0.2s ease;
-    flex-shrink: 0;
 }
 
 .call-btn.accept {
@@ -486,7 +488,7 @@
 }
 
 .call-btn i {
-    font-size: 16px; /* Smaller icons */
+    font-size: 18px;
     color: white;
 }
 
@@ -502,8 +504,9 @@
 /* Call duration - smaller font */
 #callDuration {
     font-family: monospace;
-    font-size: 14px; /* Smaller font */
+    font-size: 14px;
     opacity: 0.8;
+    margin-top: 5px;
 }
 
 /* Add call button in chat header */
@@ -549,4 +552,28 @@
 
 .move-call-corner i {
     font-size: 10px;
+}
+
+/* Additional styles to fix positioning */
+body.has-call-active {
+    overflow: hidden;
+}
+
+/* Semi-transparent background overlay */
+.call-overlay-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s ease;
+}
+
+.call-overlay-backdrop.visible {
+    opacity: 1;
+    visibility: visible;
 }

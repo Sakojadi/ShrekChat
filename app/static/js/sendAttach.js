@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const inputContainerRect = inputContainer.getBoundingClientRect();
         
         attachmentPopup.style.position = 'fixed';
-        attachmentPopup.style.bottom = `${window.innerHeight - inputContainerRect.top + 10}px`;
+        attachmentPopup.style.bottom = `80px`;
         attachmentPopup.style.left = `${btnRect.left}px`;
         
         // Adjust if the popup would go off-screen

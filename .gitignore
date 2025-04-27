@@ -18,5 +18,5 @@ venv/
 # OS junk
 .DS_Store
 Thumbs.db
-
+shrekchat-*.json
 /shrekchat.db
