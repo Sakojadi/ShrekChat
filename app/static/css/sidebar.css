@@ -63,6 +63,42 @@
     background-color: #9e9e9e;
 }
 
+/* Blocked status styles - making them more prominent */
+.status-indicator.blocked {
+    background-color: #e53935;
+    position: relative;
+    width: 13px;  /* Slightly larger than regular status indicators */
+    height: 13px;
+    border: 2px solid #ffffff;
+}
+
+/* X symbol inside the blocked indicator */
+.status-indicator.blocked::before,
+.status-indicator.blocked::after {
+    content: '';
+    position: absolute;
+    width: 7px;
+    height: 2px;
+    background-color: white;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+.status-indicator.blocked::before {
+    transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.status-indicator.blocked::after {
+    transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Text display for blocked status */
+.status-text.blocked {
+    color: #e53935 !important;
+    font-weight: 600 !important;
+}
+
 .profile-name {
     font-size: 1rem;
     font-weight: 500;

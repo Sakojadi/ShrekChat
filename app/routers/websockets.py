@@ -1018,3 +1018,70 @@ async def broadcast_avatar_update(user_id: int, avatar_url: str):
         print(f"Error broadcasting avatar update: {e}")
     finally:
         db.close()
+
+async def notify_block_status_change(user_id: int, blocked_user_id: int, is_blocked: bool):
+    """
+    Notify a user that they have been blocked or unblocked
+    
+    Args:
+        user_id: ID of the user who is blocking/unblocking
+        blocked_user_id: ID of the user being blocked/unblocked
+        is_blocked: True if user is being blocked, False if being unblocked
+    """
+    try:
+        db = SessionLocal()
+        
+        # Get both users
+        user = db.query(User).filter(User.id == user_id).first()
+        blocked_user = db.query(User).filter(User.id == blocked_user_id).first()
+        
+        if not user or not blocked_user:
+            print(f"ERROR: Could not find user {user_id} or blocked user {blocked_user_id}")
+            return
+        
+        # Notification data
+        notification = {
+            "type": "block_status_change",
+            "blocker_id": user_id,
+            "blocker_name": user.full_name or user.username,
+            "is_blocked": is_blocked,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+        print(f"DEBUG: Preparing to send block status notification. Blocker: {user.username}, Blocked: {blocked_user.username}, Action: {'block' if is_blocked else 'unblock'}")
+        
+        # Send notification to the user who was blocked/unblocked
+        notification_sent = False
+        if blocked_user.username in active_connections:
+            for ws in active_connections[blocked_user.username]:
+                try:
+                    await ws.send_json(notification)
+                    notification_sent = True
+                    print(f"SUCCESS: Sent block status notification to {blocked_user.username}")
+                except Exception as e:
+                    print(f"ERROR: Failed to send notification to {blocked_user.username}: {str(e)}")
+        
+        if not notification_sent:
+            print(f"WARNING: Could not send notification to {blocked_user.username} - no active connections")
+        
+        # Also send notification to the blocker for confirmation and page refresh
+        blocker_notification_sent = False
+        if user.username in active_connections:
+            for ws in active_connections[user.username]:
+                try:
+                    await ws.send_json({
+                        **notification,
+                        "type": "own_block_action_confirmed"
+                    })
+                    blocker_notification_sent = True
+                    print(f"SUCCESS: Sent block action confirmation to {user.username}")
+                except Exception as e:
+                    print(f"ERROR: Failed to send confirmation to {user.username}: {str(e)}")
+        
+        if not blocker_notification_sent:
+            print(f"WARNING: Could not send confirmation to {user.username} - no active connections")
+                
+    except Exception as e:
+        print(f"ERROR: Failed in notify_block_status_change: {str(e)}")
+    finally:
+        db.close()

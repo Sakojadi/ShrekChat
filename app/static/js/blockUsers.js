@@ -4,6 +4,10 @@
 document.addEventListener('DOMContentLoaded', function() {
     setupBlockedUsersUI();
     setupBlockUserToggle();
+    setupBlockStatusChangeDetector();
+    
+    // Update blocked status for all blocked users
+    setTimeout(updateAllBlockedUsersStatus, 1000); // Slight delay to ensure other components are loaded
 });
 
 // Utility to debounce functions
@@ -243,6 +247,47 @@ function loadBlockedUsers() {
     }
 }
 
+/**
+ * Specifically update the status of a blocked user to show 'blocked'
+ * Unlike the general status update function, this is called specifically when block status changes
+ */
+function updateBlockedUserStatus(userId) {
+    console.log(`Explicitly updating user ${userId} to blocked status`);
+    
+    // Apply blocked status class to all instances of this user's status indicators
+    const statusIndicators = document.querySelectorAll(`.contact-item[data-user-id="${userId}"] .status-indicator`);
+    statusIndicators.forEach(indicator => {
+        // Remove existing status classes
+        indicator.classList.remove('online', 'offline');
+        // Add blocked class
+        indicator.classList.add('blocked');
+    });
+    
+    // Update status text in chat header if this user is currently open
+    const chatContent = document.getElementById('chatContent');
+    const currentUserId = chatContent?.getAttribute('data-current-user-id');
+    if (currentUserId && parseInt(currentUserId) === parseInt(userId)) {
+        const chatContactStatus = document.getElementById('chatContactPresence');
+        if (chatContactStatus) {
+            chatContactStatus.textContent = 'Blocked';
+            chatContactStatus.className = 'status-text blocked';
+        }
+    }
+    
+    // Update contact info popup if open
+    const contactInfoPopup = document.getElementById('contactInfoPopup');
+    if (contactInfoPopup && contactInfoPopup.classList.contains('open')) {
+        const contactInfoUserId = contactInfoPopup.getAttribute('data-user-id');
+        if (contactInfoUserId && parseInt(contactInfoUserId) === parseInt(userId)) {
+            const contactInfoStatus = document.getElementById('contactInfoStatus');
+            if (contactInfoStatus) {
+                contactInfoStatus.textContent = 'Blocked';
+                contactInfoStatus.className = 'status-text blocked';
+            }
+        }
+    }
+}
+
 // Block a user by ID
 function blockUser(userId) {
     if (!userId) return;
@@ -257,6 +302,9 @@ function blockUser(userId) {
         confirmButtonColor: '#d33'
     }).then((result) => {
         if (result.isConfirmed) {
+            // Immediately update the UI to show blocked status
+            updateBlockedUserStatus(userId);
+            
             fetch(`/api/users/block/${userId}`, {
                 method: 'POST',
                 headers: {
@@ -271,39 +319,9 @@ function blockUser(userId) {
                         title: 'User Blocked',
                         text: data.message
                     }).then(() => {
-                        // Refresh the current chat to ensure all UI elements update correctly
-                        refreshChatAfterBlockStatusChange(userId, true);
+                        // Simply reload the page after blocking a user
+                        window.location.reload();
                     });
-                    
-                    const blockBtns = document.querySelectorAll(`.block-user-btn[data-user-id="${userId}"]`);
-                    blockBtns.forEach(btn => {
-                        btn.classList.remove('block-user-btn');
-                        btn.classList.add('unblock-user-btn');
-                        btn.innerHTML = '<i class="fas fa-user-check"></i> Unblock';
-                        btn.setAttribute('aria-label', 'Unblock user');
-                        btn.setAttribute('role', 'button');
-                    });
-                    
-                    const chatHeader = document.querySelector('.chat-header .chat-contact-info');
-                    if (chatHeader && chatHeader.closest('.chat-content').getAttribute('data-current-user-id') === userId) {
-                        // Update chat header to show blocked status
-                        updateChatHeaderForBlockedUser(true);
-                        
-                        // Disable message input with appropriate message
-                        const messageInput = document.getElementById('messageInput');
-                        if (messageInput) {
-                            messageInput.disabled = true;
-                            messageInput.placeholder = 'Unblock this user to send messages';
-                        }
-                        
-                        // Show blocked message in chat
-                        showBlockedMessage(true, false);
-                    }
-                    
-                    const blockedUsersPopup = document.getElementById('blockedUsersPopup');
-                    if (blockedUsersPopup.classList.contains('open')) {
-                        loadBlockedUsers();
-                    }
                 } else {
                     Swal.fire({
                         icon: 'error',
@@ -358,69 +376,12 @@ function unblockUser(userId) {
                         title: 'User Unblocked',
                         text: data.message
                     }).then(() => {
-                        // Refresh the current chat to ensure all UI elements update correctly
-                        refreshChatAfterBlockStatusChange(userId, false);
+                        // Simply reload the page after unblocking a user
+                        window.location.reload();
                     });
                     
                     // Play Shrek-themed sound (hypothetical)
                     playSound('/static/sounds/swamp-bubble.mp3');
-                    
-                    const unblockBtns = document.querySelectorAll(`.unblock-user-btn[data-user-id="${userId}"]`);
-                    unblockBtns.forEach(btn => {
-                        btn.classList.remove('unblock-user-btn');
-                        btn.classList.add('block-user-btn');
-                        btn.innerHTML = '<i class="fas fa-user-slash"></i> Block';
-                        btn.setAttribute('aria-label', 'Block user');
-                        btn.setAttribute('role', 'button');
-                        btn.disabled = false;
-                    });
-                    
-                    const blockedUserItems = document.querySelectorAll(`.blocked-user-item .unblock-user-btn[data-user-id="${userId}"]`);
-                    blockedUserItems.forEach(btn => {
-                        const item = btn.closest('.blocked-user-item');
-                        if (item) {
-                            item.remove();
-                        }
-                    });
-                    
-                    const blockedUsersList = document.querySelector('.blocked-users-list');
-                    if (blockedUsersList && blockedUsersList.children.length === 0) {
-                        const emptyBlockedList = document.querySelector('.empty-blocked-list');
-                        if (emptyBlockedList) {
-                            emptyBlockedList.style.display = 'block';
-                        }
-                    }
-                    
-                    const chatHeader = document.querySelector('.chat-header .chat-contact-info');
-                    if (chatHeader && chatHeader.closest('.chat-content').getAttribute('data-current-user-id') === userId) {
-                        // Restore normal chat header display
-                        updateChatHeaderForBlockedUser(false);
-                        
-                        const messageInput = document.getElementById('messageInput');
-                        if (messageInput) {
-                            messageInput.disabled = false;
-                            messageInput.placeholder = 'Type a message...';
-                        }
-                        
-                        // Immediately re-enable audio recording and call buttons
-                        const audioRecordBtn = document.getElementById('audioRecordBtn');
-                        if (audioRecordBtn) {
-                            audioRecordBtn.disabled = false;
-                            audioRecordBtn.classList.remove('disabled');
-                            audioRecordBtn.title = 'Record audio message';
-                        }
-                        
-                        const audioCallBtn = document.getElementById('audioCallBtn');
-                        if (audioCallBtn) {
-                            audioCallBtn.disabled = false;
-                            audioCallBtn.classList.remove('disabled');
-                            audioCallBtn.title = 'Start audio call';
-                        }
-                        
-                        // Remove any block messages from chat
-                        const existingBlockMessages = document.querySelectorAll('.block-message');
-                        existingBlockMessages.forEach(msg => msg.remove());
-                    }
                 } else {
                     if (button) {
                         button.disabled = false;
@@ -540,14 +501,6 @@ function resetBlockStatus() {
         audioCallBtn.classList.remove('disabled');
         audioCallBtn.title = 'Start audio call';
     }
-    
-    // Re-enable attachment button
-    const attachmentBtn = document.querySelector('.attachment-btn');
-    if (attachmentBtn) {
-        attachmentBtn.disabled = false;
-        attachmentBtn.classList.remove('disabled');
-        attachmentBtn.title = 'Add attachment';
-    }
 }
 
 // Show blocked message in chat area
@@ -644,6 +597,8 @@ function setupBlockUserToggle() {
                             unblockUser(userId);
                         } else {
                             blockUser(userId);
+                            // Immediately update UI
+                            updateBlockedUserStatus(userId);
                         }
                     });
                 }
@@ -852,3 +807,338 @@ function playSound(soundPath) {
         console.warn('Sound playback not supported:', error);
     }
 }
+
+/**
+ * Update status indicators for all blocked users on page load
+ * This ensures blocked users always show the blocked status
+ */
+function updateAllBlockedUsersStatus() {
+    console.log("Updating status indicators for all blocked users");
+    
+    // Fetch all blocked users
+    fetch('/api/users/blocked')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load blocked users');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success && data.blocked_users && data.blocked_users.length > 0) {
+                // Update the status for each blocked user
+                data.blocked_users.forEach(user => {
+                    updateBlockedUserStatus(user.id);
+                    console.log(`Applied blocked status to user ${user.id}`);
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error updating blocked users status:', error);
+        });
+}
+
+/**
+ * Update the global event listener for block status changes to handle unblocking
+ * for both the user who unblocks and the user who was unblocked
+ */
+function setupBlockStatusChangeDetector() {
+    console.log("Setting up block status change detector");
+    
+    // Listen for block status change events from WebSocket
+    window.addEventListener('block_status_changed', function(event) {
+        console.log("Block status change detected:", event.detail);
+        
+        // Handle unblock notification (when someone unblocks you)
+        if (event.detail && !event.detail.is_blocked && event.detail.blocker_id) {
+            // This means someone unblocked us
+            handleUnblockedByUser(event.detail.blocker_id);
+            return; // Don't reload the page, just update UI
+        }
+        
+        // For other block status changes (when you block/unblock someone, or when someone blocks you)
+        // force a page reload to ensure consistency
+        forcePageReload();
+    });
+    
+    // Create a custom event dispatcher for WebSocket handlers to use
+    window.dispatchBlockStatusChange = function(data) {
+        console.log("Dispatching block status change event", data);
+        window.dispatchEvent(new CustomEvent('block_status_changed', { 
+            detail: data 
+        }));
+    };
+    
+    // Poll for block status changes every 5 seconds as a backup
+    // This ensures we catch changes even if WebSocket notifications fail
+    startBlockStatusPolling();
+}
+
+// Poll for block status changes as a backup mechanism
+function startBlockStatusPolling() {
+    // Only start polling if we're in a direct chat
+    const chatContent = document.getElementById('chatContent');
+    if (!chatContent) return;
+    
+    const userId = chatContent.getAttribute('data-current-user-id');
+    if (!userId) return;
+    
+    // Store current block status
+    window.lastKnownBlockStatus = null;
+    
+    // Get initial status
+    checkIfBlocked(userId).then(status => {
+        window.lastKnownBlockStatus = status;
+    });
+    
+    // Set up polling interval
+    window.blockStatusPollingInterval = setInterval(() => {
+        const currentUserId = document.getElementById('chatContent')?.getAttribute('data-current-user-id');
+        if (!currentUserId) return;
+        
+        checkIfBlocked(currentUserId).then(newStatus => {
+            // If we have a previous status to compare with
+            if (window.lastKnownBlockStatus) {
+                // If block status changed
+                if (newStatus.is_blocked !== window.lastKnownBlockStatus.is_blocked || 
+                    newStatus.is_blocker !== window.lastKnownBlockStatus.is_blocker) {
+                    console.log("Block status change detected via polling:", 
+                        window.lastKnownBlockStatus, "→", newStatus);
+                    
+                    // Force reload
+                    forcePageReload();
+                }
+            }
+            
+            // Update stored status
+            window.lastKnownBlockStatus = newStatus;
+        });
+    }, 5000); // Check every 5 seconds
+}
+
+// Force an immediate page reload
+function forcePageReload() {
+    console.log("FORCING PAGE RELOAD DUE TO BLOCK STATUS CHANGE");
+    
+    // Show a brief notification
+    if (window.Swal) {
+        Swal.fire({
+            title: 'Block Status Changed',
+            text: 'The page will reload to reflect changes.',
+            icon: 'info',
+            showConfirmButton: false,
+            timer: 1500,
+            allowOutsideClick: false,
+            allowEscapeKey: false
+        });
+    }
+    
+    // Force reload after a brief delay to show notification
+    setTimeout(() => {
+        // Clear hash and force reload from server, bypassing cache
+        window.location.href = window.location.href.split('#')[0];
+        window.location.reload(true);
+    }, 1600);
+}
+
+// Check if a user is blocked by the current user
+window.isUserBlocked = function(userId) {
+    // Convert userId to number if it's a string
+    const id = parseInt(userId);
+    if (isNaN(id)) {
+        return Promise.resolve(false);
+    }
+    
+    // Use existing checkIfBlocked function if available
+    if (window.checkIfBlocked) {
+        return window.checkIfBlocked(id).then(result => {
+            return result.is_blocked === true;
+        }).catch(error => {
+            console.error('Error checking if user is blocked:', error);
+            return false;
+        });
+    }
+    
+    // Fallback - fetch from API directly
+    return fetch(`/api/users/check-blocked/${id}`)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to check blocked status');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                return data.is_blocked === true;
+            }
+            return false;
+        })
+        .catch(error => {
+            console.error('Error checking if user is blocked:', error);
+            return false;
+        });
+};
+
+/**
+ * Handle when the current user is unblocked by another user
+ * This function is called when we receive a WebSocket notification that someone unblocked us
+ */
+function handleUnblockedByUser(blockerId) {
+    console.log(`You've been unblocked by user ID: ${blockerId}`);
+    
+    // Check if we're currently in a chat with this user
+    const chatContent = document.getElementById('chatContent');
+    const currentUserId = chatContent?.getAttribute('data-current-user-id');
+    
+    if (currentUserId && parseInt(currentUserId) === parseInt(blockerId)) {
+        // We're currently chatting with the user who unblocked us
+        // Remove any "You have been blocked" messages
+        const existingBlockMessages = document.querySelectorAll('.block-message.incoming-block');
+        existingBlockMessages.forEach(msg => msg.remove());
+        
+        // Re-enable the message input
+        const messageInput = document.getElementById('messageInput');
+        if (messageInput) {
+            messageInput.disabled = false;
+            messageInput.placeholder = 'Type a message...';
+        }
+        
+        // Re-enable audio recording and call buttons
+        const audioRecordBtn = document.getElementById('audioRecordBtn');
+        if (audioRecordBtn) {
+            audioRecordBtn.disabled = false;
+            audioRecordBtn.classList.remove('disabled');
+            audioRecordBtn.title = 'Record audio message';
+        }
+        
+        const audioCallBtn = document.getElementById('audioCallBtn');
+        if (audioCallBtn) {
+            audioCallBtn.disabled = false;
+            audioCallBtn.classList.remove('disabled');
+            audioCallBtn.title = 'Start audio call';
+        }
+        
+        // Re-enable attachment button
+        const attachmentBtn = document.querySelector('.attachment-btn');
+        if (attachmentBtn) {
+            attachmentBtn.disabled = false;
+            attachmentBtn.classList.remove('disabled');
+            attachmentBtn.title = 'Add attachment';
+        }
+        
+        // Show a notification that the user has unblocked you
+        const messagesContainer = document.getElementById('chatMessages');
+        if (messagesContainer) {
+            const unblockMessage = document.createElement('div');
+            unblockMessage.className = 'system-message info';
+            unblockMessage.textContent = 'This user has unblocked you. You can now exchange messages again.';
+            messagesContainer.appendChild(unblockMessage);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Show a brief toast notification
+        if (window.Swal) {
+            Swal.fire({
+                title: 'You\'ve been unblocked',
+                text: 'This user has unblocked you. You can now exchange messages again.',
+                icon: 'info',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 5000
+            });
+        }
+    } else {
+        // We're not currently chatting with this user, just show a notification
+        if (window.Swal) {
+            Swal.fire({
+                title: 'You\'ve been unblocked',
+                text: 'A user who previously blocked you has removed the block.',
+                icon: 'info',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 5000
+            });
+        }
+    }
+}
+
+// Make the function available globally
+window.handleUnblockedByUser = handleUnblockedByUser;
+
+/**
+ * Handle when the current user is blocked by another user
+ * This function is called when we receive a WebSocket notification that someone blocked us
+ */
+function handleBlockedByUser(blockerId) {
+    console.log(`You've been blocked by user ID: ${blockerId}`);
+    
+    // Check if we're currently in a chat with this user
+    const chatContent = document.getElementById('chatContent');
+    const currentUserId = chatContent?.getAttribute('data-current-user-id');
+    
+    if (currentUserId && parseInt(currentUserId) === parseInt(blockerId)) {
+        // We're currently chatting with the user who blocked us
+        
+        // Disable the message input
+        const messageInput = document.getElementById('messageInput');
+        if (messageInput) {
+            messageInput.disabled = true;
+            messageInput.placeholder = 'This user has blocked you';
+        }
+        
+        // Disable audio recording and call buttons
+        const audioRecordBtn = document.getElementById('audioRecordBtn');
+        if (audioRecordBtn) {
+            audioRecordBtn.disabled = true;
+            audioRecordBtn.classList.add('disabled');
+            audioRecordBtn.title = 'Cannot send audio to a user who blocked you';
+        }
+        
+        const audioCallBtn = document.getElementById('audioCallBtn');
+        if (audioCallBtn) {
+            audioCallBtn.disabled = true;
+            audioCallBtn.classList.add('disabled');
+            audioCallBtn.title = 'Cannot call a user who blocked you';
+        }
+        
+        // Disable attachment button
+        const attachmentBtn = document.querySelector('.attachment-btn');
+        if (attachmentBtn) {
+            attachmentBtn.disabled = true;
+            attachmentBtn.classList.add('disabled');
+            attachmentBtn.title = 'Cannot send attachments to a user who blocked you';
+        }
+        
+        // Show "You have been blocked" message
+        const messagesContainer = document.getElementById('chatMessages');
+        if (messagesContainer) {
+            // Remove any existing block messages first
+            const existingBlockMessages = document.querySelectorAll('.block-message');
+            existingBlockMessages.forEach(msg => msg.remove());
+            
+            // Add the block message
+            const blockMessage = document.createElement('div');
+            blockMessage.className = 'system-message block-message incoming-block';
+            blockMessage.textContent = 'You have been blocked by this user and cannot send messages.';
+            messagesContainer.appendChild(blockMessage);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+    }
+    
+    // Show a notification toast regardless of which chat is open
+    if (window.Swal) {
+        Swal.fire({
+            title: 'You\'ve been blocked',
+            text: 'This user has blocked you. You cannot exchange messages with them.',
+            icon: 'warning',
+            toast: true,
+            position: 'top-end',
+            showConfirmButton: false,
+            timer: 5000
+        });
+    }
+}
+
+// Make the function available globally
+window.handleBlockedByUser = handleBlockedByUser;
