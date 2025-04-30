@@ -1,14 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, func, desc
+from sqlalchemy import and_, or_, func, desc, not_
 from sqlalchemy.sql import text
 from typing import List, Optional
 from datetime import datetime
 from pydantic import BaseModel
 
 from app.routers.session import get_db, get_current_user
-from app.database import User, Room, Message, room_members, GroupChat
+from app.database import User, Room, Message, room_members, GroupChat, BlockedUser
 from app.routers.websockets import notify_new_room  # Import the new notification function
 
 # Add Pydantic model for request validation
@@ -150,6 +150,21 @@ async def create_direct_room_by_username(
     if current_user.id == target_user.id:
         print("[ERROR] Cannot create chat with yourself")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot create chat with yourself")
+    
+    # Check if either user has blocked the other
+    blocked_check = db.query(BlockedUser).filter(
+        or_(
+            and_(BlockedUser.user_id == current_user.id, BlockedUser.blocked_user_id == target_user.id),
+            and_(BlockedUser.user_id == target_user.id, BlockedUser.blocked_user_id == current_user.id)
+        )
+    ).first()
+    
+    if blocked_check:
+        print("[ERROR] Cannot create chat with blocked user")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, 
+            detail="Cannot create chat with this user"
+        )
 
     # Check if a direct room already exists between these users
     existing_room = db.query(Room).filter(Room.is_group == False).filter(
@@ -573,6 +588,17 @@ async def search_users(
     if not current_user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     
+    # Get IDs of users who have blocked the current user or have been blocked by the current user
+    blocked_user_ids = db.query(BlockedUser.blocked_user_id).filter(BlockedUser.user_id == current_user.id).all()
+    blocked_by_user_ids = db.query(BlockedUser.user_id).filter(BlockedUser.blocked_user_id == current_user.id).all()
+    
+    # Flatten the lists of IDs
+    blocked_ids = [user_id for (user_id,) in blocked_user_ids]
+    blocked_by_ids = [user_id for (user_id,) in blocked_by_user_ids]
+    
+    # Combine all blocked IDs
+    all_blocked_ids = set(blocked_ids + blocked_by_ids)
+    
     # Search for users
     search_pattern = f"%{query}%"
     users = db.query(User).filter(
@@ -581,7 +607,8 @@ async def search_users(
                 User.username.ilike(search_pattern),
                 User.full_name.ilike(search_pattern)
             ),
-            User.id != current_user.id  # Exclude current user
+            User.id != current_user.id,  # Exclude current user
+            not_(User.id.in_(all_blocked_ids))  # Exclude blocked/blocking users
         )
     ).limit(10).all()
     

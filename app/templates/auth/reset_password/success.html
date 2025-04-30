@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block title %}Пароль сброшен - ShrekChat{% endblock %}
+
+{% block css %}
+    {{ super() }}
+    <link rel="stylesheet" href="/static/css/auth.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .success-icon {
+            font-size: 64px;
+            color: #4CAF50;
+            margin-bottom: 20px;
+        }
+        .success-container {
+            text-align: center;
+        }
+        .success-message {
+            margin-bottom: 30px;
+            color: #555;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="left-panel">
+        <div class="logo">
+            <img src="/static/images/shrek-logo.png" alt="Shrek Logo">
+        </div>
+        <div class="welcome-text">
+            <h1>Пароль успешно сброшен!</h1>
+            <p>Теперь вы можете войти в свой аккаунт с новым паролем</p>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="form-container success-container">
+            <i class="fas fa-check-circle success-icon"></i>
+            <h2>УСПЕШНО!</h2>
+            <p class="success-message">Ваш пароль был успешно изменен. Теперь вы можете войти в свой аккаунт, используя новый пароль.</p>
+            <a href="/login" class="btn-submit" style="display: inline-block; text-decoration: none; text-align: center;">Перейти на страницу входа</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="/static/css/group-chat.css">
 <link rel="stylesheet" href="/static/css/calls.css">
 <link rel="stylesheet" href="/static/css/call-debug.css">
+<link rel="stylesheet" href="/static/css/blocked-users.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css">
 <style>
     /* Ensure pulse animation is available */
@@ -126,6 +127,10 @@
                             <div id="clearChat" class="dropdown-item">
                                 <i class="fas fa-trash"></i>
                                 <span>Clear chat</span>
+                            </div>
+                            <div id="toggleBlockUser" class="dropdown-item">
+                                <i class="fas fa-user-slash"></i>
+                                <span>Block user</span>
                             </div>
                         </div>
                     </div>
@@ -682,6 +687,7 @@
 <script src="/static/js/validation.js"></script>
 <script src="/static/js/sendAttach.js"></script>
 <script src="/static/js/audioMsg.js"></script>
+<script src="/static/js/blockUsers.js"></script>
 <script type="module" src="/static/js/addFriend.js"></script>
 <script type="module" src="/static/js/alertPopups.js"></script>
 {% endblock %}

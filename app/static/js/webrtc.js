@@ -125,6 +125,33 @@ async function startCall() {
             throw new Error("Cannot call: Target user ID not found");
         }
 
+        // Check if user is blocked before allowing call
+        if (typeof window.isUserBlocked === 'function' || typeof checkIfBlocked === 'function') {
+            try {
+                let blockStatus;
+                if (typeof checkIfBlocked === 'function') {
+                    blockStatus = await checkIfBlocked(targetUserId);
+                } else {
+                    const isBlocked = await window.isUserBlocked(targetUserId);
+                    blockStatus = { is_blocked: isBlocked };
+                }
+
+                if (blockStatus.is_blocked) {
+                    showError("Call Blocked", "You cannot call a user you have blocked");
+                    return;
+                }
+                if (blockStatus.is_blocker) {
+                    showError("Call Blocked", "You cannot call a user who has blocked you");
+                    return;
+                }
+            } catch (error) {
+                console.error('Error checking block status:', error);
+                // If we can't check block status, prevent the call as a precaution
+                showError("Call Failed", "Could not verify block status. Please try again later.");
+                return;
+            }
+        }
+
         // Initialize WebRTC connection
         peerConnection = new RTCPeerConnection(rtcConfiguration);
         setupPeerConnectionHandlers();
@@ -328,6 +355,43 @@ async function handleCallOffer(data) {
                 room_id: data.room_id
             });
             return;
+        }
+
+        // Check if the caller is blocked using BOTH available functions
+        try {
+            let blockStatus = { is_blocked: false, is_blocker: false };
+            
+            // First try using the standard checkIfBlocked function
+            if (typeof checkIfBlocked === 'function') {
+                blockStatus = await checkIfBlocked(data.caller_id);
+            } 
+            // Also try using the global isUserBlocked function as a backup
+            else if (typeof window.isUserBlocked === 'function') {
+                const isBlocked = await window.isUserBlocked(data.caller_id);
+                blockStatus.is_blocked = isBlocked;
+            }
+            
+            // If either check indicates a block, auto-decline the call
+            if (blockStatus.is_blocked || blockStatus.is_blocker) {
+                // Automatically decline calls from/to blocked users
+                sendCallSignaling({
+                    type: 'call_decline',
+                    target_user_id: data.caller_id,
+                    room_id: data.room_id
+                });
+                
+                // Show appropriate message
+                if (blockStatus.is_blocked) {
+                    showInfo("Call Blocked", "Incoming call was automatically declined because you have blocked this user");
+                } else {
+                    showInfo("Call Blocked", "Incoming call was automatically declined because this user has blocked you");
+                }
+                return;
+            }
+        } catch (error) {
+            console.error('Error checking block status:', error);
+            // On error, still allow the call since we can't verify block status
+            // The user can always manually decline
         }
 
         currentCallData = {

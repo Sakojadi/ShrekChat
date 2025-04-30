@@ -150,6 +150,35 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Check if the current user is blocked or has been blocked
+        const currentUserId = document.getElementById('chatContent').getAttribute('data-current-user-id');
+        if (currentUserId && typeof checkIfBlocked === 'function') {
+            checkIfBlocked(currentUserId).then(blockStatus => {
+                if (blockStatus.is_blocked) {
+                    showAlertPopup('Cannot Send Attachment', 'You cannot send attachments to a blocked user', 'error');
+                    return;
+                }
+                if (blockStatus.is_blocker) {
+                    showAlertPopup('Cannot Send Attachment', 'You cannot send attachments to a user who has blocked you', 'error');
+                    return;
+                }
+                
+                // If not blocked, continue with the attachment upload
+                uploadAttachment(file, type, currentRoomId);
+            });
+        } else {
+            // If checkIfBlocked function is not available, proceed with upload
+            uploadAttachment(file, type, currentRoomId);
+        }
+    }
+    
+    /**
+     * Upload an attachment to the server
+     * @param {File} file - The file to upload
+     * @param {string} type - Type of attachment
+     * @param {string} currentRoomId - Current room ID
+     */
+    function uploadAttachment(file, type, currentRoomId) {
         // Show loading indicator
         showSendingAttachmentIndicator(file.name, type);
         

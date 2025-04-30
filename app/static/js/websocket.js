@@ -127,6 +127,12 @@ function connectPresenceWebSocket(retryCount = 0) {
 
                 if (data.type === "status") {
                     handleStatusMessage(data);
+                } else if (data.type === "block_status_change") {
+                    // Handle block status notifications in presence WebSocket too
+                    handleBlockStatusChange(data);
+                } else if (data.type === "own_block_action_confirmed") {
+                    // Handle own block action confirmations in presence WebSocket
+                    handleOwnBlockAction(data);
                 }
             } catch (error) {
                 console.error("Error parsing presence message:", error, event.data);
@@ -334,11 +340,113 @@ function setupChatWebSocketEvents(webSocket) {
                 handleAvatarUpdate(data.user_id, data.avatar_url);
             } else if (data.type === "own_avatar_update") {
                 handleOwnAvatarUpdate(data.avatar_url);
+            } else if (data.type === "block_status_change") {
+                // User has been blocked or unblocked by someone else
+                handleBlockStatusChange(data);
+            } else if (data.type === "own_block_action_confirmed") {
+                // User's own block/unblock action was confirmed by the server
+                handleOwnBlockAction(data);
             }
         } catch (error) {
             console.error("Error processing WebSocket message:", error, event.data);
         }
     };
+}
+
+// Handle block status change notification (received by the blocked/unblocked user)
+function handleBlockStatusChange(data) {
+    wsLog(`Received block status change notification. Blocked: ${data.is_blocked} by user ID: ${data.blocker_id}`);
+    
+    // Update UI immediately if handler exists
+    if (data.is_blocked && window.handleBlockedByUser) {
+        window.handleBlockedByUser(data.blocker_id);
+    } else if (!data.is_blocked && window.handleUnblockedByUser) {
+        window.handleUnblockedByUser(data.blocker_id);
+    }
+
+    // Show notification
+    if (window.Swal) {
+        Swal.fire({
+            title: `You've been ${data.is_blocked ? 'blocked' : 'unblocked'}`,
+            text: `${data.blocker_name} has ${data.is_blocked ? 'blocked' : 'unblocked'} you.`,
+            icon: data.is_blocked ? 'warning' : 'info',
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            timer: 2000
+        });
+    }
+
+    // Use broadcast channel for cross-tab coordination
+    const broadcastChannel = new BroadcastChannel('block_status_channel');
+    broadcastChannel.postMessage({
+        type: 'block_status_change',
+        is_blocked: data.is_blocked,
+        blocker_id: data.blocker_id,
+        timestamp: Date.now()
+    });
+
+    // Handle message in current tab
+    broadcastChannel.onmessage = (event) => {
+        if (event.data.type === 'block_status_change') {
+            setTimeout(() => {
+                wsLog(`Reloading page due to block status change from user ${event.data.blocker_id}`);
+                window.location.href = window.location.href.split('#')[0];
+                window.location.reload(true);
+            }, 2100);
+        }
+    };
+
+    // Clean up
+    setTimeout(() => broadcastChannel.close(), 3000);
+}
+
+// Handle own block action confirmation
+function handleOwnBlockAction(data) {
+    wsLog(`Your block action was confirmed by the server. Blocked: ${data.is_blocked} user ID: ${data.blocked_user_id}`);
+    
+    // Update UI immediately if handler exists
+    if (data.is_blocked && window.handleBlockedUser) {
+        window.handleBlockedUser(data.blocked_user_id);
+    } else if (!data.is_blocked && window.handleUnblockedUser) {
+        window.handleUnblockedUser(data.blocked_user_id);
+    }
+
+    // Show notification
+    if (window.Swal) {
+        Swal.fire({
+            title: `User ${data.is_blocked ? 'blocked' : 'unblocked'}`,
+            text: `You have ${data.is_blocked ? 'blocked' : 'unblocked'} ${data.blocked_user_name}.`,
+            icon: data.is_blocked ? 'warning' : 'info',
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            timer: 2000
+        });
+    }
+
+    // Use broadcast channel for cross-tab coordination
+    const broadcastChannel = new BroadcastChannel('block_status_channel');
+    broadcastChannel.postMessage({
+        type: 'own_block_action',
+        is_blocked: data.is_blocked,
+        blocked_user_id: data.blocked_user_id,
+        timestamp: Date.now()
+    });
+
+    // Handle message in current tab
+    broadcastChannel.onmessage = (event) => {
+        if (event.data.type === 'own_block_action') {
+            setTimeout(() => {
+                wsLog(`Reloading page due to own block action on user ${event.data.blocked_user_id}`);
+                window.location.href = window.location.href.split('#')[0];
+                window.location.reload(true);
+            }, 2100);
+        }
+    };
+
+    // Clean up
+    setTimeout(() => broadcastChannel.close(), 3000);
 }
 
 // Observe messages for visibility and send read receipts

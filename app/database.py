@@ -69,6 +69,19 @@ class User(Base):
         back_populates="sender",
         cascade="all, delete-orphan"
     )
+    # Add relationships for blocked users
+    blocked_users = relationship(
+        "BlockedUser",
+        foreign_keys="BlockedUser.user_id",
+        back_populates="user",
+        cascade="all, delete-orphan"
+    )
+    blocked_by = relationship(
+        "BlockedUser",
+        foreign_keys="BlockedUser.blocked_user_id",
+        back_populates="blocked_user",
+        cascade="all, delete-orphan"
+    )
 
 class Message(Base):
     __tablename__ = "messages"
@@ -110,6 +123,23 @@ class GroupMember(Base):
     group = relationship("GroupChat", back_populates="members")
 
 GroupChat.members = relationship("GroupMember", back_populates="group")
+
+# Add the BlockedUser model after other models
+class BlockedUser(Base):
+    __tablename__ = "blocked_users"
+    
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    blocked_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    blocked_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", foreign_keys=[user_id], back_populates="blocked_users")
+    blocked_user = relationship("User", foreign_keys=[blocked_user_id], back_populates="blocked_by")
+    
+    __table_args__ = (
+        # Ensure a user can only block another user once
+        PrimaryKeyConstraint('user_id', 'blocked_user_id'),
+    )
 
 Base.metadata.create_all(bind=engine)
 

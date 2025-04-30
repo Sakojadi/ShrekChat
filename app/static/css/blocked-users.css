@@ -1,0 +1,230 @@
+/* Styles for blocked users functionality in ShrekChat */
+
+/* Profile menu item for blocked users */
+.profile-menu-item.blocked-users {
+    display: flex;
+    align-items: center;
+    padding: 15px 0;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.profile-menu-item.blocked-users:hover {
+    background-color: #f9f9f9;
+}
+
+.profile-menu-item.blocked-users i {
+    width: 24px;
+    margin-right: 15px;
+    font-size: 1.1rem;
+    color: #6a7480;
+    text-align: center;
+}
+
+/* Popup styling - using existing popup classes for consistency */
+.popup.blocked-users-popup {
+    width: 320px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background-color: #fff;
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0.3s, opacity 0.3s;
+}
+
+/* Show popup when open class is added */
+.popup.blocked-users-popup.open {
+    visibility: visible;
+    opacity: 1;
+}
+
+.popup.blocked-users-popup .popup-header {
+    background-color: #7BAE37;
+    color: white;
+    border-radius: 12px 12px 0 0;
+}
+
+.popup.blocked-users-popup .popup-header h3 {
+    display: flex;
+    align-items: center;
+    font-weight: 500;
+}
+
+.popup.blocked-users-popup .popup-header h3 i {
+    margin-right: 8px;
+    color: white;
+}
+
+.popup.blocked-users-popup .popup-close {
+    color: white;
+}
+
+/* Empty state */
+.empty-blocked-list {
+    padding: 30px 20px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+}
+
+/* User list */
+.blocked-users-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Blocked user item - redesigned for consistency with the Shrek theme */
+.blocked-user-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    border-bottom: 1px solid #e8e8e8;
+    transition: background-color 0.2s;
+}
+
+.blocked-user-item:hover {
+    background-color: rgba(123, 174, 55, 0.05);
+}
+
+.blocked-user-item:last-child {
+    border-bottom: none;
+}
+
+/* Avatar style - circular with fixed dimensions */
+.blocked-user-item .user-avatar {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    min-height: 40px !important;
+    border-radius: 50% !important;
+    overflow: hidden !important;
+    margin-right: 12px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background-color: #f0f0f0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border: 2px solid #7BAE37;
+}
+
+.blocked-user-item .user-avatar img {
+    width: 100% !important;
+    height: 100% !important;
+    max-width: 100% !important;
+    max-height: 100% !important;
+    object-fit: cover !important;
+    object-position: center !important;
+    display: block !important;
+}
+
+/* User info - middle section with name */
+.blocked-user-item .user-info {
+    flex: 1;
+    overflow: hidden;
+}
+
+.blocked-user-item .user-name {
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Unblock button - Shrek colored */
+.blocked-user-item .unblock-user-btn {
+    background-color: #7BAE37;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    margin-left: 8px;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    font-size: 13px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.blocked-user-item .unblock-user-btn i {
+    margin-right: 4px;
+    font-size: 12px;
+}
+
+.blocked-user-item .unblock-user-btn:hover {
+    background-color: #689F38;
+    transform: scale(1.05);
+}
+
+.blocked-user-item .unblock-user-btn:active {
+    transform: scale(0.95);
+}
+
+.blocked-loading, 
+.blocked-error {
+    padding: 20px;
+    text-align: center;
+    font-size: 14px;
+    color: #666;
+}
+
+.blocked-loading {
+    color: #7BAE37;
+}
+
+.blocked-error {
+    color: #e53935;
+}
+
+/* Block message styles */
+.system-message.block-message {
+    padding: 12px 16px;
+    margin: 15px auto;
+    text-align: center;
+    border-radius: 8px;
+    width: 80%;
+    font-size: 14px;
+    line-height: 1.5;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Style for when you have blocked someone */
+.system-message.block-message.outgoing-block {
+    background-color: #ffebee; /* Light red background */
+    color: #e53935;
+    border-left: 4px solid #e53935;
+}
+
+/* Style for when you've been blocked by someone */
+.system-message.block-message.incoming-block {
+    background-color: #eeeeee; /* Light gray background */
+    color: #616161;
+    border-left: 4px solid #616161;
+}
+
+/* Dark theme support for block messages */
+.dark-theme .system-message.block-message.outgoing-block {
+    background-color: rgba(229, 57, 53, 0.2);
+    color: #ef9a9a;
+    border-left-color: #c62828;
+}
+
+.dark-theme .system-message.block-message.incoming-block {
+    background-color: rgba(97, 97, 97, 0.2);
+    color: #bdbdbd;
+    border-left-color: #757575;
+}

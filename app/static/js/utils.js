@@ -66,13 +66,55 @@ const statusCache = {};
 
 // Update a contact's online status in the UI
 function updateContactStatus(userId, status, source = 'unknown') {
-    // Validate status
-    const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+    // Get timestamp for logging
     const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] Updating status for user ${userId} to ${validStatus} (source: ${source})`);
+    
+    // First, check if this user is blocked
+    if (window.isUserBlocked && typeof window.isUserBlocked === 'function') {
+        window.isUserBlocked(userId).then(blocked => {
+            if (blocked) {
+                // If user is blocked by current user, show 'blocked' status
+                console.log(`[${timestamp}] User ${userId} is blocked by you, showing blocked status (source: ${source})`);
+                applyStatusToUI(userId, 'blocked', timestamp);
+                return;
+            } else {
+                // Check if current user is blocked by this user
+                checkIfBlocked(userId).then(blockStatus => {
+                    if (blockStatus.is_blocker) {
+                        // If this user has blocked the current user, hide status completely
+                        console.log(`[${timestamp}] User ${userId} has blocked you, hiding status completely (source: ${source})`);
+                        applyStatusToUI(userId, 'hidden', timestamp);
+                    } else {
+                        // Otherwise, proceed with normal status
+                        const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+                        console.log(`[${timestamp}] Updating status for user ${userId} to ${validStatus} (source: ${source})`);
+                        applyStatusToUI(userId, validStatus, timestamp);
+                    }
+                }).catch(err => {
+                    // On error, show normal status
+                    const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+                    console.log(`[${timestamp}] Error checking block status: ${err}, using ${validStatus} (source: ${source})`);
+                    applyStatusToUI(userId, validStatus, timestamp);
+                });
+            }
+        }).catch(err => {
+            // If there's an error checking block status, fall back to normal status
+            const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+            console.log(`[${timestamp}] Error checking block status for ${userId}, using ${validStatus}: ${err}`);
+            applyStatusToUI(userId, validStatus, timestamp);
+        });
+    } else {
+        // If block check function is not available, proceed with normal status
+        const validStatus = status === 'online' || status === 'offline' ? status : 'offline';
+        console.log(`[${timestamp}] Updating status for user ${userId} to ${validStatus} (source: ${source})`);
+        applyStatusToUI(userId, validStatus, timestamp);
+    }
+}
 
+// Apply a status to the UI (separating this from the status checking logic)
+function applyStatusToUI(userId, status, timestamp) {
     // Update cache
-    statusCache[userId] = { status: validStatus, updatedAt: timestamp };
+    statusCache[userId] = { status: status, updatedAt: timestamp };
 
     // Batch DOM updates for performance
     requestAnimationFrame(() => {
@@ -81,8 +123,15 @@ function updateContactStatus(userId, status, source = 'unknown') {
         if (contactElement) {
             const statusIndicator = contactElement.querySelector('.status-indicator');
             if (statusIndicator) {
-                statusIndicator.classList.remove('online', 'offline');
-                statusIndicator.classList.add(validStatus);
+                statusIndicator.classList.remove('online', 'offline', 'blocked', 'hidden');
+                statusIndicator.classList.add(status);
+                
+                // For 'hidden' status, make the indicator invisible
+                if (status === 'hidden') {
+                    statusIndicator.style.display = 'none';
+                } else {
+                    statusIndicator.style.display = '';
+                }
             } else {
                 console.warn(`[${timestamp}] Status indicator not found for user ${userId} in sidebar`);
             }
@@ -96,8 +145,18 @@ function updateContactStatus(userId, status, source = 'unknown') {
         if (currentUserId && parseInt(currentUserId) === parseInt(userId)) {
             const chatContactStatus = document.getElementById('chatContactPresence');
             if (chatContactStatus) {
-                chatContactStatus.textContent = validStatus === 'online' ? 'Online' : 'Offline';
-                chatContactStatus.className = `status-text ${validStatus}`;
+                if (status === 'hidden') {
+                    // Hide status completely for users who have blocked the current user
+                    chatContactStatus.style.display = 'none';
+                } else {
+                    chatContactStatus.style.display = '';
+                    if (status === 'blocked') {
+                        chatContactStatus.textContent = 'Blocked';
+                    } else {
+                        chatContactStatus.textContent = status === 'online' ? 'Online' : 'Offline';
+                    }
+                    chatContactStatus.className = `status-text ${status}`;
+                }
             } else {
                 console.warn(`[${timestamp}] Chat contact status element not found for user ${userId}`);
             }
@@ -110,8 +169,18 @@ function updateContactStatus(userId, status, source = 'unknown') {
             if (contactInfoUserId && parseInt(contactInfoUserId) === parseInt(userId)) {
                 const contactInfoStatus = document.getElementById('contactInfoStatus');
                 if (contactInfoStatus) {
-                    contactInfoStatus.textContent = validStatus === 'online' ? 'Online' : 'Offline';
-                    contactInfoStatus.className = `status-text ${validStatus}`;
+                    if (status === 'hidden') {
+                        // Hide status completely for users who have blocked the current user
+                        contactInfoStatus.style.display = 'none';
+                    } else {
+                        contactInfoStatus.style.display = '';
+                        if (status === 'blocked') {
+                            contactInfoStatus.textContent = 'Blocked';
+                        } else {
+                            contactInfoStatus.textContent = status === 'online' ? 'Online' : 'Offline';
+                        }
+                        contactInfoStatus.className = `status-text ${status}`;
+                    }
                 } else {
                     console.warn(`[${timestamp}] Contact info status element not found for user ${userId}`);
                 }
@@ -121,7 +190,7 @@ function updateContactStatus(userId, status, source = 'unknown') {
 
     // Dispatch custom event for other modules
     const statusEvent = new CustomEvent('status-update', {
-        detail: { userId, status: validStatus, source }
+        detail: { userId, status: status, source: 'status-update' }
     });
     window.dispatchEvent(statusEvent);
 }

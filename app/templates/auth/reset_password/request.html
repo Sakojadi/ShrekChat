@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block title %}Сброс пароля - ShrekChat{% endblock %}
+
+{% block css %}
+    {{ super() }}
+    <link rel="stylesheet" href="/static/css/auth.css">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .debug-link {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            word-break: break-all;
+        }
+        .debug-link a {
+            color: #4CAF50;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="left-panel">
+        <div class="logo">
+            <img src="/static/images/shrek-logo.png" alt="Shrek Logo">
+        </div>
+        <div class="welcome-text">
+            <h1>Сброс пароля</h1>
+            <p>Введите ваш email для восстановления доступа к аккаунту</p>
+        </div>
+    </div>
+    <div class="right-panel">
+        <div class="form-container">
+            <h2>СБРОС ПАРОЛЯ</h2>
+            <form id="resetPasswordForm" method="POST" action="/reset-password">
+                <div class="input-group">
+                    <i class="fas fa-envelope"></i>
+                    <input type="email" id="email" name="email" placeholder="E-MAIL" required>
+                </div>
+                <div class="error-message" id="errorMessage">
+                    {% if error %}{{ error }}{% endif %}
+                </div>
+                <div class="success-message" id="successMessage">
+                    {% if success %}{{ success }}{% endif %}
+                </div>
+                <button type="submit" class="btn-submit">Отправить ссылку для сброса</button>
+                <div class="login-link">
+                    <p>Вспомнили пароль? <a href="/login">Войти</a></p>
+                </div>
+                
+                {% if debug_link %}
+                <div class="debug-link">
+                    <p>Тестовая ссылка для сброса пароля (в реальном приложении будет отправлена на email):</p>
+                    <a href="{{ debug_link }}">{{ debug_link }}</a>
+                </div>
+                {% endif %}
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/validation.js"></script>
+{% endblock %}
