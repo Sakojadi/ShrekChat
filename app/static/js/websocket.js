@@ -454,18 +454,38 @@ function observeMessagesForRead() {
     const chatMessages = document.getElementById('chatMessages');
     if (!chatMessages) return;
 
+    // Clear any existing observer to avoid duplicates
+    if (window.messageReadObserver) {
+        window.messageReadObserver.disconnect();
+    }
+
     const messageObserver = new IntersectionObserver(
         (entries) => {
+            const unreadMessageIds = [];
+            
             entries.forEach((entry) => {
                 if (entry.isIntersecting) {
                     const messageElement = entry.target;
+                    
+                    // Skip outgoing messages - they don't need read receipts
+                    if (messageElement.classList.contains('outgoing')) {
+                        return;
+                    }
+                    
                     const messageId = messageElement.getAttribute('data-message-id');
-                    const isRead = messageElement.querySelector('.message-status-double.read');
-                    if (!isRead && currentRoomId && messageId) {
-                        sendReadReceipts(currentRoomId, [messageId]);
+                    // Make sure it's a valid message ID (not a temp ID)
+                    if (messageId && !messageId.startsWith('temp-') && !messageElement.classList.contains('read-sent')) {
+                        unreadMessageIds.push(messageId);
+                        // Mark this message as having sent a read receipt to avoid duplicates
+                        messageElement.classList.add('read-sent');
                     }
                 }
             });
+            
+            // Send batch read receipt for all visible unread messages
+            if (unreadMessageIds.length > 0 && currentRoomId) {
+                sendReadReceipts(currentRoomId, unreadMessageIds);
+            }
         },
         {
             root: chatMessages,
@@ -473,9 +493,14 @@ function observeMessagesForRead() {
         }
     );
 
-    // Observe all messages with IDs
-    document.querySelectorAll('.message[data-message-id]').forEach((message) => {
-        messageObserver.observe(message);
+    // Store observer reference for later cleanup
+    window.messageReadObserver = messageObserver;
+
+    // Observe all incoming messages with IDs
+    document.querySelectorAll('.message.incoming[data-message-id]').forEach((message) => {
+        if (!message.classList.contains('read-sent')) {
+            messageObserver.observe(message);
+        }
     });
 }
 
@@ -511,10 +536,20 @@ function handleChatMessage(data) {
         (message.attachment && message.attachment.url)
     );
 
+    // Check for translation info
+    const isTranslated = message.is_translated || false;
+    const originalContent = message.original_content || null;
+    const translatedTo = message.translated_to || null;
+
     // Update sidebar UI with new message info
     if (window.shrekChatUtils) {
         // Get consistent display name for attachments
         let displayContent = isAttachment ? getAttachmentDisplayName(message) : message.content;
+        
+        // Mark translated messages in sidebar
+        if (isTranslated) {
+            displayContent = `[Translated] ${displayContent}`;
+        }
         
         // Always update the last message in the sidebar
         window.shrekChatUtils.updateLastMessage(message.room_id, displayContent, message.time);
@@ -635,13 +670,24 @@ function processIncomingMessage(message, isAttachment) {
             const originalContent = message.content;
             window.displayMessage(message);
             
-            // Verify attachment rendering after display
+            // Verify attachment rendering after a short delay
             setTimeout(() => {
                 verifyAttachmentRendering(message.id, originalContent);
-            }, 50);
+            }, 500);
         } else {
+            // Add translation data to the message element
+            if (message.is_translated) {
+                message.translationData = {
+                    isTranslated: true,
+                    originalContent: message.original_content,
+                    translatedTo: message.translated_to
+                };
+            }
+            
             window.displayMessage(message);
         }
+        
+        // Observe new messages for read status
         observeMessagesForRead();
     }
 }

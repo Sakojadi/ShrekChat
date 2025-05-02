@@ -94,6 +94,12 @@ class Message(Base):
     read = Column(Boolean, default=False)
     delivered_at = Column(DateTime, nullable=True)
     read_at = Column(DateTime, nullable=True)
+    
+    # Translation fields
+    is_translated = Column(Boolean, default=False)
+    original_content = Column(Text, nullable=True)
+    translated_at = Column(DateTime, nullable=True)
+    translated_to = Column(String, nullable=True)  # Language code the message was translated to
 
     room = relationship("Room", back_populates="messages")
     sender = relationship("User", back_populates="messages_sent")

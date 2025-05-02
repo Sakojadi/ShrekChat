@@ -288,7 +288,11 @@ async def get_room_messages(
             "timestamp": message.timestamp.isoformat(),
             "time": message.timestamp.strftime("%H:%M"),
             "delivered": message.delivered,
-            "read": message.read
+            "read": message.read,
+            # Add translation fields
+            "is_translated": message.is_translated,
+            "original_content": message.original_content,
+            "translated_to": message.translated_to
         })
     
     # Mark unread messages as read

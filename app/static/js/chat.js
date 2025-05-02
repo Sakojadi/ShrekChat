@@ -930,6 +930,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 messageDiv.setAttribute('data-temp-message', 'true');
             }
 
+            // Add translation data attributes if available
+            if (message.is_translated || (message.translationData && message.translationData.isTranslated)) {
+                messageDiv.classList.add('translated');
+                
+                // Store original content for toggle functionality
+                if (message.original_content || (message.translationData && message.translationData.originalContent)) {
+                    messageDiv.setAttribute('data-original-text', 
+                        message.original_content || 
+                        (message.translationData ? message.translationData.originalContent : '')
+                    );
+                }
+                
+                // Store translation language
+                if (message.translated_to || (message.translationData && message.translationData.translatedTo)) {
+                    messageDiv.setAttribute('data-translated-to', 
+                        message.translated_to || 
+                        (message.translationData ? message.translationData.translatedTo : '')
+                    );
+                }
+                
+                // Add "Show Original" button
+                if (!hasAttachment) {
+                    const showOriginalBtn = document.createElement('button');
+                    showOriginalBtn.className = 'show-original-btn';
+                    showOriginalBtn.innerHTML = '<i class="fas fa-language"></i> Original';
+                    showOriginalBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (typeof toggleOriginalText === 'function') {
+                            toggleOriginalText(messageDiv);
+                        }
+                    });
+                    messageDiv.appendChild(showOriginalBtn);
+                }
+            }
+
             let isCurrentUser = false;
             const currentUsername = document.querySelector('.profile-name')?.textContent.trim();
 
