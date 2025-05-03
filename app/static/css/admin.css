@@ -1,0 +1,131 @@
+/* Admin Panel Styles */
+
+.text-muted {
+    color: #777;
+    font-size: 0.85rem;
+    margin-top: 4px;
+    display: block;
+}
+
+/* Stats tabs styling */
+.stats-tabs {
+    display: flex;
+    border-bottom: 1px solid #e0e0e0;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.stats-tab {
+    padding: 10px 15px;
+    background: none;
+    border: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    color: #666;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.stats-tab:hover {
+    background-color: rgba(123, 174, 55, 0.05);
+    color: #7BAE37;
+}
+
+.stats-tab.active {
+    color: #7BAE37;
+    border-bottom: 3px solid #7BAE37;
+}
+
+/* Stats panels */
+.stats-panel {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.stats-panel.active {
+    display: block;
+}
+
+/* Stats cards styling */
+.stats-card {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-bottom: 30px;
+}
+
+.stats-item {
+    flex: 1;
+    min-width: 160px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    border-left: 4px solid #7BAE37;
+}
+
+.stats-label {
+    display: block;
+    font-size: 0.9rem;
+    color: #666;
+    margin-bottom: 8px;
+}
+
+.stats-value {
+    display: block;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Chart containers */
+.chart-container {
+    background-color: #fff;
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
+    height: 250px;
+}
+
+/* Dark theme styles */
+body.dark-theme .stats-tab {
+    color: #ccc;
+}
+
+body.dark-theme .stats-tab:hover {
+    background-color: rgba(123, 174, 55, 0.1);
+    color: #8BC34A;
+}
+
+body.dark-theme .stats-tab.active {
+    color: #8BC34A;
+    border-bottom: 3px solid #8BC34A;
+}
+
+body.dark-theme .stats-item {
+    background-color: #2a2a2a;
+    border-left: 4px solid #8BC34A;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+body.dark-theme .stats-label {
+    color: #ccc;
+}
+
+body.dark-theme .stats-value {
+    color: #f1f1f1;
+}
+
+body.dark-theme .chart-container {
+    background-color: #2a2a2a;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+/* Animation */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}

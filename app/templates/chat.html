@@ -244,6 +244,10 @@
                     <i class="fas fa-user-friends"></i>
                     <span>Пригласить друзей</span>
                 </div>
+                <div id="adminMenuItem" class="profile-menu-item">
+                    <i class="fas fa-user-shield"></i>
+                    <span>Admin Panel</span>
+                </div>
                 <div class="profile-menu-item danger" id="logoutMenuItem">
                     <i class="fas fa-sign-out-alt"></i>
                     <span>Выйти</span>
@@ -580,6 +584,125 @@
             </div>
         </div>
     </div>
+
+    <!-- Admin Panel popup -->
+    <div id="adminPanelPopup" class="popup">
+        <div class="popup-header">
+            <h3><i class="fas fa-user-shield"></i> Admin Panel</h3>
+            <button id="closeAdminPanelPopup" class="popup-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="popup-content">
+            <!-- Authentication Section - Shown first -->
+            <div id="adminAuthSection">
+                <div class="form-group">
+                    <label for="adminPassword">Admin Password</label>
+                    <input type="password" id="adminPassword" placeholder="Enter admin password">
+                    <small class="text-muted">Enter the admin password to access statistics</small>
+                </div>
+                <div class="form-actions">
+                    <button id="adminLoginBtn" class="btn-primary">Login</button>
+                </div>
+            </div>
+            
+            <!-- Statistics Section - Hidden until authenticated -->
+            <div id="adminStatsSection" style="display: none;">
+                <div class="stats-tabs">
+                    <button class="stats-tab active" data-tab="userStats">User Stats</button>
+                    <button class="stats-tab" data-tab="activityStats">Activity Stats</button>
+                    <button class="stats-tab" data-tab="messageStats">Message Stats</button>
+                </div>
+                
+                <div class="stats-content">
+                    <!-- User Statistics -->
+                    <div id="userStats" class="stats-panel active">
+                        <h4>User Statistics</h4>
+                        <div class="stats-card">
+                            <div class="stats-item">
+                                <span class="stats-label">Total Users</span>
+                                <span id="totalUsersCount" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">New Users Today</span>
+                                <span id="newUsersToday" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">New Users This Week</span>
+                                <span id="newUsersWeek" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">New Users This Month</span>
+                                <span id="newUsersMonth" class="stats-value">0</span>
+                            </div>
+                        </div>
+                        
+                        <h4>User Registration History</h4>
+                        <div class="chart-container">
+                            <canvas id="userRegistrationChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Activity Statistics -->
+                    <div id="activityStats" class="stats-panel">
+                        <h4>User Activity</h4>
+                        <div class="stats-card">
+                            <div class="stats-item">
+                                <span class="stats-label">Active Users Now</span>
+                                <span id="activeUsersNow" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Active Users Today</span>
+                                <span id="activeUsersToday" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Average Daily Active Users</span>
+                                <span id="avgDailyActiveUsers" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Peak Activity Time</span>
+                                <span id="peakActivityTime" class="stats-value">-</span>
+                            </div>
+                        </div>
+                        
+                        <h4>Activity Over Time</h4>
+                        <div class="chart-container">
+                            <canvas id="userActivityChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Message Statistics -->
+                    <div id="messageStats" class="stats-panel">
+                        <h4>Message Statistics</h4>
+                        <div class="stats-card">
+                            <div class="stats-item">
+                                <span class="stats-label">Total Messages</span>
+                                <span id="totalMessages" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Messages Today</span>
+                                <span id="messagesToday" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Average Messages/Day</span>
+                                <span id="avgMessagesPerDay" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Most Active Chat</span>
+                                <span id="mostActiveChat" class="stats-value">-</span>
+                            </div>
+                        </div>
+                        
+                        <h4>Message Volume Over Time</h4>
+                        <div class="chart-container">
+                            <canvas id="messageVolumeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Templates -->
@@ -679,6 +802,7 @@
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
 <script src="/static/js/utils.js"></script>
 <script src="/static/js/websocket.js"></script>
 <script src="/static/js/webrtc.js"></script>
@@ -693,6 +817,7 @@
 <script src="/static/js/audioMsg.js"></script>
 <script src="/static/js/blockUsers.js"></script>
 <script src="/static/js/translations.js"></script>
+<script src="/static/js/admin.js"></script>
 <script type="module" src="/static/js/addFriend.js"></script>
 <script type="module" src="/static/js/alertPopups.js"></script>
 {% endblock %}

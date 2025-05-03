@@ -19,6 +19,9 @@ from app.routers.websockets import router as websockets_router
 from app.routers.session import router as session_router
 from app.routers.sendAttach import router as sendAttach_router
 from app.routers.translate import router as translate_router
+from app.routers.block_users import router as block_users_router
+from app.routers.sendAudio import router as sendAudio_router
+from app.routers.admin import router as admin_router
 
 app = FastAPI(title="ShrekChat")
 
@@ -48,6 +51,9 @@ app.include_router(websockets_router)
 app.include_router(session_router)
 app.include_router(sendAttach_router)
 app.include_router(translate_router)
+app.include_router(block_users_router)
+app.include_router(sendAudio_router)
+app.include_router(admin_router)
 
 # Root route redirects to login
 @app.get("/", response_class=HTMLResponse)
