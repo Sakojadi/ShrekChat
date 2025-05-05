@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta, date
 import calendar
 
-from ..database import SessionLocal, User, Message, Room, room_members
+from ..database import SessionLocal, User, Message, Room, room_members, GroupMember, BlockedUser
 
 # Define a proper dependency for database access
 def get_db():
@@ -435,7 +435,7 @@ async def delete_user(
     db: Session = Depends(get_db)
 ):
     """
-    Delete a user by ID
+    Delete a user by ID and all associated data
     """
     try:
         # Find the user
@@ -446,13 +446,56 @@ async def delete_user(
                 detail="User not found"
             )
         
-        # Delete the user
+        # Store username for return message
+        username = user.username
+        
+        # 1. Find all direct chat rooms where the user is a member
+        direct_rooms = db.query(Room).filter(
+            Room.is_group == False,
+            Room.id.in_(
+                db.query(room_members.c.room_id).filter(
+                    room_members.c.user_id == user_id
+                )
+            )
+        ).all()
+        
+        # Delete direct chat room memberships first
+        for room in direct_rooms:
+            # Delete memberships for both users in the direct chat
+            db.execute(
+                room_members.delete().where(
+                    room_members.c.room_id == room.id
+                )
+            )
+            # Then delete the room itself
+            db.delete(room)
+        
+        # 2. Delete group chat memberships separately
+        db.execute(
+            room_members.delete().where(
+                and_(
+                    room_members.c.user_id == user_id,
+                    room_members.c.room_id.in_(
+                        db.query(Room.id).filter(Room.is_group == True)
+                    )
+                )
+            )
+        )
+        
+        # 3. Remove from group_members table
+        db.query(GroupMember).filter(GroupMember.user_id == user_id).delete()
+        
+        # 4. Clean up blocking relationships
+        db.query(BlockedUser).filter(BlockedUser.user_id == user_id).delete()
+        db.query(BlockedUser).filter(BlockedUser.blocked_user_id == user_id).delete()
+        
+        # 5. Finally delete the user
         db.delete(user)
         db.commit()
         
         return {
             "success": True,
-            "message": f"User {user.username} has been deleted successfully"
+            "message": f"User {username} and all associated data has been deleted successfully"
         }
     except Exception as e:
         db.rollback()
