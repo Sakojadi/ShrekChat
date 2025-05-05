@@ -199,7 +199,7 @@
             <button id="closeProfileSidebar">
                 <i class="fas fa-arrow-left"></i>
             </button>
-            <h3>Профиль</h3>
+            <h3>Profile</h3>
         </div>
         
         <div class="profile-content">
@@ -222,19 +222,19 @@
             <div class="profile-menu">
                 <div id="editProfileMenuItem" class="profile-menu-item">
                     <i class="fas fa-user"></i>
-                    <span>Мой профиль</span>
+                    <span>My profile</span>
                 </div>
                 <div id="createGroupMenuItem" class="profile-menu-item">
                     <i class="fas fa-users"></i>
-                    <span>Новая группа</span>
+                    <span>New group</span>
                 </div>
                 <div id="addContactMenuItem" class="profile-menu-item">
                     <i class="fas fa-user-plus"></i>
-                    <span>Добавить друга</span>
+                    <span>Add contact</span>
                 </div>
                 <div class="profile-menu-item">
                     <i class="fas fa-moon"></i>
-                    <span>Тема</span>
+                    <span>Theme</span>
                     <label class="switch">
                         <input type="checkbox" id="themeToggle">
                         <span class="slider round"></span>
@@ -242,7 +242,7 @@
                 </div>
                 <div class="profile-menu-item">
                     <i class="fas fa-user-friends"></i>
-                    <span>Пригласить друзей</span>
+                    <span>Invite friends</span>
                 </div>
                 <div id="adminMenuItem" class="profile-menu-item">
                     <i class="fas fa-user-shield"></i>
@@ -498,7 +498,7 @@
     <!-- Add Friend Popup -->
     <div id="addFriendPopup" class="popup">
         <div class="popup-header">
-            <h3>Добавить друга</h3>
+            <h3>Add Contact</h3>
             <button id="closeAddFriendPopup" class="popup-close">
                 <i class="fas fa-times"></i>
             </button>
@@ -515,7 +515,7 @@
             </div>
             
             <div class="popup-actions">
-                <button id="addFriendButton" class="btn-primary">Добавить</button>
+                <button id="addFriendButton" class="btn-primary">Add</button>
             </div>
         </div>
     </div>
@@ -613,6 +613,7 @@
                     <button class="stats-tab active" data-tab="userStats">User Stats</button>
                     <button class="stats-tab" data-tab="activityStats">Activity Stats</button>
                     <button class="stats-tab" data-tab="messageStats">Message Stats</button>
+                    <button class="stats-tab" data-tab="registeredUsers">Registered Users</button>
                 </div>
                 
                 <div class="stats-content">
@@ -635,6 +636,19 @@
                             <div class="stats-item">
                                 <span class="stats-label">New Users This Month</span>
                                 <span id="newUsersMonth" class="stats-value">0</span>
+                            </div>
+                        </div>
+                        
+                        <h4>Most Active User Today</h4>
+                        <div class="stats-card">
+                            <div class="most-active-user" id="mostActiveUser">
+                                <div class="most-active-user-avatar">
+                                    <img src="/static/images/shrek.jpg" alt="Most Active User">
+                                </div>
+                                <div class="most-active-user-info">
+                                    <div class="most-active-user-name">Loading...</div>
+                                    <div class="most-active-user-stats">0 messages today</div>
+                                </div>
                             </div>
                         </div>
                         
@@ -699,6 +713,22 @@
                             <canvas id="messageVolumeChart"></canvas>
                         </div>
                     </div>
+                    
+                    <!-- Registered Users List -->
+                    <div id="registeredUsers" class="stats-panel">
+                        <h4>Registered Users</h4>
+                        <div class="user-search-container">
+                            <div class="user-search-input-wrapper">
+                                <input type="text" id="userSearchInput" placeholder="Search by username...">
+                                <button id="userSearchButton" class="user-search-button">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div id="userListContainer" class="user-list-container">
+                            <div class="loading">Click on this tab to load users...</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -739,7 +769,7 @@
 <!-- Group Contact Item Template -->
 <template id="groupContactItemTemplate">
     <div class="contact-item group-contact">
-        <div class="contact-avatar group-avatar">
+        <div class="contact-avatar group-avatar"></div>
             <img src="/static/images/shrek.jpg" alt="Group">
         </div>
         <div class="contact-info">

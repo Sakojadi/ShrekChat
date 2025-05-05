@@ -70,8 +70,13 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
 def authenticate_user(login_input: str, password: str):
     db = SessionLocal()
     try:
-        # Try to find user by username or email
-        user = db.query(User).filter(
+        # Try to find user by username or email without referencing registration_date
+        # Use specific column selection to avoid ORM loading non-existent columns
+        user = db.query(
+            User.id, User.username, User.email, User.hashed_password, 
+            User.full_name, User.bio, User.phone_number, User.country,
+            User.is_online, User.last_seen, User.avatar
+        ).filter(
             (User.username == login_input) | (User.email == login_input)
         ).first()
         

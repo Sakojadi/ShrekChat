@@ -115,6 +115,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (charts[tabId]) {
                         charts[tabId].resize();
                     }
+                    
+                    // If users tab is selected, load user list
+                    if (tabId === 'registeredUsers' && !panel.querySelector('.user-list-loaded')) {
+                        loadRegisteredUsers();
+                        panel.classList.add('user-list-loaded');
+                    }
                 }
             });
         });
@@ -170,6 +176,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('newUsersWeek').textContent = data.data.new_users_week.toLocaleString();
                     document.getElementById('newUsersMonth').textContent = data.data.new_users_month.toLocaleString();
                     
+                    // Update most active user
+                    updateMostActiveUser(data.data.most_active_user);
+                    
                     // Create chart with real data
                     createUserRegistrationChart(data.data.monthly_registrations);
                 } else {
@@ -181,6 +190,22 @@ document.addEventListener('DOMContentLoaded', function() {
                 console.error('Error fetching user statistics:', error);
                 showErrorState('userStats');
             });
+    }
+    
+    // Update most active user card
+    function updateMostActiveUser(userData) {
+        const mostActiveUserCard = document.getElementById('mostActiveUser');
+        if (mostActiveUserCard) {
+            mostActiveUserCard.innerHTML = `
+                <div class="most-active-user-avatar">
+                    <img src="${userData.avatar}" alt="${userData.username}">
+                </div>
+                <div class="most-active-user-info">
+                    <div class="most-active-user-name">${userData.username}</div>
+                    <div class="most-active-user-stats">${userData.message_count} messages today</div>
+                </div>
+            `;
+        }
     }
     
     // Create user registration chart
@@ -416,6 +441,243 @@ document.addEventListener('DOMContentLoaded', function() {
                         }
                     }
                 }
+            }
+        });
+    }
+    
+    // Load registered users list
+    function loadRegisteredUsers(page = 1, limit = 10, search = '') {
+        const userListContainer = document.getElementById('userListContainer');
+        if (!userListContainer) return;
+        
+        // Show loading state
+        userListContainer.innerHTML = '<div class="loading">Loading users...</div>';
+        
+        // Build the query parameters
+        const params = new URLSearchParams({
+            page: page,
+            limit: limit
+        });
+        
+        if (search) {
+            params.append('search', search);
+        }
+        
+        // Fetch user list from API
+        fetch(`/api/admin/users/list?${params.toString()}`)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    renderUserList(data.data.users, data.data.pagination);
+                } else {
+                    userListContainer.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                }
+            })
+            .catch(error => {
+                userListContainer.innerHTML = `<div class="error">Error loading users: ${error.message}</div>`;
+            });
+    }
+    
+    // Render user list with pagination
+    function renderUserList(users, pagination) {
+        const userListContainer = document.getElementById('userListContainer');
+        if (!userListContainer) return;
+        
+        // Create user list table
+        let html = '';
+        
+        if (users.length === 0) {
+            html = '<div class="no-results">No users found</div>';
+        } else {
+            html = `
+                <table class="users-table">
+                    <thead>
+                        <tr>
+                            <th>Avatar</th>
+                            <th>Username</th>
+                            <th>Email</th>
+                            <th>Country</th>
+                            <th>Status</th>
+                            <th>Date Registered</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            users.forEach(user => {
+                // Format date as DD.MM.YYYY
+                const registeredDate = user.registered_date 
+                    ? new Date(user.registered_date).toLocaleDateString('en-GB', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit'
+                      }).replace(/\//g, '.')
+                    : 'Unknown';
+                
+                html += `
+                    <tr>
+                        <td>
+                            <div class="user-avatar">
+                                <img src="${user.avatar}" alt="${user.username}">
+                            </div>
+                        </td>
+                        <td>${user.username}</td>
+                        <td>${user.email}</td>
+                        <td>${user.country || '-'}</td>
+                        <td>
+                            <span class="status-badge ${user.is_online ? 'online' : 'offline'}">
+                                ${user.is_online ? 'Online' : 'Offline'}
+                            </span>
+                        </td>
+                        <td>${registeredDate}</td>
+                        <td>
+                            <button class="delete-user-btn" data-id="${user.id}" data-username="${user.username}">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            
+            // Add pagination controls
+            if (pagination.pages > 1) {
+                html += '<div class="pagination">';
+                
+                // Previous button
+                if (pagination.page > 1) {
+                    html += `<button class="pagination-btn" data-page="${pagination.page - 1}">Previous</button>`;
+                }
+                
+                // Page numbers
+                for (let i = 1; i <= pagination.pages; i++) {
+                    if (
+                        i === 1 || 
+                        i === pagination.pages || 
+                        (i >= pagination.page - 1 && i <= pagination.page + 1)
+                    ) {
+                        html += `<button class="pagination-btn ${i === pagination.page ? 'active' : ''}" data-page="${i}">${i}</button>`;
+                    } else if (
+                        i === pagination.page - 2 || 
+                        i === pagination.page + 2
+                    ) {
+                        html += '<span class="pagination-ellipsis">...</span>';
+                    }
+                }
+                
+                // Next button
+                if (pagination.page < pagination.pages) {
+                    html += `<button class="pagination-btn" data-page="${pagination.page + 1}">Next</button>`;
+                }
+                
+                html += '</div>';
+            }
+        }
+        
+        userListContainer.innerHTML = html;
+        
+        // Add event listeners for pagination buttons
+        const paginationButtons = userListContainer.querySelectorAll('.pagination-btn');
+        paginationButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const page = parseInt(this.getAttribute('data-page'));
+                loadRegisteredUsers(page, pagination.limit);
+            });
+        });
+        
+        // Add event listeners for delete buttons
+        const deleteButtons = userListContainer.querySelectorAll('.delete-user-btn');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const userId = this.getAttribute('data-id');
+                const username = this.getAttribute('data-username');
+                confirmDeleteUser(userId, username);
+            });
+        });
+    }
+    
+    // Confirm user deletion
+    function confirmDeleteUser(userId, username) {
+        Swal.fire({
+            title: 'Delete user?',
+            html: `Are you sure you want to delete <strong>${username}</strong>?<br>This action cannot be undone.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete user',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                deleteUser(userId, username);
+            }
+        });
+    }
+    
+    // Delete user function
+    function deleteUser(userId, username) {
+        // Show loading state
+        Swal.fire({
+            title: 'Deleting user...',
+            html: `Deleting ${username}...`,
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Call the API to delete the user
+        fetch(`/api/admin/users/${userId}`, {
+            method: 'DELETE'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    title: 'User deleted!',
+                    html: data.message,
+                    icon: 'success'
+                }).then(() => {
+                    // Reload the user list
+                    loadRegisteredUsers();
+                    // Also reload the user stats as counts have changed
+                    loadUserStats();
+                });
+            } else {
+                Swal.fire({
+                    title: 'Error',
+                    html: data.error || 'An error occurred while deleting the user',
+                    icon: 'error'
+                });
+            }
+        })
+        .catch(error => {
+            Swal.fire({
+                title: 'Error',
+                html: `Failed to delete user: ${error.message}`,
+                icon: 'error'
+            });
+        });
+    }
+    
+    // Set up search functionality for user list
+    const userSearchInput = document.getElementById('userSearchInput');
+    const userSearchButton = document.getElementById('userSearchButton');
+    
+    if (userSearchInput && userSearchButton) {
+        userSearchButton.addEventListener('click', function() {
+            const search = userSearchInput.value.trim();
+            loadRegisteredUsers(1, 10, search);
+        });
+        
+        userSearchInput.addEventListener('keyup', function(event) {
+            if (event.key === 'Enter') {
+                userSearchButton.click();
             }
         });
     }

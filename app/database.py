@@ -58,6 +58,8 @@ class User(Base):
     is_online = Column(Boolean, default=False)
     last_seen = Column(DateTime, nullable=True)
     avatar = Column(String, default="/static/images/shrek.jpg")
+    # Add registration_date field with default value of current time
+    registration_date = Column(DateTime, default=datetime.utcnow)
 
     rooms = relationship(
         "Room",

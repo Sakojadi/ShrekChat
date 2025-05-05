@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_
@@ -10,6 +10,19 @@ from app.database import User, Room, Message, GroupChat, room_members
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
+
+# Add root route that redirects to the chat page or login page
+@router.get("/")
+async def root(request: Request):
+    """Redirect to chat page or login page if not authenticated"""
+    # Check if user is logged in by looking at session
+    username = request.session.get("username")
+    if username:
+        # User is logged in, redirect to chat page
+        return RedirectResponse(url="/chat")
+    else:
+        # User is not logged in, redirect to login page
+        return RedirectResponse(url="/login")
 
 # Add new endpoint to get user profile
 @router.get("/api/user/{user_id}/profile")
