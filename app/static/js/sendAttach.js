@@ -202,10 +202,27 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             // Hide loading indicator
             hideSendingAttachmentIndicator();
-            
-            // Display the message with attachment in the chat
+              // Display the message with attachment in the chat
             if (window.displayMessage && data.message) {
                 window.displayMessage(data.message);
+            }
+            
+            // Get appropriate display content based on attachment type
+            let displayContent = '';
+            if (window.shrekChatUtils && typeof window.shrekChatUtils.getAttachmentDisplayName === 'function') {
+                displayContent = window.shrekChatUtils.getAttachmentDisplayName(data.message);
+            } else {
+                // Fallback if utility function not available
+                if (type === 'photo') displayContent = '📷 Photo';
+                else if (type === 'video') displayContent = '🎥 Video';
+                else if (type === 'document') displayContent = '📄 Document';
+                else if (type === 'audio') displayContent = '🎵 Audio';
+                else displayContent = '📎 Attachment';
+            }
+            
+            // Update last message in sidebar
+            if (window.shrekChatUtils && window.shrekChatUtils.updateLastMessage) {
+                window.shrekChatUtils.updateLastMessage(currentRoomId, displayContent, data.message.time);
             }
         })
         .catch(error => {
@@ -234,8 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
         else if (type === 'video') icon = 'fa-video';
         else if (type === 'document') icon = 'fa-file-alt';
         else if (type === 'audio') icon = 'fa-music';
-        
-        loadingElement.innerHTML = `
+          loadingElement.innerHTML = `
             <div class="message-content">
                 <div class="attachment-preview">
                     <i class="fas ${icon}"></i>
@@ -249,6 +265,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div class="message-info">
                 <span class="message-time">Sending...</span>
+                <div class="message-status">
+                    <i class="fas fa-clock"></i>
+                </div>
             </div>
         `;
         

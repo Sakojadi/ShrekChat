@@ -324,6 +324,34 @@ function updateRoomList(roomData) {
     }
 }
 
+// Helper function to get consistent display name for attachments
+function getAttachmentDisplayName(message) {
+    // Use the provided display_name if available
+    if (message.display_name) {
+        return message.display_name;
+    }
+    
+    // Otherwise determine from content/attachment type
+    if (message.content) {
+        if (message.content.includes('<img-attachment')) return '📷 Photo';
+        if (message.content.includes('<video-attachment')) return '🎥 Video';
+        if (message.content.includes('<audio-attachment')) return '🎵 Audio';
+        if (message.content.includes('<doc-attachment')) return '📄 Document';
+    }
+    
+    // Check legacy attachment format
+    if (message.attachment && message.attachment.type) {
+        const type = message.attachment.type;
+        if (type === 'photo' || type === 'image') return '📷 Photo';
+        if (type === 'video') return '🎥 Video';
+        if (type === 'audio') return '🎵 Audio';
+        return `📎 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    }
+    
+    // Default fallback
+    return '📎 Attachment';
+}
+
 // Export all utility functions
 window.shrekChatUtils = {
     formatTime,
@@ -334,5 +362,6 @@ window.shrekChatUtils = {
     updateLastMessage,
     incrementUnreadCount,
     updateRoomList,
+    getAttachmentDisplayName,
     statusCache
 };

@@ -178,18 +178,20 @@ async function sendAudioMessage(audioBlob) {
         const result = await response.json();
         if (result.success) {
             console.log('Audio message sent successfully');
-            
-            // Create a temporary message element
+              // Create a temporary message element
             const messageElement = document.createElement('div');
             messageElement.className = 'message outgoing';
             messageElement.setAttribute('data-temp-message', 'true');
+            
+            // Generate a temporary message ID for tracking
+            const tempId = `temp-${Date.now()}`;
+            messageElement.setAttribute('data-message-id', tempId);
             
             // Get current time
             const now = new Date();
             const timeStr = window.shrekChatUtils?.formatTime(now) || 
                 now.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', hour12:false});
-            
-            // Create audio player
+              // Create audio player
             const audioUrl = URL.createObjectURL(audioBlob);
             messageElement.innerHTML = `
                 <div class="message-content">
@@ -197,18 +199,18 @@ async function sendAudioMessage(audioBlob) {
                         <audio src="${audioUrl}" controls></audio>
                         <div class="attachment-info">
                             <span class="attachment-name">audio-message.mp3</span>
-                    </div>
+                        </div>
                     </div>
                 </div>
                 <div class="message-info">
                     <div class="message-time">${timeStr}</div>
                     <div class="message-status">
-
+                        <i class="fas fa-check message-status-single"></i>
+                        <i class="fas fa-check-double message-status-double"></i>
                     </div>
                 </div>
             `;
-            
-            // Add message to chat
+              // Add message to chat
             const chatMessages = document.getElementById('chatMessages');
             if (chatMessages) {
                 chatMessages.appendChild(messageElement);
@@ -218,6 +220,27 @@ async function sendAudioMessage(audioBlob) {
             // Update last message in sidebar
             if (window.shrekChatUtils && window.shrekChatUtils.updateLastMessage) {
                 window.shrekChatUtils.updateLastMessage(roomId, '🎵 Audio message', timeStr);
+            }
+            
+            // Update the message with the real message ID from the server response
+            if (result.message && result.message.id) {
+                // Remove temp flag and set the real message ID
+                messageElement.removeAttribute('data-temp-message');
+                messageElement.setAttribute('data-message-id', result.message.id);
+                
+                // Update message status indicators
+                const messageStatusSingle = messageElement.querySelector('.message-status-single');
+                const messageStatusDouble = messageElement.querySelector('.message-status-double');
+                
+                if (messageStatusSingle && messageStatusDouble) {
+                    messageStatusSingle.style.display = 'none';
+                    messageStatusDouble.style.display = 'inline';
+                }
+                
+                // Check if we need to update for read status
+                if (result.message.read) {
+                    messageStatusDouble.classList.add('read');
+                }
             }
         } else {
             throw new Error('Failed to send audio message');

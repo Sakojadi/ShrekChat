@@ -843,8 +843,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         </div>
                     `;
                     messageContent.innerHTML = attachmentContent;
-                }
-                // Check for audio attachments
+                }                // Check for audio attachments
                 else if (message.content.includes('<audio-attachment')) {
                     hasAttachment = true;
                     const src = message.content.match(/src='([^']+)'/)[1];
@@ -852,7 +851,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     attachmentContent = `
                         <div class="attachment-preview">
                             <audio src="${src}" controls></audio>
-                            <div class="attachment-name">${filename}</div>
+                            <div class="attachment-info">
+                                <span class="attachment-name">${filename}</span>
+                            </div>
                         </div>
                     `;
                     messageContent.innerHTML = attachmentContent;

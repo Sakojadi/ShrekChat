@@ -544,7 +544,7 @@ function handleChatMessage(data) {
     // Update sidebar UI with new message info
     if (window.shrekChatUtils) {
         // Get consistent display name for attachments
-        let displayContent = isAttachment ? getAttachmentDisplayName(message) : message.content;
+        let displayContent = isAttachment ? window.shrekChatUtils.getAttachmentDisplayName(message) : message.content;
         
         // Mark translated messages in sidebar
         if (isTranslated) {
@@ -619,7 +619,7 @@ function processConfirmedMessage(message, isAttachment) {
             // Update sidebar for sender's own attachments
             if (window.shrekChatUtils) {
                 // Get consistent display name for the attachment
-                let displayContent = getAttachmentDisplayName(message);
+                let displayContent = windoww.shrekChatUtils.getAttachmentDisplayName(message);
                 
                 // Force update the sidebar display for the sender
                 window.shrekChatUtils.updateLastMessage(message.room_id, displayContent, message.time);
@@ -633,33 +633,6 @@ function processConfirmedMessage(message, isAttachment) {
     }
 }
 
-// Helper function to get consistent display name for attachments
-function getAttachmentDisplayName(message) {
-    // Use the provided display_name if available
-    if (message.display_name) {
-        return message.display_name;
-    }
-    
-    // Otherwise determine from content/attachment type
-    if (message.content) {
-        if (message.content.includes('<img-attachment')) return '📷 Photo';
-        if (message.content.includes('<video-attachment')) return '🎥 Video';
-        if (message.content.includes('<audio-attachment')) return '🎵 Audio';
-        if (message.content.includes('<doc-attachment')) return '📄 Document';
-    }
-    
-    // Check legacy attachment format
-    if (message.attachment && message.attachment.type) {
-        const type = message.attachment.type;
-        if (type === 'photo' || type === 'image') return '📷 Photo';
-        if (type === 'video') return '🎥 Video';
-        if (type === 'audio') return '🎵 Audio';
-        return `📎 ${type.charAt(0).toUpperCase() + type.slice(1)}`;
-    }
-    
-    // Default fallback
-    return '📎 Attachment';
-}
 
 // Process an incoming message from another user    
 function processIncomingMessage(message, isAttachment) {
@@ -713,14 +686,15 @@ function updateAttachmentContent(messageElement, content, attachmentData) {
                 <div class="attachment-preview">
                     <video src="${src}" controls preload="metadata"></video>
                 </div>
-            `;
-        } else if (content.includes('<audio-attachment')) {
+            `;        } else if (content.includes('<audio-attachment')) {
             const src = content.match(/src='([^']+)'/)[1];
             const filename = content.match(/filename='([^']+)'/)[1];
             messageContent.innerHTML = `
                 <div class="attachment-preview">
                     <audio src="${src}" controls></audio>
-                    <div class="attachment-name">${filename}</div>
+                    <div class="attachment-info">
+                        <span class="attachment-name">${filename}</span>
+                    </div>
                 </div>
             `;
         } else if (content.includes('<doc-attachment')) {
@@ -750,12 +724,13 @@ function updateAttachmentContent(messageElement, content, attachmentData) {
                 <div class="attachment-preview">
                     <video src="${url}" controls preload="metadata"></video>
                 </div>
-            `;
-        } else if (type === 'audio') {
+            `;        } else if (type === 'audio') {
             messageContent.innerHTML = `
                 <div class="attachment-preview">
                     <audio src="${url}" controls></audio>
-                    <div class="attachment-name">${filename}</div>
+                    <div class="attachment-info">
+                        <span class="attachment-name">${filename}</span>
+                    </div>
                 </div>
             `;
         } else {
