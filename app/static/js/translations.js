@@ -361,6 +361,12 @@ function toggleOriginalText(messageElement) {
     const translatedText = messageElement.dataset.translatedText;
     const showOriginalBtn = messageElement.querySelector('.show-original-btn');
     
+    // Get current translation state for persistence
+    const newShowingTranslated = !messageElement.classList.contains('translated');
+    
+    // Store user preference for consistent experience
+    sessionStorage.setItem('showing_translated', newShowingTranslated ? 'true' : 'false');
+    
     // If currently showing translation, switch to original
     if (messageElement.classList.contains('translated')) {
         // Only switch if we have the original text
@@ -389,9 +395,18 @@ function toggleOriginalText(messageElement) {
 function attachTranslationButtons() {
     const messages = document.querySelectorAll('.message');
     
+    
     messages.forEach(message => {
         // Skip if button already exists
         if (message.querySelector('.translate-btn')) {
+            return;
+        }
+        
+        // Skip attachments - don't add translation button to them
+        const messageContent = message.querySelector('.message-content');
+        if (messageContent && 
+            (messageContent.querySelector('.attachment-preview') || 
+             messageContent.querySelector('.attachment-document'))) {
             return;
         }
         
@@ -406,18 +421,35 @@ function attachTranslationButtons() {
             // This ensures translations don't affect the original sender's view
             const isOutgoing = message.classList.contains('outgoing');
             const messageContent = message.querySelector('.message-content');
-            
-            if (messageContent && !isOutgoing) {
+              if (messageContent && !isOutgoing) {
+                // Store both original and translated text
                 message.dataset.originalText = storedTranslation.originalText;
                 message.dataset.translatedText = storedTranslation.translatedText;
-                message.classList.add('translated');
-                messageContent.textContent = storedTranslation.translatedText;
                 
-                // Add "Show Original" button if not already present
+                // Check user preference for translations
+                const showingTranslated = sessionStorage.getItem('showing_translated') !== 'false'; // Default to true
+                
+                if (showingTranslated) {
+                    // User prefers translated text
+                    message.classList.add('translated');
+                    messageContent.textContent = storedTranslation.translatedText;
+                } else {
+                    // User prefers original text
+                    messageContent.textContent = storedTranslation.originalText;
+                }
+                
+                // Add "Show Original/Translated" button if not already present
                 if (!message.querySelector('.show-original-btn')) {
                     const showOriginalBtn = document.createElement('button');
                     showOriginalBtn.className = 'show-original-btn';
-                    showOriginalBtn.innerHTML = '<i class="fas fa-language"></i> Original';
+                    
+                    // Set button text based on current state
+                    if (showingTranslated) {
+                        showOriginalBtn.innerHTML = '<i class="fas fa-language"></i> Original';
+                    } else {
+                        showOriginalBtn.innerHTML = '<i class="fas fa-language"></i> Translated';
+                    }
+                    
                     showOriginalBtn.addEventListener('click', (e) => {
                         e.stopPropagation();
                         toggleOriginalText(message);
@@ -604,6 +636,11 @@ function attachSendMessageHandler() {
 function initializeTranslation() {
     // Add translation styles
     addTranslationStyles();
+    
+    // Set default translation preference if not already set
+    if (sessionStorage.getItem('showing_translated') === null) {
+        sessionStorage.setItem('showing_translated', 'true');
+    }
     
     // Attach translation buttons to existing messages
     attachTranslationButtons();
