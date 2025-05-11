@@ -152,40 +152,45 @@ async def get_activity_stats(db: Session = Depends(get_db)):
         # Current date for time-based queries
         now = datetime.utcnow()
         today_start = datetime(now.year, now.month, now.day)
-        
+
         # Active users right now (online users) - This will work correctly
         active_users_now = db.query(func.count(User.id)).filter(User.is_online == True).scalar()
-        
+
         # Active users today (users who logged in today) - This should work if last_seen is updated
         active_users_today = db.query(func.count(User.id)).filter(
             User.last_seen >= today_start
         ).scalar() or 0  # Default to 0 if None
-        
+
         # Calculate average daily active users over the past week using actual login data
-        week_start = today_start - timedelta(days=7)
-        
-        # For each of the past 7 days, count unique users who were active
+        # week_start = today_start - timedelta(days=7) # This variable is not needed here
+
+        # For each of the past 7 days (including today), count unique users who were active
         daily_active_users = []
         for i in range(7):
             day_start = today_start - timedelta(days=i)
             day_end = day_start + timedelta(days=1)
-            
+
             # Count users who were seen on this day
             day_active = db.query(func.count(distinct(User.id))).filter(
                 User.last_seen >= day_start,
                 User.last_seen < day_end
             ).scalar() or 0
-            
+
             daily_active_users.append(day_active)
-        
-        # Calculate the average (exclude today if it's early in the day)
-        if len(daily_active_users) > 1:
-            avg_daily_active = round(sum(daily_active_users[1:]) / (len(daily_active_users) - 1), 1)
+
+        # Calculate the average over the past 7 days
+        total_active_users_past_week = sum(daily_active_users)
+        num_days = len(daily_active_users) # This should be 7
+
+        if num_days > 0:
+            # Calculate average and cast to integer
+            avg_daily_active = int(round(total_active_users_past_week / num_days))
         else:
-            avg_daily_active = daily_active_users[0] if daily_active_users else 0
-        
+            # Fallback if no data was collected (shouldn't happen with range(7))
+            avg_daily_active = 0
+
         # Find peak activity hours based on message timestamps
-        week_start = today_start - timedelta(days=7)
+        week_start = today_start - timedelta(days=7) # This variable is used here
         hour_counts = db.query(
             extract('hour', Message.timestamp).label('hour'),
             func.count(Message.id).label('count')
@@ -196,51 +201,51 @@ async def get_activity_stats(db: Session = Depends(get_db)):
         ).order_by(
             func.count(Message.id).desc()
         ).first()
-        
+
         # If we have message data with timestamps, use it
         if hour_counts:
             peak_hour = hour_counts.hour
-            peak_hour_formatted = f"{int(peak_hour)}:00 - {int(peak_hour)+1}:00"
+            peak_hour_formatted = f"{int(peak_hour):02d}:00 - {int(peak_hour)+1:02d}:00"
         else:
             # Default to evening hours if no data
             peak_hour_formatted = "20:00 - 21:00"
-        
+
         # Get weekly activity pattern from actual messages
         weekday_activity = []
         weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        
+
         # Get the date for last Monday (start of the week)
         last_monday = today_start - timedelta(days=today_start.weekday())
-        
+
         for i in range(7):
             day_date = last_monday + timedelta(days=i)
             day_end = day_date + timedelta(days=1)
-            
+
             # Get actual message count for this day
             message_count = db.query(func.count(Message.id)).filter(
                 Message.timestamp >= day_date,
                 Message.timestamp < day_end
             ).scalar() or 0
-            
+
             # Get unique active users for this day based on message sending
             unique_active_users = db.query(func.count(distinct(Message.sender_id))).filter(
                 Message.timestamp >= day_date,
                 Message.timestamp < day_end
             ).scalar() or 0
-            
+
             # If we have no messages but have login data, use that
             if unique_active_users == 0:
                 unique_active_users = db.query(func.count(distinct(User.id))).filter(
                     User.last_seen >= day_date,
                     User.last_seen < day_end
                 ).scalar() or 0
-            
+
             weekday_activity.append({
                 "day": weekdays[i],
                 "active_users": unique_active_users,
                 "message_count": message_count
             })
-        
+
         return {
             "success": True,
             "data": {
@@ -253,6 +258,7 @@ async def get_activity_stats(db: Session = Depends(get_db)):
         }
     except Exception as e:
         return {"success": False, "error": str(e)}
+
         
 
 @router.get("/stats/messages")
