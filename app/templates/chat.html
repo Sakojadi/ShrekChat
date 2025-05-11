@@ -240,7 +240,7 @@
                         <span class="slider round"></span>
                     </label>
                 </div>
-                <div class="profile-menu-item">
+                <div class="profile-menu-item" id="inviteFriendsMenuItem">
                     <i class="fas fa-user-friends"></i>
                     <span>Invite friends</span>
                 </div>
@@ -614,6 +614,7 @@
                     <button class="stats-tab" data-tab="activityStats">Activity Stats</button>
                     <button class="stats-tab" data-tab="messageStats">Message Stats</button>
                     <button class="stats-tab" data-tab="registeredUsers">Registered Users</button>
+                    <button class="stats-tab" data-tab="blockStats">Blocking Stats</button>
                 </div>
                 
                 <div class="stats-content">
@@ -727,6 +728,25 @@
                         </div>
                         <div id="userListContainer" class="user-list-container">
                             <div class="loading">Click on this tab to load users...</div>
+                        </div>
+                    </div>
+
+                    <!-- Blocking Statistics -->
+                    <div id="blockStats" class="stats-panel">
+                        <h4>Blocking Statistics</h4>
+                        <div class="stats-card">
+                            <div class="stats-item">
+                                <span class="stats-label">Total Blocked Users</span>
+                                <span id="totalBlockedUsers" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Blocked Today</span>
+                                <span id="blockedToday" class="stats-value">0</span>
+                            </div>
+                            <div class="stats-item">
+                                <span class="stats-label">Most Blocked User</span>
+                                <span id="mostBlockedUser" class="stats-value">-</span>
+                            </div>
                         </div>
                     </div>
                 </div>

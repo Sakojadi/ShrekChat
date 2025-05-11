@@ -508,3 +508,65 @@ async def delete_user(
         if isinstance(e, HTTPException):
             raise e
         return {"success": False, "error": str(e)}
+
+@router.get("/stats/blocks")
+async def get_block_stats(db: Session = Depends(get_db)):
+    """
+    Get statistics about blocked users
+    """
+    try:
+        # Current date for time-based queries
+        now = datetime.utcnow()
+        today_start = datetime(now.year, now.month, now.day)
+
+        # Total blocked users
+        # Use func.count() to count rows in the BlockedUser table
+        total_blocked_users = db.query(func.count()).select_from(BlockedUser).scalar() or 0
+
+        # Users blocked today
+        # Use func.count() to count rows filtered by blocked_at date
+        blocked_today = db.query(func.count()).select_from(BlockedUser).filter(
+            BlockedUser.blocked_at >= today_start
+        ).scalar() or 0
+
+        # Most blocked user
+        # Count blocks using blocked_user_id which is the target of the block
+        most_blocked_user = db.query(
+            User.id,
+            User.username,
+            User.avatar,
+            func.count(BlockedUser.blocked_user_id).label('block_count')
+        ).join(
+            BlockedUser, BlockedUser.blocked_user_id == User.id
+        ).group_by(
+            User.id, User.username, User.avatar # Group by all selected columns
+        ).order_by(
+            func.count(BlockedUser.blocked_user_id).desc()
+        ).first()
+
+        # Format most blocked user data
+        if most_blocked_user:
+            most_blocked_user_data = {
+                "id": most_blocked_user.id,
+                "username": most_blocked_user.username,
+                "avatar": most_blocked_user.avatar,
+                "block_count": most_blocked_user.block_count
+            }
+        else:
+            most_blocked_user_data = {
+                "id": None,
+                "username": "No blocked users",
+                "avatar": "/static/images/shrek.jpg",
+                "block_count": 0
+            }
+
+        return {
+            "success": True,
+            "data": {
+                "total_blocked_users": total_blocked_users,
+                "blocked_today": blocked_today,
+                "most_blocked_user": most_blocked_user_data
+            }
+        }
+    except Exception as e:
+        return {"success": False, "error": str(e)}

@@ -6,7 +6,7 @@
 document.addEventListener('DOMContentLoaded', function() {
     // Constants
     const ADMIN_PASSWORD = "shrek1234"; // Hardcoded password for admin access
-    
+
     // DOM Elements
     const adminMenuItem = document.getElementById('adminMenuItem');
     const adminPanelPopup = document.getElementById('adminPanelPopup');
@@ -16,10 +16,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const adminPassword = document.getElementById('adminPassword');
     const adminLoginBtn = document.getElementById('adminLoginBtn');
     const overlay = document.getElementById('overlay');
-    
+
     // Initialize Chart.js
     let charts = {};
-    
+
     // Set up event listeners
     if (adminMenuItem) {
         adminMenuItem.addEventListener('click', function() {
@@ -28,21 +28,21 @@ document.addEventListener('DOMContentLoaded', function() {
             if (profileSidebar) {
                 profileSidebar.classList.remove('active');
             }
-            
+
             // Show the admin panel popup
             if (adminPanelPopup) {
                 adminPanelPopup.classList.add('open');
-                
+
                 // Show overlay
                 if (overlay) {
                     overlay.classList.add('active');
                 }
-                
+
                 // Reset the auth form
                 if (adminPassword) {
                     adminPassword.value = '';
                 }
-                
+
                 // Show auth section, hide stats section
                 if (adminAuthSection && adminStatsSection) {
                     adminAuthSection.style.display = 'block';
@@ -51,12 +51,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Close button event listener
     if (closeAdminPanelPopup) {
         closeAdminPanelPopup.addEventListener('click', closeAdminPanel);
     }
-    
+
     // Close when clicking on overlay
     if (overlay) {
         overlay.addEventListener('click', function(e) {
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Admin login button
     if (adminLoginBtn) {
         adminLoginBtn.addEventListener('click', function() {
@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Hide auth section, show stats section
                 adminAuthSection.style.display = 'none';
                 adminStatsSection.style.display = 'block';
-                
+
                 // Load statistics
                 loadAllStats();
             } else {
@@ -88,7 +88,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Tab switching
     const tabs = document.querySelectorAll('.stats-tab');
     if (tabs) {
@@ -96,26 +96,26 @@ document.addEventListener('DOMContentLoaded', function() {
             tab.addEventListener('click', function() {
                 // Remove active class from all tabs
                 tabs.forEach(t => t.classList.remove('active'));
-                
+
                 // Add active class to clicked tab
                 this.classList.add('active');
-                
+
                 // Hide all panels
                 document.querySelectorAll('.stats-panel').forEach(panel => {
                     panel.classList.remove('active');
                 });
-                
+
                 // Show the selected panel
                 const tabId = this.getAttribute('data-tab');
                 const panel = document.getElementById(tabId);
                 if (panel) {
                     panel.classList.add('active');
-                    
+
                     // Resize charts if they exist
                     if (charts[tabId]) {
                         charts[tabId].resize();
                     }
-                    
+
                     // If users tab is selected, load user list
                     if (tabId === 'registeredUsers' && !panel.querySelector('.user-list-loaded')) {
                         loadRegisteredUsers();
@@ -125,17 +125,17 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     // Close admin panel function
     function closeAdminPanel() {
         if (adminPanelPopup) {
             adminPanelPopup.classList.remove('open');
         }
-        
+
         if (overlay) {
             overlay.classList.remove('active');
         }
-        
+
         // Destroy charts
         Object.values(charts).forEach(chart => {
             if (chart && typeof chart.destroy === 'function') {
@@ -144,14 +144,15 @@ document.addEventListener('DOMContentLoaded', function() {
         });
         charts = {};
     }
-    
+
     // Load all statistics
     function loadAllStats() {
         loadUserStats();
         loadActivityStats();
         loadMessageStats();
+        loadBlockStats();
     }
-    
+
     // Load user statistics from API
     function loadUserStats() {
         // Show loading state
@@ -159,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('newUsersToday').textContent = '...';
         document.getElementById('newUsersWeek').textContent = '...';
         document.getElementById('newUsersMonth').textContent = '...';
-        
+
         // Fetch data from API
         fetch('/api/admin/stats/users')
             .then(response => {
@@ -175,10 +176,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('newUsersToday').textContent = data.data.new_users_today.toLocaleString();
                     document.getElementById('newUsersWeek').textContent = data.data.new_users_week.toLocaleString();
                     document.getElementById('newUsersMonth').textContent = data.data.new_users_month.toLocaleString();
-                    
+
                     // Update most active user
                     updateMostActiveUser(data.data.most_active_user);
-                    
+
                     // Create chart with real data
                     createUserRegistrationChart(data.data.monthly_registrations);
                 } else {
@@ -191,7 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 showErrorState('userStats');
             });
     }
-    
+
     // Update most active user card
     function updateMostActiveUser(userData) {
         const mostActiveUserCard = document.getElementById('mostActiveUser');
@@ -207,20 +208,20 @@ document.addEventListener('DOMContentLoaded', function() {
             `;
         }
     }
-    
+
     // Create user registration chart
     function createUserRegistrationChart(monthlyData) {
         const ctx = document.getElementById('userRegistrationChart').getContext('2d');
-        
+
         // Extract labels and data from API response
         const labels = monthlyData.map(item => item.month);
         const values = monthlyData.map(item => item.count);
-        
+
         // Destroy existing chart if it exists
         if (charts.userStats) {
             charts.userStats.destroy();
         }
-        
+
         // Create new chart
         charts.userStats = new Chart(ctx, {
             type: 'line',
@@ -262,7 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Load activity statistics
     function loadActivityStats() {
         // Show loading state
@@ -270,7 +271,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('activeUsersToday').textContent = '...';
         document.getElementById('avgDailyActiveUsers').textContent = '...';
         document.getElementById('peakActivityTime').textContent = '...';
-        
+
         // Fetch data from API
         fetch('/api/admin/stats/activity')
             .then(response => {
@@ -286,7 +287,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('activeUsersToday').textContent = data.data.active_users_today.toLocaleString();
                     document.getElementById('avgDailyActiveUsers').textContent = data.data.avg_daily_active.toLocaleString();
                     document.getElementById('peakActivityTime').textContent = data.data.peak_activity_time;
-                    
+
                     // Create chart with real data
                     createActivityChart(data.data.weekday_activity);
                 } else {
@@ -299,21 +300,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 showErrorState('activityStats');
             });
     }
-    
+
     // Create activity chart
     function createActivityChart(weekdayData) {
         const ctx = document.getElementById('userActivityChart').getContext('2d');
-        
+
         // Extract labels and data from API response
         const labels = weekdayData.map(item => item.day);
         const activeUsers = weekdayData.map(item => item.active_users);
         const messageCount = weekdayData.map(item => item.message_count);
-        
+
         // Destroy existing chart if it exists
         if (charts.activityStats) {
             charts.activityStats.destroy();
         }
-        
+
         // Create new chart
         charts.activityStats = new Chart(ctx, {
             type: 'bar',
@@ -359,7 +360,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Load message statistics
     function loadMessageStats() {
         // Show loading state
@@ -367,7 +368,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('messagesToday').textContent = '...';
         document.getElementById('avgMessagesPerDay').textContent = '...';
         document.getElementById('mostActiveChat').textContent = '...';
-        
+
         // Fetch data from API
         fetch('/api/admin/stats/messages')
             .then(response => {
@@ -383,7 +384,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('messagesToday').textContent = data.data.messages_today.toLocaleString();
                     document.getElementById('avgMessagesPerDay').textContent = data.data.avg_messages_per_day.toLocaleString();
                     document.getElementById('mostActiveChat').textContent = data.data.most_active_chat;
-                    
+
                     // Create chart with real data
                     createMessageVolumeChart(data.data.hourly_distribution);
                 } else {
@@ -396,20 +397,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 showErrorState('messageStats');
             });
     }
-    
+
     // Create message volume chart
     function createMessageVolumeChart(hourlyData) {
         const ctx = document.getElementById('messageVolumeChart').getContext('2d');
-        
+
         // Extract labels and data from API response
         const labels = hourlyData.map(item => item.hour);
         const values = hourlyData.map(item => item.message_count);
-        
+
         // Destroy existing chart if it exists
         if (charts.messageStats) {
             charts.messageStats.destroy();
         }
-        
+
         // Create new chart
         charts.messageStats = new Chart(ctx, {
             type: 'line',
@@ -444,25 +445,71 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
+    // Load blocking statistics from API
+    function loadBlockStats() {
+        // Show loading state
+        document.getElementById('totalBlockedUsers').textContent = '...';
+        document.getElementById('blockedToday').textContent = '...';
+        document.getElementById('mostBlockedUser').textContent = '...';
+
+        // Fetch data from API
+        fetch('/api/admin/stats/blocks')
+            .then(response => {
+                if (!response.ok) {
+                    // If response is not OK (e.g., 404, 500), throw an error with status
+                    return response.text().then(text => {
+                        throw new Error(`Failed to fetch blocking statistics: ${response.status} ${response.statusText} - ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.success) {
+                    // Update statistics
+                    document.getElementById('totalBlockedUsers').textContent = data.data.total_blocked_users.toLocaleString(); // Added .toLocaleString()
+                    document.getElementById('blockedToday').textContent = data.data.blocked_today.toLocaleString(); // Added .toLocaleString()
+
+                    const mostBlockedUser = data.data.most_blocked_user;
+                    if (mostBlockedUser && mostBlockedUser.id) { // Added check for mostBlockedUser existence
+                        document.getElementById('mostBlockedUser').textContent = `${mostBlockedUser.username} (${mostBlockedUser.block_count} blocks)`;
+                    } else {
+                        document.getElementById('mostBlockedUser').textContent = 'No blocked users';
+                    }
+                } else {
+                    // If success is false, log the backend error message
+                    console.error('Failed to load blocking statistics:', data.error);
+                    showErrorState('blockStats'); // This function already sets text to 'Error'
+                    // Optionally, display the specific error message to the user
+                    // Swal.fire({ icon: 'error', title: 'Error Loading Stats', text: data.error });
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching blocking statistics:', error);
+                showErrorState('blockStats');
+                // Optionally, display the specific error message to the user
+                // Swal.fire({ icon: 'error', title: 'Network Error', text: error.message });
+            });
+    }
+
     // Load registered users list
     function loadRegisteredUsers(page = 1, limit = 10, search = '') {
         const userListContainer = document.getElementById('userListContainer');
         if (!userListContainer) return;
-        
+
         // Show loading state
         userListContainer.innerHTML = '<div class="loading">Loading users...</div>';
-        
+
         // Build the query parameters
         const params = new URLSearchParams({
             page: page,
             limit: limit
         });
-        
+
         if (search) {
             params.append('search', search);
         }
-        
+
         // Fetch user list from API
         fetch(`/api/admin/users/list?${params.toString()}`)
             .then(response => {
@@ -482,15 +529,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 userListContainer.innerHTML = `<div class="error">Error loading users: ${error.message}</div>`;
             });
     }
-    
+
     // Render user list with pagination
     function renderUserList(users, pagination) {
         const userListContainer = document.getElementById('userListContainer');
         if (!userListContainer) return;
-        
+
         // Create user list table
         let html = '';
-        
+
         if (users.length === 0) {
             html = '<div class="no-results">No users found</div>';
         } else {
@@ -509,17 +556,17 @@ document.addEventListener('DOMContentLoaded', function() {
                     </thead>
                     <tbody>
             `;
-            
+
             users.forEach(user => {
                 // Format date as DD.MM.YYYY
-                const registeredDate = user.registered_date 
+                const registeredDate = user.registered_date
                     ? new Date(user.registered_date).toLocaleDateString('en-GB', {
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit'
                       }).replace(/\//g, '.')
                     : 'Unknown';
-                
+
                 html += `
                     <tr>
                         <td>
@@ -542,45 +589,45 @@ document.addEventListener('DOMContentLoaded', function() {
                     </tr>
                 `;
             });
-            
+
             html += '</tbody></table>';
-            
+
             // Add pagination controls
             if (pagination.pages > 1) {
                 html += '<div class="pagination">';
-                
+
                 // Previous button
                 if (pagination.page > 1) {
                     html += `<button class="pagination-btn" data-page="${pagination.page - 1}">Previous</button>`;
                 }
-                
+
                 // Page numbers
                 for (let i = 1; i <= pagination.pages; i++) {
                     if (
-                        i === 1 || 
-                        i === pagination.pages || 
+                        i === 1 ||
+                        i === pagination.pages ||
                         (i >= pagination.page - 1 && i <= pagination.page + 1)
                     ) {
                         html += `<button class="pagination-btn ${i === pagination.page ? 'active' : ''}" data-page="${i}">${i}</button>`;
                     } else if (
-                        i === pagination.page - 2 || 
+                        i === pagination.page - 2 ||
                         i === pagination.page + 2
                     ) {
                         html += '<span class="pagination-ellipsis">...</span>';
                     }
                 }
-                
+
                 // Next button
                 if (pagination.page < pagination.pages) {
                     html += `<button class="pagination-btn" data-page="${pagination.page + 1}">Next</button>`;
                 }
-                
+
                 html += '</div>';
             }
         }
-        
+
         userListContainer.innerHTML = html;
-        
+
         // Add event listeners for pagination buttons
         const paginationButtons = userListContainer.querySelectorAll('.pagination-btn');
         paginationButtons.forEach(button => {
@@ -589,7 +636,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 loadRegisteredUsers(page, pagination.limit);
             });
         });
-        
+
         // Add event listeners for delete buttons
         const deleteButtons = userListContainer.querySelectorAll('.delete-user-btn');
         deleteButtons.forEach(button => {
@@ -600,7 +647,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     // Confirm user deletion
     function confirmDeleteUser(userId, username) {
         Swal.fire({
@@ -618,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
-    
+
     // Delete user function
     function deleteUser(userId, username) {
         // Show loading state
@@ -630,7 +677,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 Swal.showLoading();
             }
         });
-        
+
         // Call the API to delete the user
         fetch(`/api/admin/users/${userId}`, {
             method: 'DELETE'
@@ -664,24 +711,24 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     }
-    
+
     // Set up search functionality for user list
     const userSearchInput = document.getElementById('userSearchInput');
     const userSearchButton = document.getElementById('userSearchButton');
-    
+
     if (userSearchInput && userSearchButton) {
         userSearchButton.addEventListener('click', function() {
             const search = userSearchInput.value.trim();
             loadRegisteredUsers(1, 10, search);
         });
-        
+
         userSearchInput.addEventListener('keyup', function(event) {
             if (event.key === 'Enter') {
                 userSearchButton.click();
             }
         });
     }
-    
+
     // Show error state for a panel
     function showErrorState(panelId) {
         const panel = document.getElementById(panelId);
@@ -695,7 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
     }
-    
+
     // Listen for Enter key in password field
     if (adminPassword) {
         adminPassword.addEventListener('keyup', function(event) {

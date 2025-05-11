@@ -16,6 +16,24 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 
+// Add event listener for 'Invite friends' menu item
+    const inviteFriendsMenuItem = document.getElementById('inviteFriendsMenuItem');
+    if (inviteFriendsMenuItem) {
+        inviteFriendsMenuItem.addEventListener('click', function() {
+            const inviteLink = 'https://shrekchat-910587494231.us-central1.run.app';
+            navigator.clipboard.writeText(inviteLink).then(() => {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Link Copied!',
+                    text: 'Invite link has been copied to your clipboard.',
+                    confirmButtonText: 'OK'
+                });
+            }).catch(err => {
+                console.error('Failed to copy invite link:', err);
+            });
+        });
+    }
+
 // Setup profile sidebar functionality
 function setupProfileSidebar() {
     const profileButton = document.getElementById('profileButton');
